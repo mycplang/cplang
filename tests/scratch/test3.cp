@@ -1,0 +1,1 @@
+func u4E3B() { var p = {}; p.x = 10; print(1); }

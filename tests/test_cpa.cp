@@ -1,0 +1,15 @@
+﻿var x = 10;
+x += 5;
+print(x);
+var y = 20;
+y -= 3;
+print(y);
+var z = 3;
+z *= 4;
+print(z);
+var w = 40;
+w /= 4;
+print(w);
+var m = 17;
+m %= 5;
+print(m);

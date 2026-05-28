@@ -1,0 +1,67 @@
+﻿# CP language CI workflow
+name: CI
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM 18
+        shell: pwsh
+        run: |
+          $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/LLVM-18.1.8-win64.exe"
+          $installer = "$env:TEMP\LLVM-18.1.8-win64.exe"
+          Invoke-WebRequest -Uri $llvmUrl -OutFile $installer -UseBasicParsing
+          Start-Process -FilePath $installer -ArgumentList "/S /D=C:\Program Files\LLVM" -Wait -NoNewWindow
+          C:\Program Files\LLVM\bin\llvm-config.exe --version
+
+      - name: Build (MSVC bat)
+        shell: cmd
+        run: call build_msvc.bat
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          # help
+          $h = (.\build\cplang.exe -h 2>&1) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "help failed" }
+          Write-Host "OK: help"
+          # compile and run factorial
+          Set-Content -Path test.cp -Value "函数 阶乘(n) { 如果 n <= 1 { 返回 1; } 返回 n * 阶乘(n - 1); } 打印(阶乘(5));" -Encoding UTF8
+          $r = (.\build\cplang.exe -c test.cp 2>&1) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "compile failed: $r" }
+          if ($r -notmatch "120") { throw "wrong result" }
+          Write-Host "OK: factorial 5! = 120"
+          # hotspot JIT
+          $r = (.\build\cplang.exe -c --hotspot --hotspot-threshold=5 test.cp 2>&1) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "hotspot failed: $r" }
+          Write-Host "OK: hotspot JIT"
+
+      - name: CMake build
+        shell: pwsh
+        run: |
+          cmake -B build_cmake -DCPLANG_USE_LLVM=ON -DCPLANG_BUILD_TESTS=ON -DCPLANG_BUILD_EXAMPLES=OFF
+          cmake --build build_cmake --config Release
+          cd build_cmake
+          ctest --output-on-failure -C Release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cplang-windows-x64
+          path: |
+            build\cplang.exe
+            build_cmake\bin\Release\cplang.exe
+          retention-days: 7

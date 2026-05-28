@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e94560"/>
+      <stop offset="50%" stop-color="#f05454"/>
+      <stop offset="100%" stop-color="#ff6b6b"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景圆角矩形 -->
+  <rect x="8" y="8" width="240" height="240" rx="32" fill="url(#bg)" stroke="#2a2a4a" stroke-width="2"/>
+  <!-- 代码括号 -->
+  <path d="M48 72 L32 128 L48 184" fill="none" stroke="url(#accent)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- </> 符号 -->
+  <text x="108" y="158" font-family="monospace" font-size="28" fill="#7a7a9a" font-weight="bold">&lt;/&gt;</text>
+  <!-- CP 文字 -->
+  <text x="78" y="146" font-family="Arial, sans-serif" font-size="72" fill="#ffffff" font-weight="900" letter-spacing="-2">CP</text>
+  <!-- 语 汉字 -->
+  <text x="146" y="195" font-family="sans-serif" font-size="48" fill="#e94560" font-weight="bold">语</text>
+  <!-- 底部横线 -->
+  <rect x="60" y="210" width="136" height="4" rx="2" fill="url(#accent)" opacity="0.6"/>
+</svg>

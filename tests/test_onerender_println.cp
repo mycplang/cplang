@@ -1,0 +1,15 @@
+println("1");
+initWindow(400, 300, "EN");
+println("2");
+beginDrawing();
+println("3");
+clearBackground(RED);
+println("4");
+drawCircle(200, 150, 50, GREEN);
+println("5");
+drawText("HELLO", 100, 260, 20, WHITE);
+println("6");
+endDrawing();
+println("7");
+closeWindow();
+println("8");

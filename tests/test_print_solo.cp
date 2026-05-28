@@ -1,0 +1,1 @@
+打印("HELLO FROM CP");

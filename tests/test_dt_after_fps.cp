@@ -1,0 +1,13 @@
+println("1");
+initWindow(400, 300, "TT");
+println("2");
+beginDrawing();
+println("3");
+drawFPS(10, 10);
+println("4");
+drawText("X", 10, 80, 20, WHITE);
+println("5");
+endDrawing();
+println("6");
+closeWindow();
+println("7");

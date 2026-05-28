@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="circle" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0%" stop-color="#2a2a4a"/>
+      <stop offset="100%" stop-color="#0d0d1a"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e94560"/>
+      <stop offset="100%" stop-color="#ff6b6b"/>
+    </linearGradient>
+  </defs>
+  <!-- 圆形背景 -->
+  <circle cx="128" cy="128" r="120" fill="url(#circle)" stroke="#3a3a5a" stroke-width="3"/>
+  <!-- CP -->
+  <text x="128" y="138" font-family="Arial,sans-serif" font-size="80" fill="#ffffff" font-weight="900" text-anchor="middle" letter-spacing="-4">CP</text>
+  <!-- 语 -->
+  <text x="128" y="185" font-family="sans-serif" font-size="36" fill="#e94560" font-weight="bold" text-anchor="middle">语</text>
+</svg>

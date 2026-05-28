@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>CP 包注册表</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+.header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 24px}
+.header h1{font-size:20px;color:#58a6ff}
+.header span{color:#8b949e;font-size:14px}
+.main{max-width:900px;margin:24px auto;padding:0 24px}
+.search{width:100%;padding:12px 16px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:14px;margin-bottom:20px}
+.search:focus{outline:none;border-color:#58a6ff}
+.pkg{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.pkg:hover{border-color:#58a6ff}
+.pkg-name{font-size:16px;font-weight:600;color:#58a6ff}
+.pkg-desc{font-size:13px;color:#8b949e;margin-top:4px}
+.pkg-btn{background:#238636;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px}
+.pkg-btn:hover{background:#2ea043}
+.footer{text-align:center;padding:24px;color:#484f58;font-size:12px}
+</style>
+</head>
+<body>
+<div class="header"><h1>📦 CP 包注册表 <span>— 中文编程语言包管理器</span></h1></div>
+<div class="main">
+<input class="search" placeholder="🔍 搜索包..." oninput="searchPkg(this.value)">
+<div id="list"></div>
+</div>
+<div class="footer">Powered by CP 语言 HTTP 服务器 · v0.1.0-beta</div>
+<script>
+async function loadPkgs() {
+    const r = await fetch('/api/packages');
+    const pkgs = await r.json();
+    render(pkgs);
+}
+function render(pkgs) {
+    const list = document.getElementById('list');
+    list.innerHTML = Object.entries(pkgs).map(([name, info]) => `
+        <div class="pkg" data-name="${name}">
+            <div><div class="pkg-name">${name}</div>
+            <div class="pkg-desc">${info.desc||''} — v${info.version||'0.1.0'}</div></div>
+            <button class="pkg-btn" onclick="install('${name}')">包 安装 ${name}</button>
+        </div>`).join('');
+}
+function searchPkg(q) {
+    document.querySelectorAll('.pkg').forEach(el => {
+        el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+    });
+}
+function install(name) {
+    alert('安装命令: 包 安装 ' + name + '\n请在终端中运行');
+}
+loadPkgs();
+</script>
+</body>
+</html>

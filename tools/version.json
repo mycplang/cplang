@@ -1,0 +1,9 @@
+{
+  "version": "2.4.1",
+  "name": "CP IDE",
+  "description": "CP语言集成开发环境 - Python/tkinter版",
+  "compiler_version": "0.1.0",
+  "update_url": "https://raw.githubusercontent.com/cplang/cplang/main/tools/version.json",
+  "download_url": "https://github.com/cplang/cplang/releases/download/latest/cp_ide.py",
+  "release_notes": "v2.4.1: 仿VS Code界面 - 活动栏、命令面板、面包屑、标签关闭按钮、编码切换、全面美化"
+}

@@ -1,0 +1,1 @@
+﻿ok=sqliteExec(db,"test")

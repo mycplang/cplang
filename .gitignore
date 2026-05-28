@@ -1,0 +1,78 @@
+# ============================================
+# CP Language — Git 忽略规则
+# ============================================
+
+# --- 系统文件（误捕获） ---
+%SystemDrive%/
+
+# --- 构建产物 ---
+/build/
+/build_llvm/
+/build_cmake*/
+/artifacts/
+/workspace_artifacts/
+
+# --- LLVM 开发 ---
+/llvm-dev/
+/llvm-dev.tar*
+llvm-dev/
+
+# --- IDE / 编辑器 ---
+.vscode/
+*.vsix
+tools/electron-ide/
+tools/vscode-cp/
+tools/cp_ide.py
+tools/cp_ide_v1.py
+*.suo
+*.user
+*.wsp
+
+# --- DeepSeek TUI（独立工具） ---
+/deepseek-tui/
+
+# --- 包注册表（独立仓库） ---
+/registry/
+
+# --- 开发工具脚本 ---
+/_tools/
+
+# --- 临时文件 ---
+/tmp/
+*.tmp
+*.bak
+debug*.txt
+*_err.txt
+*_out.txt
+_preprocessed.txt
+_all_tests.txt
+_output.txt
+
+# --- 上传缓存 ---
+/.uploads/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- 凭据（已被 git credential 管理） ---
+.git-credentials*
+push_to_github.bat
+
+# --- 测试临时文件 ---
+_test_fs_dir/
+examples/*.exe
+
+# --- 其他 ---
+/data/
+/data_admin/
+/tools/cplang.exe
+/tools/__pycache__/

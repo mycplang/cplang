@@ -1,0 +1,36 @@
+﻿# Auto detect text files and perform LF normalization
+* text=auto
+
+# CP source files
+*.cp text utf-8
+*.cpm text utf-8
+
+# C++ source
+*.cpp text diff=cpp
+*.hpp text diff=cpp
+*.c text diff=cpp
+*.h text diff=cpp
+
+# Build scripts
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.cmake text
+CMakeLists.txt text
+
+# Config files
+*.yml text
+*.yaml text
+*.md text
+*.json text
+
+# Binary files
+*.exe binary
+*.lib binary
+*.dll binary
+*.pdb binary
+*.obj binary
+*.png binary
+*.jpg binary
+
+# LLVM/third-party binaries
+third_party/ binary

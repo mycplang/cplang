@@ -1,0 +1,84 @@
+{
+  "version": 4,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "debug",
+      "displayName": "🐛 Debug",
+      "description": "调试构建（含符号、无优化、Sanitizers）",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CPLANG_ENABLE_SANITIZERS": "ON",
+        "CPLANG_WARNINGS_AS_ERRORS": "OFF",
+        "CPLANG_BUILD_TESTS": "ON",
+        "CPLANG_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "🚀 Release",
+      "description": "发布构建（-O2 优化、无调试符号）",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CPLANG_ENABLE_SANITIZERS": "OFF",
+        "CPLANG_WARNINGS_AS_ERRORS": "OFF",
+        "CPLANG_BUILD_TESTS": "ON",
+        "CPLANG_BUILD_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "release-lto",
+      "displayName": "🔥 Release + LTO",
+      "description": "全优化发布构建（LTO+PGO预留）",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/release-lto",
+      "cacheVariables": {
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON"
+      }
+    },
+    {
+      "name": "ci",
+      "displayName": "🔧 CI",
+      "description": "CI 流水线用（警告即错误）",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ci",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CPLANG_WARNINGS_AS_ERRORS": "ON",
+        "CPLANG_BUILD_TESTS": "ON",
+        "CPLANG_BUILD_EXAMPLES": "OFF",
+        "CPLANG_ENABLE_SANITIZERS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "jobs": 8
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "jobs": 8
+    },
+    {
+      "name": "release-lto",
+      "configurePreset": "release-lto",
+      "jobs": 8
+    },
+    {
+      "name": "ci",
+      "configurePreset": "ci",
+      "jobs": 8
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=CP Studio
+Name[zh]=CP Studio 中文编程IDE
+Comment=CP Language IDE
+Comment[zh]=CP 语言集成开发环境
+Exec=cplang -c examples/cpstudio.cp
+Icon=cp-icon
+Terminal=false
+Type=Application
+Categories=Development;IDE;
+Keywords=cp;chinese;programming;language;
+MimeType=text/x-cp;

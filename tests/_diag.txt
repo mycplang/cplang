@@ -1,0 +1,1 @@
+HIT rlen=214 blen=27

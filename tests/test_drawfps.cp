@@ -1,0 +1,11 @@
+println("1");
+initWindow(400, 300, "T2");
+println("2");
+beginDrawing();
+println("3");
+drawFPS(10, 10);
+println("4");
+endDrawing();
+println("5");
+closeWindow();
+println("6");

@@ -1,0 +1,16 @@
+﻿变量 a = 16;
+变量 b = 32;
+变量 c = 64;
+变量 d = 128;
+变量 s1 = toString(a);
+变量 s2 = toString(b);
+变量 s3 = toString(c);
+变量 s4 = toString(d);
+print(s1);
+print(s2);
+print(s3);
+print(s4);
+print(len(s1));
+print(len(s2));
+print(len(s3));
+print(len(s4));

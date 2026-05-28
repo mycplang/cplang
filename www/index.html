@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>CP HTTP — 静态站点</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="hero">
+  <h1>🚀 CP HTTP Server</h1>
+  <p>由 75 行 CP 语言代码驱动的静态站点</p>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>📁 静态文件</h2>
+    <p>HTML / CSS / JS — 全自动 MIME 检测</p>
+    <a href="/server.cp" class="btn">查看源码</a>
+  </div>
+  <div class="card">
+    <h2>🛤️ 路由系统</h2>
+    <p>/hello /echo /api/* — 自动分发</p>
+    <a href="/hello" class="btn">打个招呼</a>
+  </div>
+  <div class="card">
+    <h2>🔌 JSON API</h2>
+    <p>RESTful KV 存储 — GET/POST</p>
+    <a href="/api/keys" class="btn">列出 Keys</a>
+  </div>
+</div>
+
+<div class="api-demo">
+  <h2>📝 API 测试</h2>
+  <div class="form-row">
+    <input id="key" placeholder="Key">
+    <input id="val" placeholder="Value">
+    <button onclick="apiSet()">POST /api/set</button>
+    <button onclick="apiGet()">GET /api/get</button>
+    <button onclick="apiKeys()">GET /api/keys</button>
+  </div>
+  <pre id="result">等待操作...</pre>
+</div>
+
+<script>
+async function apiCall(method, path, body) {
+  try {
+    let opts = { method };
+    if (body) { opts.headers = {'Content-Type':'application/json'}; opts.body = JSON.stringify(body); }
+    let r = await fetch(path, opts);
+    let text = await r.text();
+    document.getElementById('result').textContent = `[${r.status}] ` + text;
+  } catch(e) {
+    document.getElementById('result').textContent = '错误: ' + e.message;
+  }
+}
+function apiSet() {
+  let k = document.getElementById('key').value;
+  let v = document.getElementById('val').value;
+  if (!k || !v) { document.getElementById('result').textContent = 'Key 和 Value 都要填'; return; }
+  apiCall('POST', '/api/set', {key:k, value:v});
+}
+function apiGet() {
+  let k = document.getElementById('key').value;
+  if (!k) { document.getElementById('result').textContent = '填写 Key'; return; }
+  apiCall('GET', '/api/get?key=' + encodeURIComponent(k));
+}
+function apiKeys() {
+  apiCall('GET', '/api/keys');
+}
+</script>
+</body>
+</html>

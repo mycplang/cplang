@@ -1,0 +1,15 @@
+打印("1");
+initWindow(400, 300, "EN");
+打印("2");
+beginDrawing();
+打印("3");
+clearBackground(RED);
+打印("4");
+drawCircle(200, 150, 50, GREEN);
+打印("5");
+drawText("HELLO", 100, 260, 20, WHITE);
+打印("6");
+endDrawing();
+打印("7");
+closeWindow();
+打印("8");

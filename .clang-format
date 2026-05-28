@@ -1,0 +1,67 @@
+# clang-format 配置文件 — CP语言项目
+# 基于 Google 风格，适配中文编程语言项目特点
+# 使用: clang-format -i <file>
+
+---
+Language: Cpp
+BasedOnStyle: Google
+
+# ── 缩进 ──
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+AccessModifierOffset: -4
+NamespaceIndentation: None
+
+# ── 行宽和换行 ──
+ColumnLimit: 100
+BreakBeforeBraces: Attach
+BreakBeforeTernaryOperators: false
+BreakConstructorInitializers: BeforeColon
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# ── 空格 ──
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpacesInAngles: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# ── 指针对齐 ──
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# ── 头文件排序 ──
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  # 项目头文件
+  - Regex: '^"'
+    Priority: 1
+  # 标准库
+  - Regex: '^<[a-z_]+>$'
+    Priority: 2
+  # 第三方库 (LLVM等)
+  - Regex: '^<(llvm|clang)/'
+    Priority: 3
+  # 其他系统头文件
+  - Regex: '^<(windows|sys|unistd|arpa|net)/'
+    Priority: 4
+
+# ── 对齐 ──
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignOperands: true
+AlignTrailingComments: true
+
+# ── 其他 ──
+AlwaysBreakTemplateDeclarations: Yes
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+FixNamespaceComments: true
+MaxEmptyLinesToKeep: 1
+ReflowComments: false

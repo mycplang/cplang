@@ -1,0 +1,13 @@
+﻿打印("=== 新增函数验证 ===");
+打印("toSnakeCase:", toSnakeCase("helloWorld"));
+打印("toCamelCase:", toCamelCase("hello_world"));
+打印("uniq:", uniq([1,2,2,3,1]));
+打印("enumerate:", enumerate([10,20,30]));
+打印("arrSum:", arrSum([1,2,3,4]));
+打印("arrAvg:", arrAvg([1,2,3]));
+打印("intPow:", intPow(2, 10));
+打印("roundTo:", roundTo(3.14159, 2));
+t = merge({a:1},{b:2});
+打印("getOrDefault:", getOrDefault(t, "c", 99));
+打印("swap:", swap([1,2,3],0,2));
+打印("\n全部通过!");
