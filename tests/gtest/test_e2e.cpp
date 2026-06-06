@@ -400,4 +400,275 @@ TEST(E2ETest, ChannelSelectTimeout) {
         __test_capture(长度(sel));
     )");
     EXPECT_NE(result.find("0"), std::string::npos) << "输出: " << result;
+
+// ===== try-catch =====
+
+TEST(E2ETest, TryCatchBasic) {
+    std::string result = captureOutput(u8R"(
+        尝试 {
+            抛出 "测试异常";
+        } 捕获 (e) {
+            __test_capture("捕获到: ", e);
+        }
+    )");
+    EXPECT_NE(result.find("捕获到"), std::string::npos) << "输出: " << result;
+}
+
+TEST(E2ETest, TryCatchNoException) {
+    std::string result = captureOutput(u8R"(
+        尝试 {
+            变量 x = 42;
+            __test_capture("正常执行: ", x);
+        } 捕获 (e) {
+            __test_capture("不应到这里");
+        }
+    )");
+    EXPECT_NE(result.find("正常执行"), std::string::npos) << "输出: " << result;
+    EXPECT_TRUE(result.find("不应到这里") == std::string::npos) << "输出: " << result;
+}
+
+TEST(E2ETest, ThrowInFunction) {
+    std::string result = captureOutput(u8R"(
+        函数 校验(值) {
+            如果 (值 < 0) {
+                抛出 "值不能为负数";
+            }
+            返回 值 * 2;
+        }
+        尝试 {
+            变量 r = 校验(-5);
+            __test_capture(r);
+        } 捕获 (e) {
+            __test_capture("错误: ", e);
+        }
+    )");
+    EXPECT_NE(result.find("错误"), std::string::npos) << "输出: " << result;
+}
+
+// ===== lambda =====
+
+TEST(E2ETest, LambdaSimple) {
+    std::string result = captureOutput(u8R"(
+        变量 加倍 = (x) => x * 2;
+        __test_capture(加倍(21));
+    )");
+    EXPECT_NE(result.find("42"), std::string::npos) << "输出: " << result;
+}
+
+TEST(E2ETest, LambdaMultiParam) {
+    std::string result = captureOutput(u8R"(
+        变量 相加 = (a, b) => a + b;
+        __test_capture(相加(100, 200));
+    )");
+    EXPECT_NE(result.find("300"), std::string::npos) << "输出: " << result;
+}
+
+TEST(E2ETest, LambdaAsArgument) {
+    std::string result = captureOutput(u8R"(
+        函数 应用(fn, x) {
+            返回 fn(x);
+        }
+        变量 r = 应用((n) => n * n, 7);
+        __test_capture(r);
+    )");
+    EXPECT_NE(result.find("49"), std::string::npos) << "输出: " << result;
+}
+
+// ===== pipe operator =====
+
+TEST(E2ETest, PipeOperator) {
+    std::string result = captureOutput(u8R"(
+        函数 加倍(x) { 返回 x * 2; }
+        函数 加一(x) { 返回 x + 1; }
+        变量 r = 10 |> 加倍 |> 加一;
+        __test_capture(r);
+    )");
+    EXPECT_NE(result.find("21"), std::string::npos) << "输出: " << result;
+}
+
+// ===== match expression =====
+
+TEST(E2ETest, MatchInteger) {
+    std::string result = captureOutput(u8R"(
+        变量 x = 2;
+        变量 r = 匹配 (x) {
+            1 => "一";
+            2 => "二";
+            3 => "三";
+            其他 => "未知";
+        };
+        __test_capture(r);
+    )");
+    EXPECT_NE(result.find("二"), std::string::npos) << "输出: " << result;
+}
+
+// ===== switch/case =====
+
+TEST(E2ETest, SwitchCase) {
+    std::string result = captureOutput(u8R"(
+        变量 x = 2;
+        变量 r = "";
+        选择 (x) {
+            情况 1: r = "A"; 跳出;
+            情况 2: r = "B"; 跳出;
+            情况 3: r = "C"; 跳出;
+            其他: r = "?";
+        }
+        __test_capture(r);
+    )");
+    EXPECT_NE(result.find("B"), std::string::npos) << "输出: " << result;
+}
+
+TEST(E2ETest, SwitchDefault) {
+    std::string result = captureOutput(u8R"(
+        变量 x = 99;
+        变量 r = "";
+        选择 (x) {
+            情况 1: r = "一";
+            其他: r = "未知";
+        }
+        __test_capture(r);
+    )");
+    EXPECT_NE(result.find("未知"), std::string::npos) << "输出: " << result;
+}
+
+// ===== enum =====
+
+TEST(E2ETest, EnumBasic) {
+    std::string result = captureOutput(u8R"(
+        枚举 颜色 { 红, 绿, 蓝 };
+        变量 c = 颜色.绿;
+        __test_capture("值: ", c);
+    )");
+    EXPECT_NE(result.find("值"), std::string::npos) << "输出: " << result;
+}
+
+// ===== defer =====
+
+TEST(E2ETest, DeferExecution) {
+    std::string result = captureOutput(u8R"(
+        函数 测试推迟() {
+            推迟 __test_capture("最后执行");
+            __test_capture("先执行");
+        }
+        测试推迟();
+    )");
+    EXPECT_NE(result.find("先执行"), std::string::npos) << "输出: " << result;
+}
+
+// ===== break/continue in loops =====
+
+TEST(E2ETest, BreakInWhile) {
+    std::string result = captureOutput(u8R"(
+        变量 i = 0;
+        当 (真) {
+            如果 (i >= 3) { 跳出; }
+            __test_capture(i);
+            i = i + 1;
+        }
+        __test_capture("完成");
+    )");
+    EXPECT_NE(result.find("0"), std::string::npos) << "输出: " << result;
+    EXPECT_NE(result.find("2"), std::string::npos) << "输出: " << result;
+    EXPECT_TRUE(result.find("3") == std::string::npos) << "不应该有3: " << result;
+}
+
+TEST(E2ETest, ContinueInFor) {
+    std::string result = captureOutput(u8R"(
+        变量 sum = 0;
+        循环 (变量 i = 0; i < 5; i = i + 1) {
+            如果 (i == 2) { 继续; }
+            __test_capture(i);
+        }
+    )");
+    EXPECT_NE(result.find("0"), std::string::npos) << "输出: " << result;
+    EXPECT_NE(result.find("4"), std::string::npos) << "输出: " << result;
+    EXPECT_TRUE(result.find("2") == std::string::npos) << "不应有2: " << result;
+}
+
+// ===== do-while =====
+
+TEST(E2ETest, DoWhileLoop) {
+    std::string result = captureOutput(u8R"(
+        变量 i = 0;
+        为 {
+            __test_capture(i);
+            i = i + 1;
+        } 当 (i < 3);
+    )");
+    EXPECT_NE(result.find("0"), std::string::npos) << "输出: " << result;
+    EXPECT_NE(result.find("2"), std::string::npos) << "输出: " << result;
+}
+
+// ===== struct =====
+
+TEST(E2ETest, StructCreateAndAccess) {
+    std::string result = captureOutput(u8R"(
+        结构体 点 { x, y };
+        变量 p = 点{x=10, y=20};
+        __test_capture(p.x, " + ", p.y);
+    )");
+    EXPECT_NE(result.find("10"), std::string::npos) << "输出: " << result;
+    EXPECT_NE(result.find("20"), std::string::npos) << "输出: " << result;
+}
+
+// ===== closure =====
+
+TEST(E2ETest, ClosureCounter) {
+    std::string result = captureOutput(u8R"(
+        函数 创建计数器() {
+            变量 count = 0;
+            返回 () => { count = count + 1; 返回 count; };
+        }
+        变量 counter = 创建计数器();
+        __test_capture(counter());
+        __test_capture(counter());
+        __test_capture(counter());
+    )");
+    EXPECT_NE(result.find("1"), std::string::npos) << "输出: " << result;
+    EXPECT_NE(result.find("3"), std::string::npos) << "输出: " << result;
+}
+
+// ===== ternary =====
+
+TEST(E2ETest, TernaryOperator) {
+    std::string result = captureOutput(u8R"(
+        变量 x = 10;
+        变量 s = x > 5 ? "大" : "小";
+        __test_capture(s);
+    )");
+    EXPECT_NE(result.find("大"), std::string::npos) << "输出: " << result;
+}
+
+// ===== generics =====
+
+TEST(E2ETest, GenericFunction) {
+    std::string result = captureOutput(u8R"(
+        函数 交换<T>(a: T, b: T) {
+            返回 [b, a];
+        }
+        变量 r = 交换<整数>(1, 2);
+        __test_capture(r[0], " ", r[1]);
+    )");
+    EXPECT_NE(result.find("2"), std::string::npos) << "输出: " << result;
+    EXPECT_NE(result.find("1"), std::string::npos) << "输出: " << result;
+}
+
+// ===== spread/rest not supported, skip =====
+
+// ===== bitwise operations =====
+
+TEST(E2ETest, BitwiseAnd) {
+    std::string result = captureOutput(u8R"(
+        __test_capture(6 & 3);
+    )");
+    EXPECT_NE(result.find("2"), std::string::npos) << "输出: " << result;
+}
+
+TEST(E2ETest, BitwiseOr) {
+    std::string result = captureOutput(u8R"(
+        __test_capture(4 | 2);
+    )");
+    EXPECT_NE(result.find("6"), std::string::npos) << "输出: " << result;
+}
 }

@@ -146,10 +146,31 @@ Shared<ClassDeclStmt> Parser::parseClassDecl() {
     
     // 类体
     expect(TokenType::LBRACE, "Expected '{' after class declaration");
-    
+
     while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
+        // 访问修饰符：public / private / protected
+        if (match(TokenType::K_PUBLIC)) {
+            consume();
+            cls->currentAccess = AccessModifier::PUBLIC;
+            continue;
+        }
+        if (match(TokenType::K_PRIVATE)) {
+            consume();
+            cls->currentAccess = AccessModifier::PRIVATE;
+            continue;
+        }
+        if (match(TokenType::K_PROTECTED)) {
+            consume();
+            cls->currentAccess = AccessModifier::PROTECTED;
+            continue;
+        }
+
         auto member = parseStatement();
         if (member) {
+            // 将当前访问级别应用到函数声明
+            if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(member)) {
+                func->access = cls->currentAccess;
+            }
             cls->members.push_back(member);
         }
     }

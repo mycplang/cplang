@@ -820,6 +820,37 @@ Type* SemanticAnalyzer::analyzeExpr(Shared<Expr> expr) {
     if (auto lit = std::dynamic_pointer_cast<LiteralExpr>(expr)) {
         result = getExprType(expr);
     }
+    else if (auto thisExpr = std::dynamic_pointer_cast<ThisExpr>(expr)) {
+        // this 表达式的类型为当前类的实例类型
+        auto* cls = currentClass();
+        if (cls && cls->type) {
+            result = cls->type;
+        } else {
+            reportError(expr->token.line, expr->token.column,
+                       "'这个' 只能在类方法中使用");
+            result = Type::unknown();
+        }
+    }
+    else if (auto superExpr = std::dynamic_pointer_cast<SuperExpr>(expr)) {
+        // super 调用：在父类中查找方法
+        auto* cls = currentClass();
+        if (!cls || !cls->baseClass) {
+            reportError(expr->token.line, expr->token.column,
+                       "'继承' 只能在有父类的类方法中使用");
+            result = Type::unknown();
+        } else {
+            // 查找父类方法
+            for (auto* m : cls->baseClass->methods) {
+                if (m->name == superExpr->method) {
+                    result = m->returnType;
+                    break;
+                }
+            }
+            if (!result || result->kind == TypeKind::UNKNOWN) {
+                result = Type::unknown();
+            }
+        }
+    }
     else if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(expr)) {
         auto sym = lookup(id->name);
         if (!sym) {

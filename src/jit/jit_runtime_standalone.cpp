@@ -637,4 +637,55 @@ uint64_t replace(uint64_t str, uint64_t from, uint64_t to) {
     return makeNanBoxedStringPtr(r);
 }
 
+// writef(fmt, ...) — 格式化字符串输出（简化实现：拼接后打印）
+// 参数: args[0]=格式字符串, args[1..N]=要格式化的值
+// 格式说明符: {} 表示插入下一个参数
+uint64_t writef(uint64_t* args, int32_t count) {
+    if (count < 1) return 0;
+    char fmtBuf[24];
+    const char* fmt = valueToString(args[0], fmtBuf, sizeof(fmtBuf));
+    if (!fmt) return 0;
+
+    // 构建输出：遇到 {} 时替换为对应参数
+    size_t outCap = strlen(fmt) + 256;
+    char* out = (char*)tracked_malloc(outCap);
+    if (!out) return 0;
+    size_t outLen = 0;
+    int argIdx = 1;
+
+    const char* p = fmt;
+    while (*p) {
+        if (*p == '{' && *(p+1) == '}' && argIdx < count) {
+            // 替换 {} 为参数值
+            char valBuf[48];
+            const char* val = valueToString(args[argIdx], valBuf, sizeof(valBuf));
+            size_t valLen = strlen(val);
+            if (outLen + valLen >= outCap) {
+                outCap = outCap * 2 + valLen;
+                char* newOut = (char*)tracked_malloc(outCap);
+                if (!newOut) { return 0; }
+                memcpy(newOut, out, outLen);
+                out = newOut;
+            }
+            memcpy(out + outLen, val, valLen);
+            outLen += valLen;
+            p += 2;
+            argIdx++;
+        } else {
+            out[outLen++] = *p++;
+            if (outLen >= outCap) {
+                outCap *= 2;
+                char* newOut = (char*)tracked_malloc(outCap);
+                if (!newOut) { return 0; }
+                memcpy(newOut, out, outLen);
+                out = newOut;
+            }
+        }
+    }
+    out[outLen] = '\0';
+    fputs(out, stdout);
+    fflush(stdout);
+    return 1;
+}
+
 } // extern "C"

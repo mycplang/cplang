@@ -507,6 +507,33 @@ Shared<Expr> Parser::parsePrimary() {
     }
     
     // new 表达式
+    // this / 这个 — 引用当前实例
+    if (match(TokenType::K_THIS)) {
+        consume();
+        return Shared<ThisExpr>(new ThisExpr());
+    }
+
+    // super / 继承 — 调用父类方法
+    if (match(TokenType::K_SUPER)) {
+        consume();
+        auto superExpr = Shared<SuperExpr>(new SuperExpr());
+        if (match(TokenType::OP_DOT)) {
+            consume();
+            superExpr->method = current_.text;
+            expect(TokenType::IDENTIFIER, "需要父类方法名");
+        }
+        expect(TokenType::LPAREN, "super 调用需要 '('");
+        if (!match(TokenType::RPAREN)) {
+            while (true) {
+                superExpr->arguments.push_back(parseExpression());
+                if (match(TokenType::COMMA)) consume();
+                else break;
+            }
+        }
+        expect(TokenType::RPAREN, "需要 ')'");
+        return superExpr;
+    }
+
     if (match(TokenType::K_NEW)) {
         consume();  // consume 'new'
         auto newExpr = Shared<NewExpr>(new NewExpr());

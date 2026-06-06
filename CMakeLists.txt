@@ -503,29 +503,19 @@ endif()
 if (CPLANG_BUILD_TESTS)
     enable_testing()
     
-    # 使用 FetchContent 获取 Google Test
-    include(FetchContent)
-    FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
-    )
-    
-    # 防止 Google Test 覆盖父项目的编译器/链接器设置
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
-    
-    # 测试可执行文件
+    # 测试可执行文件（使用自带轻量测试框架，无外部依赖）
     add_executable(cplang_tests
+        tests/gtest/test_main.cpp
         tests/gtest/test_lexer.cpp
         tests/gtest/test_parser.cpp
         tests/gtest/test_vm.cpp
         tests/gtest/test_optimizer.cpp
         tests/gtest/test_semantic.cpp
         tests/gtest/test_e2e.cpp
+        tests/gtest/test_stdlib.cpp
     )
 
     target_link_libraries(cplang_tests PRIVATE
-        GTest::gtest_main
         cplang_core
         cplang_lexer
         cplang_parser
@@ -537,17 +527,16 @@ if (CPLANG_BUILD_TESTS)
         cplang_optimizer
         ${SYSTEM_LIBS}
     )
-    
+
     target_include_directories(cplang_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/tests
     )
-    
+
     set_target_warnings(cplang_tests)
-    
-    # 注册测试
-    include(GoogleTest)
-    gtest_discover_tests(cplang_tests)
+
+    # 注册测试（CTest 直接运行可执行文件）
+    add_test(NAME cplang_unit_tests COMMAND cplang_tests)
 
     # 添加 CP 语言集成测试（直接运行 cplang.exe 执行 .cp 测试文件）
     add_test(NAME test_stdlib_new

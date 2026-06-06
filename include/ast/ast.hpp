@@ -26,6 +26,15 @@ struct IdentifierExpr : Expr {
     String name;
 };
 
+// this / self 表达式（在类方法中引用当前实例）
+struct ThisExpr : Expr {};
+
+// super 调用表达式（调用父类方法）
+struct SuperExpr : Expr {
+    String method;                          // 要调用的父类方法名
+    std::vector<Shared<Expr>> arguments;    // 参数
+};
+
 // 二元表达式
 struct BinaryExpr : Expr {
     Shared<Expr> left;
@@ -117,6 +126,9 @@ struct TypeParam {
     Optional<String> constraint;  // 可选的约束/trait 名（如 "可比较"）
 };
 
+// 访问修饰符
+enum class AccessModifier { PUBLIC, PRIVATE, PROTECTED };
+
 // 函数声明
 struct FuncDeclStmt : Stmt {
     String name;
@@ -124,8 +136,9 @@ struct FuncDeclStmt : Stmt {
     std::vector<std::pair<String, Optional<String>>> params;  // name, type
     Optional<String> returnType;
     Shared<BlockStmt> body;
-    bool isStatic;
-    bool isVirtual;
+    bool isStatic = false;
+    bool isVirtual = false;
+    AccessModifier access = AccessModifier::PUBLIC;
 };
 
 // 类声明
@@ -133,6 +146,7 @@ struct ClassDeclStmt : Stmt {
     String name;
     Optional<String> baseClass;
     std::vector<Shared<Stmt>> members;  // fields, methods
+    AccessModifier currentAccess = AccessModifier::PUBLIC;  // 当前访问级别
 };
 
 // new 表达式
