@@ -507,6 +507,14 @@ Shared<Expr> Parser::parsePrimary() {
     }
     
     // new 表达式
+    // await / 等待 — 等待异步操作
+    if (match(TokenType::K_AWAIT)) {
+        consume();
+        auto awaitExpr = Shared<AwaitExpr>(new AwaitExpr());
+        awaitExpr->target = parsePrimary();
+        return awaitExpr;
+    }
+
     // this / 这个 — 引用当前实例
     if (match(TokenType::K_THIS)) {
         consume();

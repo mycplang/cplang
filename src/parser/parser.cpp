@@ -137,6 +137,21 @@ Shared<Stmt> Parser::parseStatement() {
         return parseStructDecl();
     }
     
+    // async func / 异步 函数 — 异步函数声明
+    if (match(TokenType::K_ASYNC)) {
+        consume();  // consume '异步'
+        if (match(TokenType::K_FUNC)) {
+            auto func = parseFunctionDecl();
+            if (auto fd = std::dynamic_pointer_cast<FuncDeclStmt>(func)) {
+                fd->isAsync = true;
+            }
+            return func;
+        }
+        // 如果 async 后面不是 function，报错
+        reportError("'异步' 必须后跟 '函数' 声明");
+        return nullptr;
+    }
+
     // func
     if (match(TokenType::K_FUNC)) {
         return parseFunctionDecl();

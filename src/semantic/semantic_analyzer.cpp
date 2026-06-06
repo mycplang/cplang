@@ -820,6 +820,10 @@ Type* SemanticAnalyzer::analyzeExpr(Shared<Expr> expr) {
     if (auto lit = std::dynamic_pointer_cast<LiteralExpr>(expr)) {
         result = getExprType(expr);
     }
+    else if (auto awaitExpr = std::dynamic_pointer_cast<AwaitExpr>(expr)) {
+        // await 表达式类型 = 目标操作的结果类型
+        result = analyzeExpr(awaitExpr->target);
+    }
     else if (auto thisExpr = std::dynamic_pointer_cast<ThisExpr>(expr)) {
         // this 表达式的类型为当前类的实例类型
         auto* cls = currentClass();

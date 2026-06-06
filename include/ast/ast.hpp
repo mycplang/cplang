@@ -26,6 +26,11 @@ struct IdentifierExpr : Expr {
     String name;
 };
 
+// await / 等待 表达式
+struct AwaitExpr : Expr {
+    Shared<Expr> target;  // 要等待的异步操作
+};
+
 // this / self 表达式（在类方法中引用当前实例）
 struct ThisExpr : Expr {};
 
@@ -138,6 +143,7 @@ struct FuncDeclStmt : Stmt {
     Shared<BlockStmt> body;
     bool isStatic = false;
     bool isVirtual = false;
+    bool isAsync = false;    // 异步函数标记
     AccessModifier access = AccessModifier::PUBLIC;
 };
 

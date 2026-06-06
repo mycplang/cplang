@@ -20,6 +20,11 @@ int Codegen::compileExpr(Shared<Expr> expr) {
         return compileArray(arr);
 
     // 标识符
+    // await / 等待 — 提取异步操作结果（同步实现：直接求值目标）
+    if (auto awaitExpr = std::dynamic_pointer_cast<AwaitExpr>(expr)) {
+        return compileExpr(awaitExpr->target);
+    }
+
     // this / 这个 — 加载 self（类方法的第一个参数）
     if (auto thisExpr = std::dynamic_pointer_cast<ThisExpr>(expr)) {
         int r = allocReg();
