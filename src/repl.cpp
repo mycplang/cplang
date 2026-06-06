@@ -24,12 +24,8 @@
 #include "semantic/semantic_analyzer.hpp"
 #include "stdlib/stdlib.hpp"
 
-// Windows 控制台 API
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <conio.h>
+// 跨平台控制台 I/O（Windows: conio+Console API, Linux: termios+ANSI）
+// console_getch / console_kbhit / console_init / console_restore 定义在 repl/console.hpp
 
 namespace cplang {
 
@@ -110,6 +106,7 @@ ReplEngine::ReplEngine(bool enableJit)
 
     // 设置历史文件路径
     const char* home = getenv("USERPROFILE");
+    if (!home) home = getenv("HOME");   // Linux/macOS fallback
     if (!home) home = getenv("HOME");
     if (home) {
         historyFile_ = std::string(home) + "/.cplang_history";
@@ -168,60 +165,38 @@ void ReplEngine::loadHistory() {
 // ============================================================================
 
 void ReplEngine::initConsole() {
-    hConsoleIn_ = reinterpret_cast<void*>(GetStdHandle(STD_INPUT_HANDLE));
-    hConsoleOut_ = reinterpret_cast<void*>(GetStdHandle(STD_OUTPUT_HANDLE));
-    HANDLE hIn = reinterpret_cast<HANDLE>(hConsoleIn_);
-    if (hIn == INVALID_HANDLE_VALUE || hIn == nullptr) {
-        usingEnhancedInput_ = false;
-        return;
-    }
-    DWORD mode = 0;
-    if (!GetConsoleMode(hIn, &mode)) {
-        usingEnhancedInput_ = false;
-        return;
-    }
-    oldConsoleMode_ = static_cast<unsigned long>(mode);
-    // 设置控制台代码页为 UTF-8
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-    usingEnhancedInput_ = true;
+    console_init(consoleState_);
     consoleInitialized_ = true;
 }
 
 void ReplEngine::restoreConsole() {
-    if (consoleInitialized_ && hConsoleIn_ != nullptr) {
-        HANDLE hIn = reinterpret_cast<HANDLE>(hConsoleIn_);
-        SetConsoleMode(hIn, static_cast<DWORD>(oldConsoleMode_));
+    if (consoleInitialized_) {
+        console_restore(consoleState_);
     }
 }
 
 // ============================================================================
-// 刷新行显示
+// 刷新行显示（跨平台：Windows 用 Console API，Linux 用 ANSI 转义序列）
 // ============================================================================
 
 void ReplEngine::refreshLine(const std::string& prompt,
                               const std::string& buffer,
                               int cursorPos) {
     if (!consoleInitialized_) return;
-    HANDLE hOut = reinterpret_cast<HANDLE>(hConsoleOut_);
 
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-    if (!GetConsoleScreenBufferInfo(hOut, &csbi)) return;
+    // 使用 ANSI 转义序列清空行并重绘（Windows 10+ 和所有 Unix 终端均支持）
+    // \r           — 回到行首
+    // \033[K        — 清除从光标到行尾的内容
+    // 然后重绘提示符 + 缓冲区，再用 \r + 空格移到正确光标位置
+    std::cout << "\r\033[K" << prompt << buffer;
 
-    COORD rowStart = { 0, csbi.dwCursorPosition.Y };
-    DWORD written;
-
-    // 清空当前行
-    FillConsoleOutputCharacterA(hOut, ' ', csbi.dwSize.X, rowStart, &written);
-    SetConsoleCursorPosition(hOut, rowStart);
-
-    // 重绘提示符 + 缓冲区
-    std::cout << prompt << buffer;
-
-    // 定位光标
+    // 定位光标：回到行首，前移 (提示符长度 + 光标位置) 个字符
     int absPos = static_cast<int>(prompt.size()) + cursorPos;
-    COORD curPos = { static_cast<SHORT>(absPos), rowStart.Y };
-    SetConsoleCursorPosition(hOut, curPos);
+    std::cout << "\r";
+    if (absPos > 0) {
+        std::cout << "\033[" << absPos << "C";
+    }
+    std::cout << std::flush;
 }
 
 // ============================================================================
@@ -620,7 +595,7 @@ bool ReplEngine::dispatchCommand(const std::string& cmd) {
     }
 
     if (cmdName == "cls" || cmdName == "clear") {
-        ::system("cls");
+        console_clear();
         return true;
     }
 
@@ -730,11 +705,11 @@ std::string ReplEngine::readLineEnhanced(const std::string& prompt) {
     int cursorPos = 0;
 
     while (true) {
-        int ch = _getch();
+        int ch = console_getch();
 
         // ---- Enter ----
         if (ch == '\r') {
-            if (_kbhit()) _getch(); // consume possible \n
+            if (console_kbhit()) console_getch(); // consume possible \n
             std::cout << std::endl;
             break;
         }
@@ -753,7 +728,7 @@ std::string ReplEngine::readLineEnhanced(const std::string& prompt) {
 
         // ---- Ctrl+L (清屏) ----
         if (ch == 12) {
-            ::system("cls");
+            console_clear();
             std::cout << prompt << buffer << std::flush;
             continue;
         }
@@ -785,7 +760,7 @@ std::string ReplEngine::readLineEnhanced(const std::string& prompt) {
 
         // ---- 扩展键 ----
         if (ch == 0xE0 || ch == 0x00) {
-            int ext = _getch();
+            int ext = console_getch();
             switch (ext) {
                 case 72: // ↑
                     if (historyPos_ > 0) {
@@ -917,7 +892,7 @@ void ReplEngine::run() {
                     continue;
                 }
                 if (trimmed == "clear" || trimmed == "cls") {
-                    ::system("cls");
+                    console_clear();
                     continue;
                 }
                 // 检查是否有语法提示查询

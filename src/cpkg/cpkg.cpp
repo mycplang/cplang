@@ -15,31 +15,44 @@
 //   CPKG_REGISTRY_URL    注册表地址（默认指向 mycpmlang/registry）
 // ═══════════════════════════════════════════════════════════════════
 
+#include "cpkg/http.hpp"
+using cpkg::getEnv;
+using cpkg::getHomeDir;
+using cpkg::httpGet;
+using cpkg::httpDownload;
+
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winhttp.h>
 #include <urlmon.h>
 #include <shellapi.h>
 #include <shlobj.h>
-
-#include <cstdio>
-#include <cstdlib>
+#else
+// Linux/macOS 兼容层：文件路径即 UTF-8，不需宽字符转换
 #include <cstring>
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <fstream>
-#include <sstream>
-#include <iostream>
-#include <algorithm>
-#include <filesystem>
+static std::string wstrToUtf8(const std::string& s) { return s; }
+static std::string utf8ToWstr(const std::string& s) { return s; }
+inline void SetConsoleOutputCP(int) {}
+#define CP_UTF8 65001
+#endif
 
-namespace fs = std::filesystem;
+#ifndef _WIN32
+static std::string trim(const std::string& s) {
+    size_t start = s.find_first_not_of(" 	
+");
+    if (start == std::string::npos) return "";
+    size_t end = s.find_last_not_of(" 	
+");
+    return s.substr(start, end - start + 1);
+}
+#endif
 
 // ═══════════════════════════════════════════════════════════════════
 // 工具函数
 // ═══════════════════════════════════════════════════════════════════
 
+#ifdef _WIN32
 static std::string wstrToUtf8(const std::wstring& wstr) {
     if (wstr.empty()) return {};
     int len = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), (int)wstr.size(), nullptr, 0, nullptr, nullptr);
@@ -373,6 +386,18 @@ static std::string getPackageUrl(const std::string& name, const Config& cfg) {
     return (urlIt != it->second.end()) ? urlIt->second : "";
 }
 
+#endif
+
+#ifndef _WIN32
+static std::string trim(const std::string& s) {
+    size_t start = s.find_first_not_of(" 	
+");
+    if (start == std::string::npos) return "";
+    size_t end = s.find_last_not_of(" 	
+");
+    return s.substr(start, end - start + 1);
+}
+#endif
 static bool installPackage(const std::string& name, const Config& cfg) {
     std::cout << "▸ 正在安装: " << name << " ..." << std::endl;
     std::string targetDir = cfg.packagesDir + "\\" + name;

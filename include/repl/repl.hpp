@@ -3,6 +3,7 @@
 #include "codegen/codegen.hpp"
 #include "vm/vm.hpp"
 #include "jit/orc_jit.hpp"
+#include "repl/console.hpp"
 #include <string>
 #include <vector>
 #include <set>
@@ -88,11 +89,9 @@ private:
     std::vector<std::string> history_;
     size_t historyPos_ = 0;
     std::set<std::string> completions_;
+    ConsoleState consoleState_;
     bool consoleInitialized_ = false;
-    void* hConsoleIn_ = nullptr;
-    void* hConsoleOut_ = nullptr;
-    unsigned long oldConsoleMode_ = 0;
-    bool usingEnhancedInput_ = false;  // true if console supports enhanced mode
+    bool usingEnhancedInput_ = true;   // cross-platform: always supported
 
     // 新增成员
     std::string historyFile_;  // 历史记录文件路径
