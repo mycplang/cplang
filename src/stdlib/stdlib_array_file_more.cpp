@@ -1,4 +1,8 @@
-﻿// Array and File extension functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Array and File extension functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerArrayMore(VM* vm) {
@@ -346,3 +350,4 @@ Value fileGlob(std::vector<Value>& args) {
 //  日期时间增强实现
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

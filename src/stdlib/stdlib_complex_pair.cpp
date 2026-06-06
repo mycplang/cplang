@@ -1,4 +1,8 @@
-﻿// Complex and Pair functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Complex and Pair functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerComplex(VM* vm) {
@@ -186,3 +190,4 @@ Value swap_(std::vector<Value>& args) {
 //  位运算实现（对标 C++ <bit>）
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

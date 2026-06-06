@@ -1,4 +1,8 @@
-﻿// Optional, Variant, Any, Tuple functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Optional, Variant, Any, Tuple functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerOptional(VM* vm) {
@@ -329,3 +333,4 @@ Value tupSlice(std::vector<Value>& args) {
 //  TCP/UDP 套接字实现（Windows Winsock API）
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

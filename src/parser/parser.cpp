@@ -1,6 +1,8 @@
 // CP语言 语法分析器实现
 #include "parser/parser.hpp"
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 namespace cplang {
 
@@ -253,14 +255,6 @@ Shared<Stmt> Parser::parseStatement() {
         return parseTryStatement();
     }
     
-    // 可信块 (unsafe block)
-    if (match(TokenType::K_TRUST)) {
-        consume();
-        auto stmt = Shared<TrustBlockStmt>(new TrustBlockStmt());
-        stmt->body = parseBlock();
-        return stmt;
-    }
-    
     // block
     if (match(TokenType::LBRACE)) {
         return parseBlock();
@@ -368,9 +362,22 @@ Shared<Program> parseString(const String& source) {
     return parser.parse();
 }
 
-Shared<Program> parseFile(const String& /*filename*/) {
-    // TODO: 从文件读取
-    return nullptr;
+Shared<Program> parseFile(const String& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        return nullptr;
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    String source = buffer.str();
+    // 去掉 UTF-8 BOM
+    if (source.size() >= 3 &&
+        static_cast<unsigned char>(source[0]) == 0xEF &&
+        static_cast<unsigned char>(source[1]) == 0xBB &&
+        static_cast<unsigned char>(source[2]) == 0xBF) {
+        source.erase(0, 3);
+    }
+    return parseString(source);
 }
 
 Shared<Expr> parseExprString(const String& source) {

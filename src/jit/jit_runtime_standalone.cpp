@@ -19,6 +19,33 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+// ===== 分配追踪器（用于 jit_cleanup 释放所有堆分配） =====
+// AOT 模式下程序退出时由 OS 回收，但长时间运行的 JIT 程序需要在
+// 每次 JIT 调用完成后清理临时字符串，否则会累积内存。
+// 以下 alloc/free 包装器记录所有 malloc 分配，jit_cleanup 统一释放。
+
+typedef struct AllocNode {
+    struct AllocNode* next;
+    void* ptr;
+} AllocNode;
+
+static AllocNode* allocList = NULL;
+
+static void* tracked_malloc(size_t sz) {
+    void* p = malloc(sz);
+    if (!p) return NULL;
+    AllocNode* node = (AllocNode*)malloc(sizeof(AllocNode));
+    if (node) {
+        node->ptr = p;
+        node->next = allocList;
+        allocList = node;
+    }
+    return p;
+}
+
+// 注意: 不要单独 free 被追踪的指针（会导致 tracker 中悬空指针）。
+// 所有清理统一由 jit_cleanup 完成。
+
 // NaN-boxing 编码常量（与 cplang 运行时保持一致）
 #define BIT47_MASK  0x0000800000000000ULL
 #define NAN_TAG     0xFFFF000000000000ULL
@@ -75,7 +102,7 @@ static char* strdup_nanobox(uint64_t v) {
     char tmp[24];
     const char* s = valueToString(v, tmp, sizeof(tmp));
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)tracked_malloc(len + 1);
     if (r) memcpy(r, s, len + 1);
     return r;
 }
@@ -88,7 +115,7 @@ uint64_t jit_strcat(uint64_t a, uint64_t b) {
     const char* sa = valueToString(a, bufa, sizeof(bufa));
     const char* sb = valueToString(b, bufb, sizeof(bufb));
     size_t la = strlen(sa), lb = strlen(sb);
-    char* r = (char*)malloc(la + lb + 1);
+    char* r = (char*)tracked_malloc(la + lb + 1);
     if (!r) return 0;
     memcpy(r, sa, la);
     memcpy(r + la, sb, lb);
@@ -109,7 +136,17 @@ void jit_printv(int32_t count, uint64_t* args) {
 }
 
 void jit_cleanup(void) {
-    // AOT 模式下程序简单退出，由 OS 回收内存
+    // 释放所有通过 tracked_malloc 分配的堆内存
+    // AOT 短程序可以依赖 OS 回收，但长时间运行的 JIT 程序
+    // 需要在每次 JIT 调用完成后调用此函数避免内存累积。
+    AllocNode* node = allocList;
+    while (node) {
+        AllocNode* next = node->next;
+        free(node->ptr);
+        free(node);
+        node = next;
+    }
+    allocList = NULL;
 }
 
 // ===== Math 常量 =====
@@ -122,7 +159,7 @@ uint64_t __u4E32__(uint64_t v) {
     char buf[24];
     const char* s = valueToString(v, buf, sizeof(buf));
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)tracked_malloc(len + 1);
     if (r) memcpy(r, s, len + 1);
     return makeNanBoxedStringPtr(r ? r : "");
 }
@@ -166,7 +203,7 @@ static uint32_t hashKey(uint64_t key) {
 static void tableGrow(TableData* tbl) {
     int32_t oldCap = tbl->capacity;
     int32_t newCap = oldCap == 0 ? TABLE_INIT_CAP : oldCap * 2;
-    TableEntry* newEnt = (TableEntry*)malloc((size_t)newCap * sizeof(TableEntry));
+    TableEntry* newEnt = (TableEntry*)tracked_malloc((size_t)newCap * sizeof(TableEntry));
     tableInitEntries(newEnt, newCap);
     for (int32_t i = 0; i < oldCap; i++) {
         if (tbl->entries[i].key != TABLE_EMPTY) {
@@ -181,9 +218,9 @@ static void tableGrow(TableData* tbl) {
 }
 
 uint64_t jit_table_create(void) {
-    TableData* tbl = (TableData*)malloc(sizeof(TableData));
+    TableData* tbl = (TableData*)tracked_malloc(sizeof(TableData));
     tbl->magic = TABLE_MAGIC;
-    tbl->entries = (TableEntry*)malloc((size_t)TABLE_INIT_CAP * sizeof(TableEntry));
+    tbl->entries = (TableEntry*)tracked_malloc((size_t)TABLE_INIT_CAP * sizeof(TableEntry));
     tableInitEntries(tbl->entries, TABLE_INIT_CAP);
     tbl->count = 0;
     tbl->capacity = TABLE_INIT_CAP;
@@ -377,7 +414,7 @@ uint64_t substr(uint64_t str, uint64_t startVal, uint64_t lenVal) {
     if (start >= end) return makeNanBoxedStringPtr("");
 
     size_t outLen = (size_t)(end - start);
-    char* r = (char*)malloc(outLen + 1);
+    char* r = (char*)tracked_malloc(outLen + 1);
     if (!r) return makeNanBoxedStringPtr("");
     memcpy(r, s + start, outLen);
     r[outLen] = '\0';
@@ -482,7 +519,7 @@ uint64_t toString(uint64_t v) {
     size_t slen = strlen(s);
     if (s == buf) {
         // s 是栈缓冲区，必须复制
-        char* r = (char*)malloc(slen + 1);
+        char* r = (char*)tracked_malloc(slen + 1);
         if (!r) return makeNanBoxedStringPtr("");
         memcpy(r, s, slen + 1);
         return makeNanBoxedStringPtr(r);
@@ -575,7 +612,7 @@ uint64_t trim(uint64_t str) {
     const char* end = s + strlen(s) - 1;
     while (end > s && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) end--;
     size_t len = (size_t)(end - s + 1);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)tracked_malloc(len + 1);
     if (!r) return makeNanBoxedStringPtr("");
     memcpy(r, s, len);
     r[len] = '\0';
@@ -592,7 +629,7 @@ uint64_t replace(uint64_t str, uint64_t from, uint64_t to) {
     if (!pos) return str;
     size_t slen = strlen(s), flen = strlen(f), tlen = strlen(t);
     size_t newLen = slen - flen + tlen;
-    char* r = (char*)malloc(newLen + 1);
+    char* r = (char*)tracked_malloc(newLen + 1);
     if (!r) return str;
     memcpy(r, s, pos - s);
     memcpy(r + (pos - s), t, tlen);

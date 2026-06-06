@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // File enhancements: seek, recursive dir walk, temp files, logger
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -258,3 +262,5 @@ void StdLib::registerLogger(VM* vm) {
     registerAlias(vm, "日志警告",          "logWarn");
     registerAlias(vm, "日志错误",          "logError");
 }
+
+} // namespace cplang

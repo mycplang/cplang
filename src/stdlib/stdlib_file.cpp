@@ -1,4 +1,8 @@
-﻿// File functions (read, write, append, exists, size, copy, move, delete, etc.)
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// File functions (read, write, append, exists, size, copy, move, delete, etc.)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 // 前向声明
@@ -203,3 +207,5 @@ namespace file {
         return Value::Bool(f.good());
     }
 }
+
+} // namespace cplang

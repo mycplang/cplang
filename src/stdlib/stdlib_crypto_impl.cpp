@@ -1,4 +1,8 @@
-﻿// stdlib_crypto_impl — extracted from stdlib_regex_crypto_string.cpp
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// stdlib_crypto_impl — extracted from stdlib_regex_crypto_string.cpp
 void StdLib::registerCrypto(VM* vm) {
     registerFunction(vm, "md5", crypto::md5);
     registerFunction(vm, "sha1", crypto::sha1);
@@ -253,3 +257,4 @@ Value base64Decode(std::vector<Value>& args) {
 //  编码转换实现
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

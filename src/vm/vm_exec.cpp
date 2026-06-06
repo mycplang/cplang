@@ -139,8 +139,10 @@ bool VM::run(ExecContext* ctx) {
                 }
             }
         }
+#ifdef CP_DEBUG
         // DEBUG: 打印当前执行的指令
         printf("VM_OP: 0x%02X pc=%zu a=%d b=%d c=%d\n", op, ctx->pc - 1, a, b, c);
+#endif
         switch (op) {
 #endif
 

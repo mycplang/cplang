@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Network, WebSocket, Sqlite functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -477,3 +481,5 @@ void StdLib::registerSqlite(VM* vm) {
     registerAlias(vm, "数据库表信息",           "sqliteTableInfo");
     registerAlias(vm, "数据库版本",             "sqliteVersion");
 }
+
+} // namespace cplang

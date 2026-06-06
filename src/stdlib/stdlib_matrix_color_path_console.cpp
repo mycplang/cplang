@@ -1,4 +1,8 @@
-﻿// Matrix, Color, Path, Console functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Matrix, Color, Path, Console functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerMatrix(VM* vm) {
@@ -488,3 +492,4 @@ Value cursor(std::vector<Value>& args) {
 //  Optional 可选值实现（VMTable 内部存储）
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

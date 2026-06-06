@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Table functions (create, len, keys, values, has, get, set, delete)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -83,3 +87,5 @@ Value table::create(std::vector<Value>& args) {
     (void)args;
     return Value::Table(VMTable::create());
 }
+
+} // namespace cplang

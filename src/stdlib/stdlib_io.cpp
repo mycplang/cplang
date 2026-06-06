@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // IO functions (print, println, input, readFile, writeFile, exists)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -90,3 +94,5 @@ Value io::exists(std::vector<Value>& args) {
     std::string filename(args[0].asString()->data, args[0].asString()->length);
     return Value::Bool(std::ifstream(filename).good());
 }
+
+} // namespace cplang

@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // ═══════════════════════════════════════════════════════════════════
 //  FFI (外部函数接口) — 加载和调用外部 DLL
 //  用法（CP 侧）:
@@ -1047,3 +1051,5 @@ void StdLib::registerFFI(VM* vm) {
     registerAlias(vm, "formatError",    "错误信息");
     registerAlias(vm, "freeLibrary",    "释放库");
 }
+
+} // namespace cplang

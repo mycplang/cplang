@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // HTTP 扩展函数
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -8,3 +12,5 @@ void StdLib::registerHttp(VM* vm) {
     (void)vm;
     // 预留：可在此注册更多 HTTP 相关功能
 }
+
+} // namespace cplang

@@ -87,10 +87,6 @@ enum class TokenType {
     K_LE,          // 小于等于
     // 赋值/定义
     K_LET,         // 设（设 x 为 10）
-    K_BORROW_MUT,  // 可写 (mutable borrow modifier)
-    K_TRUST,       // 可信 (unsafe block)
-    K_MOVE,        // 移动 (move)
-    K_DROP,        // 释放 (drop)
     K_DEFER,       // 推迟 (defer)
 
     // 运算符
@@ -264,10 +260,6 @@ private:
             {"不低于", TokenType::K_GE},
             {"不超过", TokenType::K_LE},
             {"设", TokenType::K_LET},
-            {"可写", TokenType::K_BORROW_MUT},
-            {"可信", TokenType::K_TRUST},
-            {"移动", TokenType::K_MOVE},
-            {"释放", TokenType::K_DROP},
             {"推迟", TokenType::K_DEFER},
 
             // 英文备选关键字
@@ -322,8 +314,6 @@ private:
             {"or", TokenType::K_OR},
             {"not", TokenType::K_NOT},
             {"let", TokenType::K_LET},
-            {"move", TokenType::K_MOVE},
-            {"drop", TokenType::K_DROP},
             {"defer", TokenType::K_DEFER},
         };
     }

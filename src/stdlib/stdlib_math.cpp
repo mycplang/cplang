@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Math functions (abs, sqrt, pow, floor, ceil, round, random, etc.)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -171,3 +175,5 @@ Value math::pi(std::vector<Value>& /*args*/) {
 Value math::e(std::vector<Value>& /*args*/) {
     return Value::Float(2.71828182845904523536);
 }
+
+} // namespace cplang

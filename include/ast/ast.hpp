@@ -83,31 +83,10 @@ struct LambdaExpr : Expr {
 // 语句节点
 struct Stmt : ASTNode {};
 
-// 借用表达式（Rust式所有权）
-struct BorrowExpr : Expr {
-    Shared<Expr> target;
-    bool isMutable = false;  // &可写 vs &
-};
-
-// 移动表达式（移动所有权）
-struct MoveExpr : Expr {
-    Shared<Expr> target;  // 要移动所有权的目标
-};
-
-// 删除/释放表达式
-struct DropExpr : Expr {
-    Shared<Expr> target;  // 要释放的目标
-};
-
 // 管道表达式：a |> f 等价于 f(a)
 struct PipeExpr : Expr {
     Shared<Expr> left;   // 左侧值
     Shared<Expr> right;  // 右侧函数/表达式
-};
-
-// 可信块（unsafe 块）
-struct TrustBlockStmt : Stmt {
-    Shared<BlockStmt> body;
 };
 
 // 表达式语句

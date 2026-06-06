@@ -1,4 +1,8 @@
-﻿// stdlib_regex — extracted from stdlib_regex_crypto_string.cpp
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// stdlib_regex — extracted from stdlib_regex_crypto_string.cpp
 // Regex, String Ext, Crypto, Encoding, String More functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -108,3 +112,4 @@ Value findAll(std::vector<Value>& args) {
 //  字符串扩展实现
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

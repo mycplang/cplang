@@ -184,11 +184,8 @@ bool SemanticAnalyzer::analyze(Shared<Program> program) {
         else if (auto imp = std::dynamic_pointer_cast<ImportStmt>(stmt)) {
             // import 分析
         }
-        else if (auto trust = std::dynamic_pointer_cast<TrustBlockStmt>(stmt)) {
-            if (trust->body) analyzeBlock(trust->body);
-        }
     }
-    
+
     return !hasError_;
 }
 
@@ -655,12 +652,6 @@ Type* SemanticAnalyzer::analyzeStmt(Shared<Stmt> stmt) {
         if (deferStmt->body) return analyzeStmt(deferStmt->body);
         return Type::void_();
     }
-    if (auto trust = std::dynamic_pointer_cast<TrustBlockStmt>(stmt)) {
-        trustDepth_++;  // 进入可信块：跳过借用检查
-        if (trust->body) analyzeBlock(trust->body);
-        trustDepth_--;  // 离开可信块
-        return Type::void_();
-    }
     if (auto matchStmt = std::dynamic_pointer_cast<MatchStmt>(stmt)) {
         return analyzeMatch(matchStmt);
     }
@@ -826,47 +817,10 @@ Type* SemanticAnalyzer::analyzeExpr(Shared<Expr> expr) {
     
     Type* result = nullptr;
     
-    if (auto borrow = std::dynamic_pointer_cast<BorrowExpr>(expr)) {
-        // 借用表达式：检查借用规则
-        if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(borrow->target)) {
-            if (trustDepth_ == 0) {
-                checkBorrow(id->name, borrow->isMutable, expr->token.line, expr->token.column);
-            }
-        }
-        // 借用表达式类型 = 目标类型（引用透明）
-        result = analyzeExpr(borrow->target);
-    }
-    else if (auto move_expr = std::dynamic_pointer_cast<MoveExpr>(expr)) {
-        if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(move_expr->target)) {
-            if (trustDepth_ == 0) {
-                moveVariable(id->name, expr->token.line, expr->token.column);
-            }
-        } else {
-            analyzeExpr(move_expr->target);
-        }
-        // 移动表达式类型 = 目标类型
-        result = getExprType(move_expr->target);
-    }
-    else if (auto drop_expr = std::dynamic_pointer_cast<DropExpr>(expr)) {
-        if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(drop_expr->target)) {
-            if (trustDepth_ == 0) {
-                dropVariable(id->name, expr->token.line, expr->token.column);
-            }
-        } else {
-            analyzeExpr(drop_expr->target);
-        }
-        // 释放表达式返回 void
-        result = Type::void_();
-    }
-    else if (auto lit = std::dynamic_pointer_cast<LiteralExpr>(expr)) {
+    if (auto lit = std::dynamic_pointer_cast<LiteralExpr>(expr)) {
         result = getExprType(expr);
     }
     else if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(expr)) {
-        // 检查变量是否已被移动
-        if (trustDepth_ == 0) {
-            checkVariableMoved(id->name, expr->token.line, expr->token.column);
-        }
-        
         auto sym = lookup(id->name);
         if (!sym) {
             result = Type::unknown();
@@ -1343,74 +1297,6 @@ void SemanticAnalyzer::registerStructType(const String& name, StructInfo* info) 
 }
 
 
-// ── 所有权/借用规则实现 ──
-void SemanticAnalyzer::checkBorrow(const String& varName, bool isMutable, int line, int col) {
-    auto& state = borrowCounts_[varName];
-    
-    if (isMutable) {
-        if (state.immutableCount > 0) {
-            reportError(line, col, "无法可写借用 '" + varName + "'，因为它已被不可变借用");
-            return;
-        }
-        if (state.mutableCount > 0) {
-            reportError(line, col, "无法可写借用 '" + varName + "'，因为它已被可写借用");
-            return;
-        }
-        state.mutableCount++;
-    } else {
-        if (state.mutableCount > 0) {
-            reportError(line, col, "无法不可变借用 '" + varName + "'，因为它已被可写借用");
-            return;
-        }
-        state.immutableCount++;
-    }
-}
-
-void SemanticAnalyzer::releaseBorrow(const String& varName, bool isMutable) {
-    auto it = borrowCounts_.find(varName);
-    if (it == borrowCounts_.end()) return;
-    if (isMutable) { if (it->second.mutableCount > 0) it->second.mutableCount--; }
-    else { if (it->second.immutableCount > 0) it->second.immutableCount--; }
-}
-
-void SemanticAnalyzer::releaseAllBorrows() {
-    borrowCounts_.clear();
-}
-
-void SemanticAnalyzer::moveVariable(const String& varName, int line, int col) {
-    // 检查是否已被借用
-    auto it = borrowCounts_.find(varName);
-    if (it != borrowCounts_.end()) {
-        if (it->second.immutableCount > 0 || it->second.mutableCount > 0) {
-            reportError(line, col, "无法移动 '" + varName + "'，因为它正在被借用");
-            return;
-        }
-    }
-    
-    // 标记为已移动
-    movedVars_.insert(varName);
-}
-
-void SemanticAnalyzer::dropVariable(const String& varName, int line, int col) {
-    // 检查是否已被借用
-    auto it = borrowCounts_.find(varName);
-    if (it != borrowCounts_.end()) {
-        if (it->second.immutableCount > 0 || it->second.mutableCount > 0) {
-            reportError(line, col, "无法释放 '" + varName + "'，因为它正在被借用");
-            return;
-        }
-    }
-    
-    // 标记为已移动（释放相当于移动后丢弃）
-    movedVars_.insert(varName);
-}
-
-void SemanticAnalyzer::checkVariableMoved(const String& varName, int line, int col) {
-    if (movedVars_.count(varName) > 0) {
-        reportError(line, col, "变量 '" + varName + "' 已被移动或释放，不能再次使用");
-    }
-}
-
 // ═══════════════════════════════════════════════════════════════════
 //  transformDeferInBlock — 为 defer 做语义准备
 //  defer 的实际代码生成在 codegen 层（Go 风格的 defer 栈）
@@ -1653,10 +1539,6 @@ void SemanticAnalyzer::substituteTypeInStmt(Shared<Stmt> stmt,
         }
         if (switchStmt->defaultCase) substituteTypeInStmt(switchStmt->defaultCase, paramNames, typeArgs);
     }
-    // TrustBlockStmt
-    else if (auto trust = std::dynamic_pointer_cast<TrustBlockStmt>(stmt)) {
-        if (trust->body) substituteTypeInStmt(trust->body, paramNames, typeArgs);
-    }
     // DoWhileStmt
     else if (auto dw = std::dynamic_pointer_cast<DoWhileStmt>(stmt)) {
         if (dw->body) substituteTypeInStmt(dw->body, paramNames, typeArgs);
@@ -1710,18 +1592,6 @@ void SemanticAnalyzer::substituteTypeInExpr(Shared<Expr> expr,
         for (auto& elem : arr->elements) {
             substituteTypeInExpr(elem, paramNames, typeArgs);
         }
-    }
-    // BorrowExpr
-    else if (auto borrow = std::dynamic_pointer_cast<BorrowExpr>(expr)) {
-        substituteTypeInExpr(borrow->target, paramNames, typeArgs);
-    }
-    // MoveExpr
-    else if (auto moveExpr = std::dynamic_pointer_cast<MoveExpr>(expr)) {
-        substituteTypeInExpr(moveExpr->target, paramNames, typeArgs);
-    }
-    // DropExpr
-    else if (auto dropExpr = std::dynamic_pointer_cast<DropExpr>(expr)) {
-        substituteTypeInExpr(dropExpr->target, paramNames, typeArgs);
     }
     // 字面量、标识符 — 不包含类型引用，不需要替换
 }

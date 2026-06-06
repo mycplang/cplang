@@ -1,4 +1,8 @@
-﻿// stdlib_string_ext — extracted from stdlib_regex_crypto_string.cpp
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// stdlib_string_ext — extracted from stdlib_regex_crypto_string.cpp
 void StdLib::registerStringExt(VM* vm) {
     registerFunction(vm, "strFormat", str_ext::format);
     registerFunction(vm, "parseInt", str_ext::parseInt);
@@ -100,3 +104,4 @@ Value toBin(std::vector<Value>& args) {
 //  加密哈希实现
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

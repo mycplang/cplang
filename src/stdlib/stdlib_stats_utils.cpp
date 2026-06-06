@@ -1,4 +1,8 @@
-﻿// MathMore, Statistics, Utils, StringCase, MoreUtils functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// MathMore, Statistics, Utils, StringCase, MoreUtils functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerMathMore(VM* vm) {
@@ -790,3 +794,4 @@ Value globMatch(std::vector<Value>& args) {
 //  JSON 解析与序列化实现（自研，零外部依赖）
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

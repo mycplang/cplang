@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // CSV write, enhanced logging with levels/timestamps, case-insensitive compare
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -267,3 +271,5 @@ void StdLib::registerStrCi(VM* vm) {
     registerAlias(vm, "不区分大小写等于",  "strEqualsI");
     registerAlias(vm, "不区分大小写包含",  "strContainsI");
 }
+
+} // namespace cplang

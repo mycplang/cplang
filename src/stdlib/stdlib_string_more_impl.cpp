@@ -1,4 +1,8 @@
-﻿// stdlib_string_more_impl — extracted from stdlib_regex_crypto_string.cpp
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// stdlib_string_more_impl — extracted from stdlib_regex_crypto_string.cpp
 void StdLib::registerStringMore(VM* vm) {
     registerFunction(vm, "strTrim", str_more::strTrim);
     registerFunction(vm, "strTrimLeft", str_more::strTrimLeft);
@@ -257,3 +261,4 @@ Value strPadCenter(std::vector<Value>& args) {
 //  数组增强实现
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

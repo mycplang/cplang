@@ -1,4 +1,8 @@
-﻿// Time and System functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Time and System functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerTime(VM* vm) {
@@ -72,3 +76,5 @@ Value system::cwd(std::vector<Value>& /*args*/) {
     // 简化实现
     return Value::String(VMString::create("."));
 }
+
+} // namespace cplang

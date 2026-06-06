@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // ═══════════════════════════════════════════════════════════════
 //  CP语言 标准库 — 数值极限 (numeric_limits)
 // ═══════════════════════════════════════════════════════════════
@@ -88,3 +92,4 @@ void StdLib::registerNumericLimits(VM* vm) {
     registerAlias(vm, "浮点字节数", "floatBytes");
 }
 
+} // namespace cplang

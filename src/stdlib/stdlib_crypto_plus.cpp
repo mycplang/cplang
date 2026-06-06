@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Crypto extensions: HMAC-SHA256, SHA-512
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -251,3 +255,5 @@ void StdLib::registerCryptoPlus(VM* vm) {
     registerAlias(vm, "Base32编码",       "base32Encode");
     registerAlias(vm, "Base32解码",       "base32Decode");
 }
+
+} // namespace cplang

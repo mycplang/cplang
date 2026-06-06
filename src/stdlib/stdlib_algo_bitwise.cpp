@@ -1,4 +1,8 @@
-﻿// Bitwise, Algorithms, Random functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Bitwise, Algorithms, Random functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerBitwise(VM* vm) {
@@ -761,3 +765,5 @@ Value randomPoisson(std::vector<Value>& args) {
 // ═══════════════════════════════════════════════════════════════════
 //  正则表达式实现（对标 C++ <regex>）
 // ═══════════════════════════════════════════════════════════════════
+
+} // namespace cplang

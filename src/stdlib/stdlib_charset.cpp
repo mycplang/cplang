@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Character set encoding: GBK, Big5, Shift-JIS ↔ UTF-8
 // Uses Windows MultiByteToWideChar / WideCharToMultiByte
 // #include'd from stdlib.cpp, already inside namespace cplang
@@ -183,3 +187,5 @@ void StdLib::registerCharset(VM* vm) {
     registerAlias(vm, "UTF8转宽字符",      "utf8ToWide");
     registerAlias(vm, "宽字符转UTF8",      "wideToUtf8");
 }
+
+} // namespace cplang

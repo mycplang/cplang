@@ -149,66 +149,17 @@ void StdLib::registerAlias(VM* vm, const char* alias, const char* original) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  提取到独立文件的模块 (extracted modules)
+//  各模块的实现已提取到独立 .cpp 文件，由 CMake 统一编译链接
+//  (之前通过 #include .cpp 文本拼接，现改为独立翻译单元)
 // ═══════════════════════════════════════════════════════════════════
 
-#include "stdlib_numeric_limits.cpp"
-#include "stdlib_heap.cpp"
-#include "stdlib_str_search.cpp"
-#include "stdlib_algo_ext.cpp"
-#include "stdlib_reflect.cpp"
-#include "stdlib_math.cpp"
-#include "stdlib_string.cpp"
-#include "stdlib_array.cpp"
-#include "stdlib_table.cpp"
-#include "stdlib_io.cpp"
-#include "stdlib_time_system.cpp"
-#include "stdlib_file.cpp"
-#include "stdlib_types_net.cpp"
-#include "stdlib_containers.cpp"
-#include "stdlib_bitset.cpp"
-#include "stdlib_complex_pair.cpp"
-#include "stdlib_algo_bitwise.cpp"
-#include "stdlib_regex.cpp"
-#include "stdlib_string_ext.cpp"
-#include "stdlib_crypto_impl.cpp"
-#include "stdlib_encoding.cpp"
-#include "stdlib_string_more_impl.cpp"
-#include "stdlib_array_file_more.cpp"
-#include "stdlib_time_sys_more.cpp"
-#include "stdlib_stats_utils.cpp"
-#include "stdlib_json_http.cpp"
-#include "stdlib_matrix_color_path_console.cpp"
-#include "stdlib_variant_utils.cpp"
-#include "stdlib_net_ws_sql.cpp"
-
-#include "stdlib_threading.cpp"
-#include "stdlib_iterator.cpp"
-#include "stdlib_misc_modules.cpp"
-#include "stdlib_math_special.cpp"
-#include "stdlib_algo_missing.cpp"
-#include "stdlib_p1_enhance.cpp"
-#include "stdlib_map.cpp"
-#include "stdlib_charset.cpp"
-#include "stdlib_crypto_plus.cpp"
-#include "stdlib_file_log.cpp"
-#include "stdlib_p2_more.cpp"
-#include "stdlib_aes.cpp"
-#ifdef _WIN32
-#include "stdlib_db.cpp"
-#include "stdlib_redis.cpp"
-#include "stdlib_r10_r11.cpp"
-#include "stdlib_http.cpp"
-#include "stdlib_p3_util.cpp"
-#else
+// 非 Windows 平台的空壳实现（链接用）
+#ifndef _WIN32
 static void registerMysql(cplang::VM*) {}
 static void registerPg(cplang::VM*) {}
 static void registerRedis(cplang::VM*) {}
 static void registerHttp(cplang::VM*) {}
 static void registerLogPlus(cplang::VM*) {}
 #endif
-#include "stdlib_ffi.cpp"
-
-// stdlib_raylib.cpp → compiled separately as stdlib_raylib_unit.cpp to isolate raylib.h from windows.h conflicts
 
 } // namespace cplang

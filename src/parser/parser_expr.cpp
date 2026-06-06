@@ -278,36 +278,6 @@ Shared<Expr> Parser::parseMultiplicative() {
 }
 
 Shared<Expr> Parser::parseUnary() {
-    // &x 借用 和 &可写 x 可变借用
-    if (match(TokenType::OP_BIT_AND)) {
-        consume(); // eat &
-        bool isMut = match(TokenType::K_BORROW_MUT);
-        if (isMut) consume(); // eat 可写
-        auto operand = parseUnary();
-        auto borrow = Shared<BorrowExpr>(new BorrowExpr());
-        borrow->target = operand;
-        borrow->isMutable = isMut;
-        return borrow;
-    }
-
-    // 移动 (move) — 转移所有权
-    if (match(TokenType::K_MOVE)) {
-        consume(); // eat 移动
-        auto operand = parseUnary();
-        auto moveExpr = Shared<MoveExpr>(new MoveExpr());
-        moveExpr->target = operand;
-        return moveExpr;
-    }
-
-    // 释放 (drop) — 显式释放
-    if (match(TokenType::K_DROP)) {
-        consume(); // eat 释放
-        auto operand = parseUnary();
-        auto dropExpr = Shared<DropExpr>(new DropExpr());
-        dropExpr->target = operand;
-        return dropExpr;
-    }
-
     if (match(TokenType::OP_MINUS) || match(TokenType::OP_NOT) ||
         match(TokenType::OP_INC) || match(TokenType::OP_DEC) ||
         match(TokenType::K_NOT)) {

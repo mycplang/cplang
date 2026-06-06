@@ -1872,11 +1872,8 @@ static Value jsonParseValue(const std::string& s_in) {
     return makeStringVal(VMString::create(s));
 }
 
-#include "stdlib_linux_stubs.cpp"
-
-#ifdef HAS_RAYLIB
-#include "stdlib_raylib_stubs.cpp"
-#endif
+// stdlib_linux_stubs.cpp 和 stdlib_raylib_stubs.cpp
+// 已提取为独立翻译单元，由 CMake 统一编译链接
 
 // StdLib::registerFunction / registerAlias (Linux 兼容)
 void StdLib::registerFunction(VM* vm, const char* name, VMNativeFunc::Fn fn) {

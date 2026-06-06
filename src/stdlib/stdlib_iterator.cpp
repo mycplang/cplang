@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Iterator module for CP stdlib
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -281,3 +285,5 @@ void StdLib::registerIterator(VM* vm) {
     registerAlias(vm, "迭代跳过",          "iterSkip");
     registerAlias(vm, "迭代预览",          "iterPeek");
 }
+
+} // namespace cplang

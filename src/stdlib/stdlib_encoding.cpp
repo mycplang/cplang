@@ -1,4 +1,8 @@
-﻿// stdlib_encoding — extracted from stdlib_regex_crypto_string.cpp
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// stdlib_encoding — extracted from stdlib_regex_crypto_string.cpp
 void StdLib::registerEncoding(VM* vm) {
     registerFunction(vm, "urlEncode", encoding::urlEncode);
     registerFunction(vm, "urlDecode", encoding::urlDecode);
@@ -122,3 +126,4 @@ Value hexDecode(std::vector<Value>& args) {
 //  字符串增强实现
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

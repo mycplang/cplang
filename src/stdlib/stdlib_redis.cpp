@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // ═══════════════════════════════════════════════════════════════════
 //  Redis 客户端（纯 WinSock RESP 协议实现，零外部依赖）
 // ═══════════════════════════════════════════════════════════════════
@@ -291,3 +295,5 @@ void StdLib::registerRedis(VM* vm) {
     registerAlias(vm, "Redis是否打开",        "redisIsOpen");
     registerAlias(vm, "Redis错误",            "redisErrMsg");
 }
+
+} // namespace cplang

@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Math special functions: gamma, error functions
 // #include'd from stdlib.cpp, in namespace cplang
 
@@ -36,3 +40,5 @@ void StdLib::registerMathSpecial(VM* vm) {
     registerAlias(vm, "误差函数",    "erf");
     registerAlias(vm, "互补误差",    "erfc");
 }
+
+} // namespace cplang

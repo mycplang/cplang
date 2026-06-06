@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Missing algorithms + charconv float for CP stdlib
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -338,3 +342,5 @@ void StdLib::registerAlgoMissing(VM* vm) {
     registerAlias(vm, "填充递增值",         "iota");
     registerAlias(vm, "填充",               "fill");
 }
+
+} // namespace cplang

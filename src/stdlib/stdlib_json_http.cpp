@@ -1,4 +1,8 @@
-﻿// JSON and HTTP functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// JSON and HTTP functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerJSON(VM* vm) {
@@ -349,3 +353,4 @@ Value httpDownload(std::vector<Value>& args) {
 //  矩阵/向量运算实现（基于数组约定）
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

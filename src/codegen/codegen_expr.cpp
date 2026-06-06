@@ -15,10 +15,6 @@ int Codegen::compileExpr(Shared<Expr> expr) {
     if (auto lit = std::dynamic_pointer_cast<LiteralExpr>(expr))
         return compileLiteral(lit);
 
-    // 借用表达式 (&x, &可写 x) — 目前等同于直接求值目标
-    if (auto borrow = std::dynamic_pointer_cast<BorrowExpr>(expr))
-        return compileExpr(borrow->target);
-
     // 数组字面量
     if (auto arr = std::dynamic_pointer_cast<ArrayExpr>(expr))
         return compileArray(arr);

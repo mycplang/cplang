@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Misc small modules for CP stdlib: MathConst, Format, Result, Functional, Span, Charconv, SourceLoc, Memory
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -309,3 +313,5 @@ void StdLib::registerMemory(VM* vm) {
     registerAlias(vm, "引用计数创建",   "rcNew");
     registerAlias(vm, "引用计数值",     "rcCount");
 }
+
+} // namespace cplang

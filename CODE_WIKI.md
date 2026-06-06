@@ -51,7 +51,7 @@ CP 语言是一款**纯中文编程语言**，所有关键字、标准库函数�
 - **双引擎架构** — DevEngine（VM+JIT）+ AOTEngine（LLVM 原生编译）
 - **NaN-Boxing** — 64位紧凑值表示，Int8/Int16/Int32/Float32 零堆分配
 - **渐进类型系统** — 动态类型起步 + 类型标注获得 JIT 加速
-- **Rust 式所有权** — `&x` / `&可写 x` 借用规则、移动语义
+- **自动 GC** — 三色标记-清除垃圾回收，无需手动管理内存
 - **垃圾回收** — 三色标记-清除 GC
 - **泛型支持** — 函数泛型 + 结构体泛型（单态化）
 - **800+ 标准库函数** — 26 容器模块、算法、加密、网络、数据库、图形等
@@ -378,9 +378,6 @@ ASTNode (基类: token)
 │   ├── ArrayExpr           — 数组字面量 [a, b, c]
 │   ├── StructLiteralExpr   — 结构体字面量 {字段: 值, ...}
 │   ├── NewExpr             — 新建表达式 (new 类名(args))
-│   ├── BorrowExpr          — 借用表达式 (&x, &可写 x)
-│   ├── MoveExpr            — 移动表达式 (移动 x)
-│   └── DropExpr            — 释放表达式 (释放 x)
 │
 └── Stmt (语句基类)
     ├── ExprStmt            — 表达式语句
@@ -522,18 +519,9 @@ enum class BuiltinType {
 | 表达式 | `analyzeMemberExpr()` | 分析成员访问 |
 | 类型 | `getExprType(expr)` | 获取表达式类型 |
 | 类型 | `isAssignableTo(from, to)` | 类型兼容性检查 |
-| 所有权 | `checkBorrow()` | 借用检查 |
-| 所有权 | `moveVariable()` | 移动变量所有权 |
-| 所有权 | `checkVariableMoved()` | 检查变量是否已移动 |
 | 泛型 | `instantiateGenericFunc()` | 泛型函数单态化 |
 | 泛型 | `ensureGenericStructInstantiated()` | 泛型结构体实例化 |
 | 泛型 | `checkTypeConstraints()` | 泛型约束检查 |
-
-**所有权/借用追踪**:
-- `borrowCounts_` — 跟踪每个变量的可变/不可变借用计数
-- `movedVars_` — 跟踪已移动的变量
-- `trustDepth_` — 可信块嵌套深度（>0 时跳过借用检查）
-- 支持 Rust 式借用规则：不可变借用可多个，可变借用独占
 
 **泛型单态化**: 为每个泛型函数的具体类型参数组合生成独立的函数声明，存储在 `monomorphizedFunctions_` 中供代码生成器使用。
 
@@ -1347,7 +1335,6 @@ cplang -c tests/test_new_stdlib.cp
    ├── SemanticAnalyzer::analyze()  → 语义分析，类型检查
    │   ├── 作用域分析
    │   ├── 类型推断/检查
-   │   ├── 所有权/借用检查
    │   └── 泛型单态化
    ├── Optimizer::optimize()  → AST 优化（多轮）
    └── Codegen::compile()     → 字节码生成
@@ -1435,19 +1422,7 @@ cplang -c tests/test_new_stdlib.cp
 - 根对象: 栈、全局变量、调用帧
 - 增量: 当前为 Stop-the-World 模式
 
-### 8.6 Rust 式所有权系统
-
-**决策**: 实现借用检查和移动语义。
-
-**实现**:
-- `&x` — 不可变借用（允许多个）
-- `&可写 x` — 可变借用（独占）
-- `移动 x` — 转移所有权
-- `释放 x` — 手动释放
-- `可信 { ... }` — 跳过检查的 unsafe 块
-- 在语义分析阶段进行检查
-
-### 8.7 泛型单态化
+### 8.6 泛型单态化
 
 **决策**: 使用单态化（Monomorphization）实现泛型。
 

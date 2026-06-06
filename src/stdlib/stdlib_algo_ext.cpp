@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Algorithm extension functions (sample, search, equal, etc.)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -81,3 +85,5 @@ void StdLib::registerAlgoExt(VM* vm) {
     registerAlias(vm, "交换范围",           "swapRange");
     registerAlias(vm, "字典序比较",         "lexicographicalCompare");
 }
+
+} // namespace cplang

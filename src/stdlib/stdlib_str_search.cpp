@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // String search utility functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -55,3 +59,5 @@ void StdLib::registerStringSearch(VM* vm) {
     registerAlias(vm, "末非字查找",    "findLastNotOf");
     registerAlias(vm, "比较字符串",    "strCompare");
 }
+
+} // namespace cplang

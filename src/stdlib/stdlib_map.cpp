@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Ordered Map (std::map<Value, Value>) module
 // Uses VMOrderedMap which is properly integrated into Value's type system.
 // #include'd from stdlib.cpp, already inside namespace cplang
@@ -139,3 +143,5 @@ void StdLib::registerMap(VM* vm) {
     registerAlias(vm, "有序值列表",      "mapValues");
     registerAlias(vm, "有序转数组",      "mapToArray");
 }
+
+} // namespace cplang

@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // ╔═════════════════════════════════════════════════════════════════╗
 //  MySQL + PostgreSQL 数据库支持（运行时动态加载）
 //  无需预装客户端库，DLL 存在则自动可用
@@ -673,3 +677,5 @@ void StdLib::registerPg(VM* vm) {
     registerAlias(vm, "PG列出库",           "pgListDbs");
     registerAlias(vm, "PG列出表",           "pgListTables");
 }
+
+} // namespace cplang

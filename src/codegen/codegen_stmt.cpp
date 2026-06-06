@@ -17,11 +17,8 @@ void Codegen::compileStmt(Shared<Stmt> stmt) {
     else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(stmt)) { printf("compileStmt: ClassDecl\n"); fflush(stdout); compileClassDecl(cls); }
     else if (auto enm = std::dynamic_pointer_cast<EnumDeclStmt>(stmt)) { printf("compileStmt: EnumDecl\n"); fflush(stdout); compileEnumDecl(enm); }
     else if (auto s = std::dynamic_pointer_cast<StructDeclStmt>(stmt)) { printf("compileStmt: StructDecl\n"); fflush(stdout); compileStructDecl(s); }
-    else if (auto blk = std::dynamic_pointer_cast<BlockStmt>(stmt)) { printf("compileStmt: Block\n"); fflush(stdout); compileBlock(blk); }
-    else if (auto trust = std::dynamic_pointer_cast<TrustBlockStmt>(stmt)) {
-        if (trust->body) compileBlock(trust->body);  // 可信块目前就是普通块
-    }
-    else if (auto ifStmt = std::dynamic_pointer_cast<IfStmt>(stmt)) { printf("compileStmt: If\n"); fflush(stdout); compileIf(ifStmt); }
+    else if (auto blk = std::dynamic_pointer_cast<BlockStmt>(stmt)) { compileBlock(blk); }
+    else if (auto ifStmt = std::dynamic_pointer_cast<IfStmt>(stmt)) { compileIf(ifStmt); }
     else if (auto forStmt = std::dynamic_pointer_cast<ForStmt>(stmt)) { printf("compileStmt: For\n"); fflush(stdout); compileFor(forStmt); }
     else if (auto fe = std::dynamic_pointer_cast<ForEachStmt>(stmt)) { printf("compileStmt: ForEach\n"); fflush(stdout); compileForEach(fe); }
     else if (auto w = std::dynamic_pointer_cast<WhileStmt>(stmt)) { printf("compileStmt: While\n"); fflush(stdout); compileWhile(w); }

@@ -1,3 +1,9 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// CP Language Standard Library — Linux stubs (standalone)
+
 // Stubs upgraded to real implementations where possible
 #include "vm/vm.hpp"
 #include <cmath>
@@ -11,7 +17,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-using namespace cplang;
+
 
 static void registerStubs(VM* vm) {
     // ── Math (cmath) ──
@@ -412,3 +418,5 @@ static void registerStubs(VM* vm) {
     vm->registerNative("down", [](std::vector<Value>& a) -> Value { if(a.empty()||!a[0].isInt()) return Value::fromFloat(0); double v=a[0].asInt(); while(v>1.0) v*=0.5; return Value::fromFloat(v); });
 }
 namespace cplang { void registerStubImpls(VM* vm) {} }
+
+} // namespace cplang

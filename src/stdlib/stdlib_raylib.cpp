@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Raylib standard library bindings for CP language
 // #include'd from stdlib.cpp, already inside namespace cplang
 // Requires: raylib.h, raylib.lib linked
@@ -1059,3 +1063,5 @@ void StdLib::registerRaylib(VM* vm) {
     K("鼠标_中键",   2);   K("鼠标_侧键1",  3);
     K("鼠标_侧键2",  4);
 }
+
+} // namespace cplang

@@ -253,9 +253,52 @@ set_target_warnings(cplang_module)
 add_library(cplang_stdlib STATIC
     src/stdlib/stdlib.cpp
     src/stdlib/stdlib_stubs.cpp
-    src/stdlib/stdlib_raylib_unit.cpp
+    src/stdlib/stdlib_raylib.cpp
     src/stdlib/stdlib_imgui.cpp
     src/stdlib/stdlib_fix_missing.cpp
+    # 独立模块实现（从 stdlib.cpp #include 拼接中提取）
+    src/stdlib/stdlib_aes.cpp
+    src/stdlib/stdlib_algo_bitwise.cpp
+    src/stdlib/stdlib_algo_ext.cpp
+    src/stdlib/stdlib_algo_missing.cpp
+    src/stdlib/stdlib_array.cpp
+    src/stdlib/stdlib_array_file_more.cpp
+    src/stdlib/stdlib_bitset.cpp
+    src/stdlib/stdlib_charset.cpp
+    src/stdlib/stdlib_complex_pair.cpp
+    src/stdlib/stdlib_containers.cpp
+    src/stdlib/stdlib_crypto_impl.cpp
+    src/stdlib/stdlib_crypto_plus.cpp
+    src/stdlib/stdlib_encoding.cpp
+    src/stdlib/stdlib_ffi.cpp
+    src/stdlib/stdlib_file.cpp
+    src/stdlib/stdlib_file_log.cpp
+    src/stdlib/stdlib_heap.cpp
+    src/stdlib/stdlib_io.cpp
+    src/stdlib/stdlib_iterator.cpp
+    src/stdlib/stdlib_json_http.cpp
+    src/stdlib/stdlib_map.cpp
+    src/stdlib/stdlib_math.cpp
+    src/stdlib/stdlib_math_special.cpp
+    src/stdlib/stdlib_matrix_color_path_console.cpp
+    src/stdlib/stdlib_misc_modules.cpp
+    src/stdlib/stdlib_net_ws_sql.cpp
+    src/stdlib/stdlib_numeric_limits.cpp
+    src/stdlib/stdlib_p1_enhance.cpp
+    src/stdlib/stdlib_p2_more.cpp
+    src/stdlib/stdlib_reflect.cpp
+    src/stdlib/stdlib_regex.cpp
+    src/stdlib/stdlib_stats_utils.cpp
+    src/stdlib/stdlib_str_search.cpp
+    src/stdlib/stdlib_string.cpp
+    src/stdlib/stdlib_string_ext.cpp
+    src/stdlib/stdlib_string_more_impl.cpp
+    src/stdlib/stdlib_table.cpp
+    src/stdlib/stdlib_threading.cpp
+    src/stdlib/stdlib_time_sys_more.cpp
+    src/stdlib/stdlib_time_system.cpp
+    src/stdlib/stdlib_types_net.cpp
+    src/stdlib/stdlib_variant_utils.cpp
     src/miniz.c
     src/miniz_tdef.c
     src/miniz_tinfl.c
@@ -268,6 +311,16 @@ add_library(cplang_stdlib STATIC
     third_party/imgui/imgui_demo.cpp
     third_party/imgui/rlImGui.cpp
 )
+# Windows 专用模块
+if(WIN32)
+    target_sources(cplang_stdlib PRIVATE
+        src/stdlib/stdlib_db.cpp
+        src/stdlib/stdlib_redis.cpp
+        src/stdlib/stdlib_r10_r11.cpp
+        src/stdlib/stdlib_http.cpp
+        src/stdlib/stdlib_p3_util.cpp
+    )
+endif()
 target_include_directories(cplang_stdlib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src

@@ -1,4 +1,8 @@
-﻿// Container functions (Set, Stack, Queue, Deque, PriorityQueue, LinkedList, etc.)
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Container functions (Set, Stack, Queue, Deque, PriorityQueue, LinkedList, etc.)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerSet(VM* vm) {
@@ -551,3 +555,5 @@ void StdLib::registerUnorderedMultiMap(VM* vm) {
     registerAlias(vm, "无序多重映射大小", "ummSize");
     registerAlias(vm, "无序多重映射清空", "ummClear");
 }
+
+} // namespace cplang

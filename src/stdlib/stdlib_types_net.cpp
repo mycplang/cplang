@@ -1,4 +1,8 @@
-﻿// Network and Types functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Network and Types functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerNetwork(VM* vm) {
@@ -185,4 +189,4 @@ namespace types {
     }
 }
 
-
+} // namespace cplang

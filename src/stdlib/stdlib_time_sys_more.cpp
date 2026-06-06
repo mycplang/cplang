@@ -1,4 +1,8 @@
-﻿// Time, System, Process extension functions
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+// Time, System, Process extension functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 void StdLib::registerTimeMore(VM* vm) {
@@ -241,3 +245,4 @@ Value procArgs(std::vector<Value>& args) {
 //  数学扩展实现
 // ═══════════════════════════════════════════════════════════════════
 
+} // namespace cplang

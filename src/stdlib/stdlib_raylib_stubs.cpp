@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Raylib stubs for Linux — thin wrappers around raylib C API
 // This file is #included inside namespace cplang
 #include "vm/vm.hpp"
@@ -166,3 +170,5 @@ static struct RaylibAutoRegister {
         // Will be called when the stubs are included
     }
 } _raylib_auto;
+
+} // namespace cplang

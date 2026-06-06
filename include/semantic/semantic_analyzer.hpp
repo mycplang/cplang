@@ -285,20 +285,6 @@ private:
     // 表达式类型缓存 (Expr* raw ptr → Type*)
     std::unordered_map<Expr*, Type*> exprTypes_;
     
-    // ── 所有权/借用追踪 ──
-    struct BorrowState { int mutableCount = 0; int immutableCount = 0; };
-    std::unordered_map<String, BorrowState> borrowCounts_;
-    std::unordered_set<String> movedVars_;  // 已移动的变量
-    int  trustDepth_ = 0;  // 可信 { } 嵌套深度，>0 时跳过借用检查
-    
-    void checkBorrow(const String& varName, bool isMutable, int line, int col);
-    void releaseBorrow(const String& varName, bool isMutable);
-    void releaseAllBorrows();
-    
-    void moveVariable(const String& varName, int line, int col);
-    void dropVariable(const String& varName, int line, int col);
-    void checkVariableMoved(const String& varName, int line, int col);
-    
     // === 作用域管理 ===
     void pushScope(const String& name = "");
     void popScope();

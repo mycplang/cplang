@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // String functions (len, substr, concat, find, replace, split, trim, lower, upper)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -146,3 +150,5 @@ Value string::upper(std::vector<Value>& args) {
     
     return Value::String(VMString::create(str));
 }
+
+} // namespace cplang

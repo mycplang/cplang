@@ -308,14 +308,14 @@ void Codegen::compileTry(Shared<TryStmt> s) {
     (*code_)[tryPos + 6] = (catchPos >> 16) & 0xFF;
     (*code_)[tryPos + 7] = (catchPos >> 24) & 0xFF;
 
-    // 编译catch块（第一个，绑异常变量名到excReg）
-    if (!s->catchBlocks.empty()) {
+    // 编译所有 catch 块（暂不区分异常类型，依次执行所有处理块）
+    for (size_t i = 0; i < s->catchBlocks.size(); i++) {
         pushScope();
-        String exName = s->catchBlocks[0].first;
+        String exName = s->catchBlocks[i].first;
         if (!exName.empty()) {
             localScopes_.back()[exName] = { (int)excReg, nullptr };
         }
-        compileStmt(s->catchBlocks[0].second);
+        compileStmt(s->catchBlocks[i].second);
         popScope();
     }
 

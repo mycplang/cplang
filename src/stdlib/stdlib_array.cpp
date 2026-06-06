@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Array functions (len, push, pop, insert, remove, slice, reverse, sort, indexOf)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -136,3 +140,5 @@ Value array::indexOf(std::vector<Value>& args) {
     
     return Value::Int(-1);
 }
+
+} // namespace cplang

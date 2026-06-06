@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Reflection utilities (keys, values, hasKey, getField, setField)
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -51,3 +55,5 @@ void StdLib::registerReflection(VM* vm) {
     registerAlias(vm, "取字段",     "getField");
     registerAlias(vm, "设字段",     "setField");
 }
+
+} // namespace cplang

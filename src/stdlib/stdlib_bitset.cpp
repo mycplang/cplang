@@ -1,4 +1,8 @@
-﻿
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
+
 void StdLib::registerBitset(VM* vm) {
     registerFunction(vm, "bitsetSet", bitset_::set_);
     registerFunction(vm, "bitsetClear", bitset_::clear_);
@@ -699,3 +703,5 @@ Value fromBinaryString(std::vector<Value>& args) {
     return Value::Int(static_cast<Int64>(n));
 }
 } // namespace bitset_
+
+} // namespace cplang

@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // Threading module for CP stdlib
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -496,3 +500,5 @@ void StdLib::registerThreading(VM* vm) {
     registerAlias(vm, "通道尝试接收",       "channelTryRecv");
     registerAlias(vm, "通道选择",           "channelSelect");
 }
+
+} // namespace cplang

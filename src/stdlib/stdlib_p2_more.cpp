@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // P2 remaining: temp files/dirs, file stat, duration, file delete
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -284,3 +288,5 @@ void StdLib::registerDuration(VM* vm) {
     registerAlias(vm, "格式化时间间隔",    "durationFormat");
     registerAlias(vm, "已用时间",          "elapsed");
 }
+
+} // namespace cplang

@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // AES-128/256-CBC encryption + cryptographically secure random
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -386,3 +390,5 @@ void StdLib::registerDir(VM* vm) {
     registerFunction(vm, "dirMake",   dirMake_);
     registerAlias(vm, "创建目录",     "dirMake");
 }
+
+} // namespace cplang

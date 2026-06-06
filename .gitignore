@@ -12,8 +12,6 @@
 /build_clang/
 /artifacts/
 /workspace_artifacts/
-
-# --- 编译中间文件 ---
 *.exe
 *.lib
 *.exp
@@ -29,15 +27,12 @@
 # --- LLVM 开发 ---
 /llvm-dev/
 /llvm-dev.tar*
-llvm-dev/
 
 # --- IDE / 编辑器 ---
 .vscode/
 *.vsix
 tools/electron-ide/
 tools/vscode-cp/node_modules/
-tools/cp_ide.py
-tools/cp_ide_v1.py
 *.suo
 *.user
 *.wsp
@@ -48,79 +43,38 @@ tools/cp_ide_v1.py
 # --- 包注册表（独立仓库） ---
 /registry/
 
-# --- 开发工具脚本 ---
+# --- 开发工具脚本（内部使用） ---
 /_tools/
 
-# --- 临时文件 ---
+# --- 临时文件（通用模式，避免逐个列举） ---
 /tmp/
 *.tmp
 *.bak
-debug*.txt
+*.my_modifications
 *_err.txt
 *_out.txt
-_preprocessed.txt
-_all_tests.txt
-_output.txt
-_aot_*.txt
-_aot_*.bin
-_aot_debug.txt
-_aot_e.txt
-_aot_errors.txt
-_aot_l.txt
-_aot_log.txt
-_aot_raw.bin
-_aot_stderr.txt
-_aot_stdout.txt
-_aot_v2.txt
-_aot_verbose.txt
-_arr_err.txt
-_err5.txt
-_err_final.txt
-_final_err.txt
-_gfx*.txt
-_lnk2019.txt
-_symbols.txt
-_dxdiag.txt
-_*_err.txt
+*_debug.txt
+*_log.txt
+*_raw.bin
+*_last.bin
+*_diag.txt
+*_full.txt
+*_dbg.txt
+*_verbose.txt
 build_log.txt
 build_log_err.txt
-
-# --- 调试二进制 ---
-_aot_last.bin
-_test_bin.dat
-_test_bin_input.bin
-_test_hex.txt
 *.dat
 *.bin
 
-# --- 临时构建脚本（下划线前缀工具） ---
-_bld.cmd
-_build.cmd
-_build_aot_libs.cmd
-_build_final.cmd
-_compile_bridge.cmd
-_do_build.cmd
-_fix_reg.ps1
-_jt.cp
-_rebuild.cmd
-_rebuild_all.cmd
-_run_build.cmd
-_test_aot.cmd
-_test_bridge.cmd
-_test_bridge2.cmd
-_test_bridge3.cmd
-_test_link2.c
-_x.cmd
-temp_count_natives.py
-test_aot_manual.cmd
-test_aot_new.cmd
-
-# --- 临时测试文件（tests/ 下划线前缀） ---
-tests/_t*.cp
-tests/_tmp*.cp
-tests/_tbind*.cp
-tests/_tmysql*.cp
-tests/_tpg.cp
+# --- 以下划线前缀的临时文件 ---
+_[a-z]*.cmd
+_[a-z]*.bat
+_[a-z]*.ps1
+_[a-z]*.txt
+_[a-z]*.bin
+_[a-z]*.exe
+_[a-z]*.dat
+_[a-z]*.cp
 
 # --- 上传缓存 ---
 /.uploads/
@@ -137,13 +91,17 @@ dist/
 Thumbs.db
 desktop.ini
 
-# --- 凭据（已被 git credential 管理） ---
+# --- 凭据 ---
 .git-credentials*
 push_to_github.bat
-_push_to_github.bat
 
 # --- 测试临时文件 ---
 _test_fs_dir/
+tests/_t*.cp
+tests/_tmp*.cp
+tests/_tbind*.cp
+tests/_tmysql*.cp
+tests/_tpg.cp
 examples/*.exe
 
 # --- 数据目录 ---
@@ -177,3 +135,5 @@ third_party/raylib/src/*.a
 # --- DLL（第三方运行时） ---
 /libmysql.dll
 /libpq.dll
+
+# --- 历史存档（已纳入版本控制） ---

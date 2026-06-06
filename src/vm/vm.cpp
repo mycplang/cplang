@@ -219,25 +219,25 @@ void VM::gcMarkObject(VMObject* obj) {
     } else if (obj->typeTag == ObjectHeader::TAG_MULTIMAP) {
         auto mm = static_cast<VMMultiMap*>(obj);
         for (auto& kv : mm->data) {
-            gcMarkValue(const_cast<Value&>(kv.first));
+            gcMarkValue(kv.first));
             gcMarkValue(kv.second);
         }
     } else if (obj->typeTag == ObjectHeader::TAG_UNORDERED_SET) {
         auto us = static_cast<VMUnorderedSet*>(obj);
-        for (auto& v : us->data) gcMarkValue(const_cast<Value&>(v));
+        for (auto& v : us->data) gcMarkValue(v));
     } else if (obj->typeTag == ObjectHeader::TAG_UNORDERED_MULTISET) {
         auto ums = static_cast<VMUnorderedMultiSet*>(obj);
-        for (auto& v : ums->data) gcMarkValue(const_cast<Value&>(v));
+        for (auto& v : ums->data) gcMarkValue(v));
     } else if (obj->typeTag == ObjectHeader::TAG_UNORDERED_MAP) {
         auto um = static_cast<VMUnorderedMap*>(obj);
         for (auto& kv : um->data) {
-            gcMarkValue(const_cast<Value&>(kv.first));
+            gcMarkValue(kv.first));
             gcMarkValue(kv.second);
         }
     } else if (obj->typeTag == ObjectHeader::TAG_UNORDERED_MULTIMAP) {
         auto umm = static_cast<VMUnorderedMultiMap*>(obj);
         for (auto& kv : umm->data) {
-            gcMarkValue(const_cast<Value&>(kv.first));
+            gcMarkValue(kv.first));
             gcMarkValue(kv.second);
         }
     // VMTable 没有 data 成员，只有 get/set
@@ -265,16 +265,16 @@ void VM::gcMarkObject(VMObject* obj) {
     } else if (obj->typeTag == ObjectHeader::TAG_MAP) {
         auto mp = static_cast<VMMap*>(obj);
         for (auto& kv : mp->data) {
-            gcMarkValue(const_cast<Value&>(kv.first));
+            gcMarkValue(kv.first));
             gcMarkValue(kv.second);
         }
     } else if (obj->typeTag == ObjectHeader::TAG_ORDERED_SET) {
         auto os = static_cast<VMOrderedSet*>(obj);
-        for (auto& v : os->data) gcMarkValue(const_cast<Value&>(v));
+        for (auto& v : os->data) gcMarkValue(v));
     } else if (obj->typeTag == ObjectHeader::TAG_ORDERED_MAP) {
         auto om = static_cast<VMOrderedMap*>(obj);
         for (auto& kv : om->data) {
-            gcMarkValue(const_cast<Value&>(kv.first));
+            gcMarkValue(kv.first));
             gcMarkValue(kv.second);
         }
     } else if (obj->typeTag == ObjectHeader::TAG_BOXED_INT64) {

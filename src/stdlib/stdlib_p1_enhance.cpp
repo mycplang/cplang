@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // P1 enhancements: charconv float, span subspan/first/last, result monad, tuple swap, binary I/O, call_once
 // #include'd from stdlib.cpp, already inside namespace cplang
 
@@ -263,3 +267,5 @@ void StdLib::registerCallOnce(VM* vm) {
     registerAlias(vm, "调用一次",     "callOnce");
     registerAlias(vm, "已调用",       "onceDone");
 }
+
+} // namespace cplang

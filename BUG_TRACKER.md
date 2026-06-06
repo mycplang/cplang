@@ -23,9 +23,11 @@
 6. 构建验证
 
 ### 数据库连接信息
-- 服务器: 120.220.76.108
-- MySQL: root / total.mysql.11 / ceshi (端口 3306)
-- PostgreSQL: postgres / total.pgsql.11 / ceshipg (端口 5432)
+> ⚠️ **安全提示**: 数据库凭证已从版本控制中移除。
+> 本地开发请使用环境变量或 `.env` 文件配置：
+> - `CP_DB_HOST` — 数据库服务器地址
+> - `CP_MYSQL_USER` / `CP_MYSQL_PASS` / `CP_MYSQL_DB` — MySQL 连接信息（端口 3306）
+> - `CP_PG_USER` / `CP_PG_PASS` / `CP_PG_DB` — PostgreSQL 连接信息（端口 5432）
 
 ### 相关测试文件
 - `tests/cp/test_mysql.cp` - MySQL 集成测试（使用中文函数名如 MySQL连接、MySQL查询）

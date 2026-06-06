@@ -1,3 +1,7 @@
+#include "stdlib/stdlib.hpp"
+
+namespace cplang {
+
 // ═══════════════════════════════════════════════════════════════
 //  补齐 r10/r11 丢失的函数（math, array, file, random, chrono）
 // ═══════════════════════════════════════════════════════════════
@@ -203,3 +207,5 @@ void StdLib::registerR11Misc(VM* vm) {
     registerAlias(vm, "毫秒到秒",     "msToSec");
     registerAlias(vm, "纳秒到秒",     "nsToSec");
 }
+
+} // namespace cplang
