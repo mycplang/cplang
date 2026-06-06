@@ -38,6 +38,14 @@ void StdLib::registerMath(VM* vm) {
     registerAlias(vm, "自然对数", "log");
     registerAlias(vm, "圆周率", "pi");
     registerAlias(vm, "自然常数", "e");
+    registerFunction(vm, "asin", math::asin);
+    registerAlias(vm, "反正弦", "asin");
+    registerFunction(vm, "acos", math::acos);
+    registerAlias(vm, "反余弦", "acos");
+    registerFunction(vm, "atan", math::atan);
+    registerAlias(vm, "反正切", "atan");
+    registerFunction(vm, "atan2", math::atan2);
+    registerAlias(vm, "反正切2", "atan2");
 }
 
 Value math::abs(std::vector<Value>& args) {
@@ -174,6 +182,31 @@ Value math::pi(std::vector<Value>& /*args*/) {
 
 Value math::e(std::vector<Value>& /*args*/) {
     return Value::Float(2.71828182845904523536);
+}
+
+Value math::asin(std::vector<Value>& args) {
+    if (args.empty()) return Value::nil();
+    double x = args[0].isInt() ? static_cast<double>(args[0].asInt()) : args[0].asFloat();
+    return Value::Float(std::asin(x));
+}
+
+Value math::acos(std::vector<Value>& args) {
+    if (args.empty()) return Value::nil();
+    double x = args[0].isInt() ? static_cast<double>(args[0].asInt()) : args[0].asFloat();
+    return Value::Float(std::acos(x));
+}
+
+Value math::atan(std::vector<Value>& args) {
+    if (args.empty()) return Value::nil();
+    double x = args[0].isInt() ? static_cast<double>(args[0].asInt()) : args[0].asFloat();
+    return Value::Float(std::atan(x));
+}
+
+Value math::atan2(std::vector<Value>& args) {
+    if (args.size() < 2) return Value::nil();
+    double y = args[0].isInt() ? static_cast<double>(args[0].asInt()) : args[0].asFloat();
+    double x = args[1].isInt() ? static_cast<double>(args[1].asInt()) : args[1].asFloat();
+    return Value::Float(std::atan2(y, x));
 }
 
 } // namespace cplang
