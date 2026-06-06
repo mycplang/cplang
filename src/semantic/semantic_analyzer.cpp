@@ -1628,6 +1628,17 @@ void SemanticAnalyzer::substituteTypeInExpr(Shared<Expr> expr,
             substituteTypeInExpr(elem, paramNames, typeArgs);
         }
     }
+    // AwaitExpr
+    else if (auto awaitE = std::dynamic_pointer_cast<AwaitExpr>(expr)) {
+        substituteTypeInExpr(awaitE->target, paramNames, typeArgs);
+    }
+    // NewExpr
+    else if (auto newE = std::dynamic_pointer_cast<NewExpr>(expr)) {
+        for (auto& arg : newE->args) {
+            substituteTypeInExpr(arg, paramNames, typeArgs);
+        }
+    }
+    // ThisExpr, SuperExpr — 无子表达式，无需处理
     // 字面量、标识符 — 不包含类型引用，不需要替换
 }
 
