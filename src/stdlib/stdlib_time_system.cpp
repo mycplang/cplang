@@ -37,9 +37,25 @@ Value time::tick(std::vector<Value>& /*args*/) {
 
 void StdLib::registerSystem(VM* vm) {
     registerFunction(vm, "exit", system::exit);
+    registerAlias(vm, "程序退出", "exit");
     registerFunction(vm, "getEnv", system::getEnv);
+    registerAlias(vm, "环境变量", "getEnv");
     registerFunction(vm, "platform", system::platform);
+    registerAlias(vm, "平台", "platform");
     registerFunction(vm, "cwd", system::cwd);
+    registerAlias(vm, "当前目录", "cwd");
+    registerFunction(vm, "setEnv", system::setEnv);
+    registerAlias(vm, "设置环境变量", "setEnv");
+    registerFunction(vm, "exec", system::exec);
+    registerAlias(vm, "执行命令", "exec");
+    registerFunction(vm, "spawn", system::spawn);
+    registerAlias(vm, "启动进程", "spawn");
+    registerFunction(vm, "arch", system::arch);
+    registerAlias(vm, "架构", "arch");
+    registerFunction(vm, "pid", system::pid);
+    registerAlias(vm, "进程ID", "pid");
+    registerFunction(vm, "chdir", system::chdir);
+    registerAlias(vm, "切换目录", "chdir");
 }
 
 Value system::exit(std::vector<Value>& args) {

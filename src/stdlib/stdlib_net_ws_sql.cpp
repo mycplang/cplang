@@ -480,6 +480,8 @@ void StdLib::registerSqlite(VM* vm) {
     registerAlias(vm, "数据库结束",             "sqliteFinalize");
     registerAlias(vm, "数据库表信息",           "sqliteTableInfo");
     registerAlias(vm, "数据库版本",             "sqliteVersion");
+    registerAlias(vm, "数据库变更数",           "sqliteChanges");
+    registerAlias(vm, "数据库已打开",           "sqliteIsOpen");
 }
 
 } // namespace cplang
