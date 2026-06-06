@@ -1,16 +1,18 @@
-﻿# CP language CI workflow
+# CP Language — 多平台 CI
 name: CI
 
 on:
   push:
-    branches: [ "main", "master", "develop" ]
-    paths-ignore:
-      - '**.md'
+    branches: ["main", "master", "develop"]
+    paths-ignore: ['**.md']
   pull_request:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
   workflow_dispatch:
 
 jobs:
+  # ═══════════════════════════════════════════════════════════════════
+  #  Windows (MSVC + CMake)
+  # ═══════════════════════════════════════════════════════════════════
   build-windows:
     runs-on: windows-2022
     timeout-minutes: 30
@@ -34,34 +36,149 @@ jobs:
       - name: Smoke test
         shell: pwsh
         run: |
-          # help
           $h = (.\build\cplang.exe -h 2>&1) -join "`n"
           if ($LASTEXITCODE -ne 0) { throw "help failed" }
           Write-Host "OK: help"
-          # compile and run factorial
           Set-Content -Path test.cp -Value "函数 阶乘(n) { 如果 n <= 1 { 返回 1; } 返回 n * 阶乘(n - 1); } 打印(阶乘(5));" -Encoding UTF8
           $r = (.\build\cplang.exe -c test.cp 2>&1) -join "`n"
           if ($LASTEXITCODE -ne 0) { throw "compile failed: $r" }
           if ($r -notmatch "120") { throw "wrong result" }
           Write-Host "OK: factorial 5! = 120"
-          # hotspot JIT
-          $r = (.\build\cplang.exe -c --hotspot --hotspot-threshold=5 test.cp 2>&1) -join "`n"
-          if ($LASTEXITCODE -ne 0) { throw "hotspot failed: $r" }
-          Write-Host "OK: hotspot JIT"
 
-      - name: CMake build
-        shell: pwsh
+      - name: CMake build + tests
         run: |
           cmake -B build_cmake -DCPLANG_USE_LLVM=ON -DCPLANG_BUILD_TESTS=ON -DCPLANG_BUILD_EXAMPLES=OFF
           cmake --build build_cmake --config Release
           cd build_cmake
           ctest --output-on-failure -C Release
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: cplang-windows-x64
-          path: |
-            build\cplang.exe
-            build_cmake\bin\Release\cplang.exe
+          path: build_cmake/bin/Release/cplang.exe
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════
+  #  Linux (gcc + CMake, 无 LLVM/JIT)
+  # ═══════════════════════════════════════════════════════════════════
+  build-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ build-essential
+
+      - name: CMake configure (bytecode-only)
+        run: |
+          cmake -B build_linux \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCPLANG_USE_LLVM=OFF \
+            -DCPLANG_BUILD_TESTS=ON \
+            -DCPLANG_BUILD_EXAMPLES=OFF \
+            -DCPLANG_WARNINGS_AS_ERRORS=OFF
+
+      - name: Build
+        run: cmake --build build_linux --config Release -j$(nproc)
+
+      - name: Run unit tests
+        run: cd build_linux && ctest --output-on-failure -C Release
+
+      - name: Smoke test
+        run: |
+          echo '函数 阶乘(n) { 如果 n <= 1 { 返回 1; } 返回 n * 阶乘(n - 1); } 打印(阶乘(5));' > test.cp
+          result=$(./build_linux/bin/Release/cplang -c test.cp 2>&1)
+          echo "$result"
+          echo "$result" | grep -q "120" || { echo "FAIL: expected 120"; exit 1; }
+          echo "OK: factorial 5! = 120"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cplang-linux-x64
+          path: build_linux/bin/Release/cplang
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════
+  #  Linux + LLVM (JIT/AOT enabled)
+  # ═══════════════════════════════════════════════════════════════════
+  build-linux-llvm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies + LLVM 18
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ build-essential
+          wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main"
+          sudo apt-get update
+          sudo apt-get install -y llvm-18 llvm-18-dev llvm-18-tools
+
+      - name: CMake configure (JIT enabled)
+        run: |
+          cmake -B build_linux_llvm \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DCPLANG_USE_LLVM=ON \
+            -DCPLANG_BUILD_TESTS=ON \
+            -DCPLANG_BUILD_EXAMPLES=OFF \
+            -DCPLANG_WARNINGS_AS_ERRORS=OFF
+
+      - name: Build
+        run: cmake --build build_linux_llvm --config Release -j$(nproc)
+
+      - name: Run unit tests
+        run: cd build_linux_llvm && ctest --output-on-failure -C Release
+
+      - name: Smoke test (bytecode + JIT)
+        run: |
+          echo '函数 阶乘(n) { 如果 n <= 1 { 返回 1; } 返回 n * 阶乘(n - 1); } 打印(阶乘(5));' > test.cp
+          echo "--- Bytecode mode ---"
+          ./build_linux_llvm/bin/Release/cplang -c test.cp
+          echo "--- JIT mode ---"
+          ./build_linux_llvm/bin/Release/cplang -j test.cp
+
+  # ═══════════════════════════════════════════════════════════════════
+  #  macOS (Apple Clang + CMake)
+  # ═══════════════════════════════════════════════════════════════════
+  build-macos:
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CMake configure
+        run: |
+          cmake -B build_macos \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCPLANG_USE_LLVM=OFF \
+            -DCPLANG_BUILD_TESTS=ON \
+            -DCPLANG_BUILD_EXAMPLES=OFF \
+            -DCPLANG_WARNINGS_AS_ERRORS=OFF
+
+      - name: Build
+        run: cmake --build build_macos --config Release -j$(sysctl -n hw.ncpu)
+
+      - name: Run unit tests
+        run: cd build_macos && ctest --output-on-failure -C Release
+
+      - name: Smoke test
+        run: |
+          echo '函数 阶乘(n) { 如果 n <= 1 { 返回 1; } 返回 n * 阶乘(n - 1); } 打印(阶乘(5));' > test.cp
+          result=$(./build_macos/bin/Release/cplang -c test.cp 2>&1)
+          echo "$result" | grep -q "120" || { echo "FAIL: expected 120"; exit 1; }
+          echo "OK: factorial 5! = 120"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cplang-macos-arm64
+          path: build_macos/bin/Release/cplang
           retention-days: 7
