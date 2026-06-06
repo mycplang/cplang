@@ -1,0 +1,29 @@
+{
+  "comments": {
+    "lineComment": "//",
+    "blockComment": ["/*", "*/"]
+  },
+  "brackets": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"]
+  ],
+  "autoClosingPairs": [
+    { "open": "{", "close": "}" },
+    { "open": "[", "close": "]" },
+    { "open": "(", "close": ")" },
+    { "open": "\"", "close": "\"", "notIn": ["string"] },
+    { "open": "/*", "close": "*/", "notIn": ["string"] }
+  ],
+  "surroundingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["\"", "\""]
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "(:\\s*(\\[|\\{)$|\\b(如果|if|否则|else|当|while|循环|for|遍历|foreach|函数|function|类|class|结构体|struct|接口|interface|枚举|enum|尝试|try|捕获|catch|选择|switch|情况|case|其他|default)\\b[^{]*\\{$)",
+    "decreaseIndentPattern": "^\\s*(\\}|\\])"
+  },
+  "wordPattern": "(-?\\d*\\.\\d+\\w*)|([^\\s\\(\\)\\[\\]\\{\\}\"\\'\\;\\:\\,\\.\\<\\>\\=\\+\\-\\*\\/\\&\\|\\!\\~\\%\\^]+)"
+}

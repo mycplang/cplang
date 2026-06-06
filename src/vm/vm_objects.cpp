@@ -64,6 +64,7 @@ VMRWLock* VMRWLock::create() { return new VMRWLock(); }
 
 VMWebSocket* VMWebSocket::create() { return new VMWebSocket(); }
 VMMap* VMMap::create() { return new VMMap(); }
+VMOrderedMap* VMOrderedMap::create() { return new VMOrderedMap(); }
 VMWebSocket::~VMWebSocket() {
     // Handles cleaned up via CP-side wsClose(); GC safety net only
     hWebSocket = nullptr;

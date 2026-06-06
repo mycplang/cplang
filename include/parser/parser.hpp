@@ -62,6 +62,7 @@ private:
     Shared<ClassDeclStmt> parseClassDecl();
     Shared<InterfaceDeclStmt> parseInterfaceDecl();
     Shared<EnumDeclStmt> parseEnumDecl();
+    Shared<Expr> parsePipe();
     Shared<StructDeclStmt> parseStructDecl();
     Shared<VarDeclStmt> parseVariableDecl(bool isConst, bool isLet = false);
     
@@ -69,6 +70,7 @@ private:
     Shared<BlockStmt> parseBlock();
     Shared<Stmt> parseIfStatement();
     Shared<Stmt> parseSwitchStatement();
+    Shared<Stmt> parseMatchStatement();
     Shared<Stmt> parseForStatement();
     Shared<Stmt> parseForEachStatement();
     Shared<Stmt> parseWhileStatement();
@@ -96,6 +98,7 @@ private:
     Shared<Expr> parseUnary();          // - ! ~ ++ --
     Shared<Expr> parsePostfix();        // . [] () ++ --
     Shared<Expr> parsePrimary();        // 字面量、标识符、括号
+    Shared<Expr> parseLambda();         // Lambda表达式 (|x, y| { ... } 或 (x, y) => { ... })
     
     // 类型
     Optional<String> parseType();

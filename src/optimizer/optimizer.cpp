@@ -148,7 +148,7 @@ Shared<Stmt> Optimizer::optimizeStmt(Shared<Stmt> stmt) {
 // ═══════════════════════════════════════════════════════════════════
 
 void Optimizer::printStats() const {
-    VERBOSE(
+    if (!cplang::verboseEnabled()) return;
         std::cout << "=== 优化统计 ===" << std::endl;
         std::cout << "常量折叠: " << stats_.constantsFolded << " 次" << std::endl;
         std::cout << "死代码消除: " << stats_.deadCodeRemoved << " 处" << std::endl;
@@ -158,7 +158,6 @@ void Optimizer::printStats() const {
         std::cout << "避免堆分配: " << stats_.heapAllocsAvoided << " 个" << std::endl;
         std::cout << "函数内联: " << stats_.functionsInlined << " 次" << std::endl;
         std::cout << "迭代次数: " << stats_.iterations << std::endl;
-    );
 }
 
 } // namespace cplang

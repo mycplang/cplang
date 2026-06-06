@@ -154,6 +154,7 @@ Token Lexer::scanId_(int sl, int sc) {
             break;
         }
     }
+    if (txt == "可变") return Token(TokenType::K_MUTABLE, txt, sl, sc);
     auto kw = KeywordTable::instance().find(txt);
     if (kw.has_value()) return Token(kw.value(), txt, sl, sc);
     return Token(TokenType::IDENTIFIER, txt, sl, sc);
@@ -222,7 +223,7 @@ Token Lexer::scanOp_(int sl, int sc) {
         if (two == "==" || two == "!=" || two == ">=" || two == "<=" ||
             two == "&&" || two == "||" || two == "++" || two == "--" ||
             two == "+=" || two == "-=" || two == "*=" || two == "/=" ||
-            two == "%=" || two == "::" || two == "->" ||
+            two == "%=" || two == "::" || two == "->" || two == "|>" || two == "=>" ||
             two == "<<") {
             advance_(); advance_();
             static const std::unordered_map<String, TokenType> m2 = {
@@ -234,6 +235,8 @@ Token Lexer::scanOp_(int sl, int sc) {
                 {"*=", TokenType::OP_MUL_ASSIGN}, {"/=", TokenType::OP_DIV_ASSIGN},
                 {"%=", TokenType::OP_MOD_ASSIGN},
                 {"::", TokenType::OP_DBL_COLON}, {"->", TokenType::OP_ARROW},
+                {"|>", TokenType::OP_PIPE},
+                {"=>", TokenType::OP_FAT_ARROW},
                 {"<<", TokenType::OP_LSHIFT},
             };
             return Token(m2.at(two), two, sl, sc);

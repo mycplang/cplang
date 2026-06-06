@@ -499,7 +499,7 @@ void JITCompiler::clearCache() {
 }
 
 void JITCompiler::dumpStats() const {
-    VERBOSE(
+    if (!cplang::verboseEnabled()) return;
     std::cout << "\n╔══════════════════════════════════════════════╗\n";
     std::cout << "║           JIT 编译统计                      ║\n";
     std::cout << "╠══════════════════════════════════════════════╣\n";
@@ -517,7 +517,6 @@ void JITCompiler::dumpStats() const {
                   << stats_.avgCompileTimeMs << " ms                ║\n";
     }
     std::cout << "╚══════════════════════════════════════════════╝\n\n";
-    );
 }
 
 } // namespace cplang

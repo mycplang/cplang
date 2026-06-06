@@ -184,12 +184,27 @@ static Font g_cjkFont = {0};
 static Font& getCjkFont() {
     if (g_cjkFont.glyphCount != 0) return g_cjkFont;
 
-    // Build codepoint list: ASCII (32-126) + CJK Unified Ideographs (0x4E00-0x9FFF)
-    // This covers 20,992 commonly-used Chinese characters — no more whitelist patching
+    // Build codepoint list: ASCII + CJK + CJK Symbols + Fullwidth Forms
+    // Covers Chinese characters, Chinese punctuation (，。！？), and fullwidth forms
     std::vector<int> codepoints;
-    codepoints.reserve(21000);
+    codepoints.reserve(22500);
     for (int i = 32; i <= 126; i++) codepoints.push_back(i);
     for (int cp = 0x4E00; cp <= 0x9FFF; cp++) codepoints.push_back(cp);
+    for (int cp = 0x3000; cp <= 0x303F; cp++) codepoints.push_back(cp);
+    for (int cp = 0xFF00; cp <= 0xFFEF; cp++) codepoints.push_back(cp);
+    for (int cp = 0x2000; cp <= 0x206F; cp++) codepoints.push_back(cp);   // General Punctuation
+    for (int cp = 0xFE30; cp <= 0xFE4F; cp++) codepoints.push_back(cp);   // CJK Compatibility Forms
+    for (int cp = 0xFE10; cp <= 0xFE1F; cp++) codepoints.push_back(cp);   // Vertical Forms
+    for (int cp = 0x2100; cp <= 0x214F; cp++) codepoints.push_back(cp);   // Letterlike Symbols (℃℉№)
+    for (int cp = 0x2190; cp <= 0x21FF; cp++) codepoints.push_back(cp);   // Arrows (←↑→↓↔)
+    for (int cp = 0x2200; cp <= 0x22FF; cp++) codepoints.push_back(cp);   // Mathematical Operators (≈≠≤≥±×÷∑)
+    for (int cp = 0x2460; cp <= 0x24FF; cp++) codepoints.push_back(cp);   // Enclosed Alphanumerics (①②③)
+    for (int cp = 0x2500; cp <= 0x257F; cp++) codepoints.push_back(cp);   // Box Drawing (─│┌┐└┘)
+    for (int cp = 0x25A0; cp <= 0x25FF; cp++) codepoints.push_back(cp);   // Geometric Shapes (■□▲△●○)
+    for (int cp = 0x2600; cp <= 0x26FF; cp++) codepoints.push_back(cp);   // Miscellaneous Symbols (★☆☎♠)
+    for (int cp = 0x0391; cp <= 0x03A9; cp++) codepoints.push_back(cp);   // Greek uppercase
+    for (int cp = 0x03B1; cp <= 0x03C9; cp++) codepoints.push_back(cp);   // Greek lowercase
+    for (int cp = 0x0400; cp <= 0x04FF; cp++) codepoints.push_back(cp);   // Cyrillic
 
     // Try fonts in order; reduce fontSize if full-range atlas exceeds GPU texture limit
     const char* paths[] = { "C:/Windows/Fonts/simhei.ttf", "C:/Windows/Fonts/simsun.ttc", NULL };
@@ -803,6 +818,21 @@ void StdLib::registerRaylib(VM* vm) {
     registerFunction(vm, "BLANK",            rl_color_blank);
     registerFunction(vm, "MAGENTA",          rl_color_magenta);
     registerFunction(vm, "RAYWHITE",         rl_color_raywhite);
+    // Register all colors as global values (for use as bare identifiers)
+    { std::vector<Value> _ea;
+    vm->registerGlobal("BLACK", rl_color_black(_ea)); vm->registerGlobal("WHITE", rl_color_white(_ea));
+    vm->registerGlobal("BLUE", rl_color_blue(_ea)); vm->registerGlobal("RED", rl_color_red(_ea));
+    vm->registerGlobal("GREEN", rl_color_green(_ea)); vm->registerGlobal("YELLOW", rl_color_yellow(_ea));
+    vm->registerGlobal("GRAY", rl_color_gray(_ea)); vm->registerGlobal("DARKGRAY", rl_color_darkgray(_ea));
+    vm->registerGlobal("LIGHTGRAY", rl_color_lightgray(_ea)); vm->registerGlobal("PURPLE", rl_color_purple(_ea));
+    vm->registerGlobal("ORANGE", rl_color_orange(_ea)); vm->registerGlobal("PINK", rl_color_pink(_ea));
+    vm->registerGlobal("BROWN", rl_color_brown(_ea)); vm->registerGlobal("MAGENTA", rl_color_magenta(_ea));
+    vm->registerGlobal("RAYWHITE", rl_color_raywhite(_ea)); vm->registerGlobal("LIME", rl_color_lime(_ea));
+    vm->registerGlobal("DARKGREEN", rl_color_darkgreen(_ea)); vm->registerGlobal("SKYBLUE", rl_color_skyblue(_ea));
+    vm->registerGlobal("DARKBLUE", rl_color_darkblue(_ea)); vm->registerGlobal("VIOLET", rl_color_violet(_ea));
+    vm->registerGlobal("DARKPURPLE", rl_color_darkpurple(_ea)); vm->registerGlobal("BEIGE", rl_color_beige(_ea));
+    vm->registerGlobal("MAROON", rl_color_maroon(_ea)); vm->registerGlobal("GOLD", rl_color_gold(_ea));
+    vm->registerGlobal("DARKBROWN", rl_color_darkbrown(_ea)); vm->registerGlobal("BLANK", rl_color_blank(_ea)); }
     
     // Input
     registerFunction(vm, "isKeyDown",        rl_isKeyDown);
@@ -913,7 +943,33 @@ void StdLib::registerRaylib(VM* vm) {
     registerAlias(vm, "透明",                 "BLANK");
     registerAlias(vm, "品红",                 "MAGENTA");
     registerAlias(vm, "乳白",                 "RAYWHITE");
-
+    // Register Chinese color names as global values (for use as bare identifiers)
+    { std::vector<Value> _ea2;
+    vm->registerGlobal("浅灰", rl_color_lightgray(_ea2)); vm->registerGlobal("灰", rl_color_gray(_ea2));
+    vm->registerGlobal("深灰", rl_color_darkgray(_ea2)); vm->registerGlobal("黄", rl_color_yellow(_ea2));
+    vm->registerGlobal("金", rl_color_gold(_ea2)); vm->registerGlobal("橙", rl_color_orange(_ea2));
+    vm->registerGlobal("粉", rl_color_pink(_ea2)); vm->registerGlobal("红", rl_color_red(_ea2));
+    vm->registerGlobal("栗红", rl_color_maroon(_ea2)); vm->registerGlobal("绿", rl_color_green(_ea2));
+    vm->registerGlobal("亮绿", rl_color_lime(_ea2)); vm->registerGlobal("深绿", rl_color_darkgreen(_ea2));
+    vm->registerGlobal("天蓝", rl_color_skyblue(_ea2)); vm->registerGlobal("蓝", rl_color_blue(_ea2));
+    vm->registerGlobal("深蓝", rl_color_darkblue(_ea2)); vm->registerGlobal("紫", rl_color_purple(_ea2));
+    vm->registerGlobal("蓝紫", rl_color_violet(_ea2)); vm->registerGlobal("深紫", rl_color_darkpurple(_ea2));
+    vm->registerGlobal("米色", rl_color_beige(_ea2)); vm->registerGlobal("棕", rl_color_brown(_ea2));
+    vm->registerGlobal("深棕", rl_color_darkbrown(_ea2)); vm->registerGlobal("白", rl_color_white(_ea2));
+    vm->registerGlobal("黑", rl_color_black(_ea2)); vm->registerGlobal("透明", rl_color_blank(_ea2));
+    vm->registerGlobal("品红", rl_color_magenta(_ea2)); vm->registerGlobal("乳白", rl_color_raywhite(_ea2)); }
+    // "色" suffix aliases (e.g. 白色, 红色, 蓝色)
+    registerAlias(vm, "白色", "WHITE"); registerAlias(vm, "黑色", "BLACK");
+    registerAlias(vm, "红色", "RED"); registerAlias(vm, "绿色", "GREEN");
+    registerAlias(vm, "蓝色", "BLUE"); registerAlias(vm, "黄色", "YELLOW");
+    registerAlias(vm, "灰色", "GRAY"); registerAlias(vm, "橙色", "ORANGE");
+    registerAlias(vm, "紫色", "PURPLE"); registerAlias(vm, "粉色", "PINK");
+    registerAlias(vm, "棕色", "BROWN"); registerAlias(vm, "金色", "GOLD");
+    registerAlias(vm, "青色", "SKYBLUE"); registerAlias(vm, "浅灰色", "LIGHTGRAY");
+    registerAlias(vm, "深灰色", "DARKGRAY"); registerAlias(vm, "深蓝色", "DARKBLUE");
+    registerAlias(vm, "深绿色", "DARKGREEN"); registerAlias(vm, "深紫色", "DARKPURPLE");
+    registerAlias(vm, "亮绿色", "LIME");
+    
     // ── Chinese aliases: Input ──
     registerAlias(vm, "键盘按下",             "isKeyDown");
     registerAlias(vm, "键盘刚按下",           "isKeyPressed");

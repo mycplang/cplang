@@ -70,6 +70,16 @@ struct StructLiteralExpr : Expr {
     std::vector<std::pair<String, Shared<Expr>>> fields;  // 字段名和值
 };
 
+struct BlockStmt;  // forward decl
+
+// Lambda表达式（匿名函数/闭包）
+struct LambdaExpr : Expr {
+    std::vector<std::pair<String, Optional<String> > > params;   // 参数名, 可选类型注解
+    Optional<String> returnType;                               // 返回类型注解
+    Shared<BlockStmt> body;                                    // 函数体
+    std::vector<String> captures;                              // 捕获的变量（由语义分析器填充）
+};
+
 // 语句节点
 struct Stmt : ASTNode {};
 
@@ -89,7 +99,11 @@ struct DropExpr : Expr {
     Shared<Expr> target;  // 要释放的目标
 };
 
-struct BlockStmt;  // forward decl
+// 管道表达式：a |> f 等价于 f(a)
+struct PipeExpr : Expr {
+    Shared<Expr> left;   // 左侧值
+    Shared<Expr> right;  // 右侧函数/表达式
+};
 
 // 可信块（unsafe 块）
 struct TrustBlockStmt : Stmt {
@@ -155,9 +169,17 @@ struct InterfaceDeclStmt : Stmt {
 };
 
 // 枚举声明
+// EnumVariantDef: 枚举中的一个变体（ADT 风格）
+struct EnumVariantDef {
+    String name;
+    std::vector<std::pair<String, String>> fields;  // 字段名 → 类型名
+};
+
 struct EnumDeclStmt : Stmt {
     String name;
-    std::vector<std::pair<String, Optional<Int64>>> values;
+    std::vector<std::pair<String, Optional<Int64>>> values;  // 简单 C 风格枚举值（向后兼容）
+    std::vector<EnumVariantDef> variants;  // ADT 变体（带关联数据）
+    bool isADT = false;  // true 表示此枚举有带关联数据的变体
 };
 
 // 结构体声明
@@ -179,6 +201,20 @@ struct SwitchStmt : Stmt {
     Shared<Expr> expr;
     std::vector<std::pair<Optional<Shared<Expr>>, Shared<Stmt>>> cases;  // expr, stmt
     Shared<Stmt> defaultCase;
+};
+
+// MatchCase：匹配语句中的一个分支
+struct MatchCase {
+    String variantName;                    // 要匹配的变体名
+    std::vector<String> bindings;           // 绑定到变体字段的变量名
+    Shared<Stmt> body;                      // 分支体
+};
+
+// MatchStmt：模式匹配语句
+struct MatchStmt : Stmt {
+    Shared<Expr> expr;                      // 要匹配的表达式
+    std::vector<MatchCase> cases;            // 匹配分支
+    Shared<Stmt> defaultCase;               // 可选的默认分支
 };
 
 // for 语句

@@ -38,13 +38,13 @@ Shared<VarDeclStmt> Parser::parseVariableDecl(bool isConst, bool isLet) {
         // 设 x 为 10 语法
         if (match(TokenType::K_DO)) {  // "为" (注意：K_DO 映射到 "为")
             consume();
-            decl->init = parseAssignment();
+            decl->init = parseExpression();
         }
     } else {
         // 变量 x = 10 语法
         if (match(TokenType::OP_ASSIGN)) {
             consume();
-            decl->init = parseAssignment();
+            decl->init = parseExpression();
         }
     }
     
@@ -195,32 +195,84 @@ Shared<EnumDeclStmt> Parser::parseEnumDecl() {
     
     expect(TokenType::LBRACE, "Expected '{' after enum declaration");
     
-    Int64 value = 0;
-    while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
-        String name = current_.text;
-        expect(TokenType::IDENTIFIER, "Expected enum value name");
-        
-        Optional<Int64> initValue;
-        if (match(TokenType::OP_ASSIGN)) {
-            consume();
-            auto expr = parseExpression();
-            // 从字面量提取值（LiteralExpr::value 是 variant）
-            if (auto lit = std::dynamic_pointer_cast<LiteralExpr>(expr)) {
-                if (auto v = std::get_if<Int64>(&lit->value)) {
-                    initValue = *v;
-                    value = *v + 1;
+    // 检查第一个变体是否带括号 → ADT 风格枚举
+    bool firstIsADT = false;
+    if (match(TokenType::IDENTIFIER) && peek_.type == TokenType::LPAREN) {
+        firstIsADT = true;
+    }
+    
+    if (firstIsADT) {
+        // ADT 风格枚举: 枚举 结果 { 成功(字符串, 整数) | 失败(字符串) }
+        enm->isADT = true;
+        while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
+            EnumVariantDef variant;
+            variant.name = current_.text;
+            expect(TokenType::IDENTIFIER, "Expected enum variant name");
+            
+            // 解析关联数据字段
+            if (match(TokenType::LPAREN)) {
+                consume();  // consume '('
+                while (!match(TokenType::RPAREN) && !match(TokenType::END_OF_FILE)) {
+                    String fieldName = current_.text;
+                    expect(TokenType::IDENTIFIER, "Expected field name in variant");
+                    
+                    String fieldType = "auto";  // 默认类型
+                    if (match(TokenType::OP_COLON)) {
+                        consume();
+                        auto typeOpt = parseType();
+                        if (typeOpt.has_value()) {
+                            fieldType = typeOpt.value();
+                        }
+                    }
+                    variant.fields.push_back({fieldName, fieldType});
+                    
+                    if (match(TokenType::COMMA)) {
+                        consume();
+                    } else {
+                        break;
+                    }
                 }
+                expect(TokenType::RPAREN, "Expected ')' after variant fields");
             }
-        } else {
-            initValue = value++;
+            
+            enm->variants.push_back(variant);
+            
+            // 使用 '|' 作为 ADT 变体分隔符
+            if (match(TokenType::OP_BIT_OR)) {
+                consume();
+            } else {
+                break;
+            }
         }
-        
-        enm->values.push_back({name, initValue});
-        
-        if (match(TokenType::COMMA)) {
-            consume();
-        } else {
-            break;
+    } else {
+        // 简单 C 风格枚举（向后兼容）
+        Int64 value = 0;
+        while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
+            String name = current_.text;
+            expect(TokenType::IDENTIFIER, "Expected enum value name");
+            
+            Optional<Int64> initValue;
+            if (match(TokenType::OP_ASSIGN)) {
+                consume();
+                auto expr = parseExpression();
+                // 从字面量提取值（LiteralExpr::value 是 variant）
+                if (auto lit = std::dynamic_pointer_cast<LiteralExpr>(expr)) {
+                    if (auto v = std::get_if<Int64>(&lit->value)) {
+                        initValue = *v;
+                        value = *v + 1;
+                    }
+                }
+            } else {
+                initValue = value++;
+            }
+            
+            enm->values.push_back({name, initValue});
+            
+            if (match(TokenType::COMMA)) {
+                consume();
+            } else {
+                break;
+            }
         }
     }
     

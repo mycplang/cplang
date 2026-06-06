@@ -136,7 +136,7 @@ private:
 
 // 符号
 struct Symbol {
-    enum Kind { VAR, FUNC, CLASS, PARAM, FIELD, CONST, ENUM_VALUE, TYPE_ALIAS, LABEL };
+    enum Kind { VAR, FUNC, CLASS, PARAM, FIELD, CONST, ENUM_VALUE, TYPE_ALIAS, LABEL, ENUM_VARIANT };
     Kind kind;
     String name;
     Type* type = nullptr;
@@ -325,6 +325,7 @@ private:
     Type* analyzeFor(Shared<ForStmt> s);
     Type* analyzeWhile(Shared<WhileStmt> s);
     Type* analyzeReturn(Shared<ReturnStmt> s);
+    Type* analyzeMatch(Shared<MatchStmt> s);
     
     // === 表达式分析 ===
     Type* analyzeExpr(Shared<Expr> expr);
@@ -333,6 +334,7 @@ private:
     Type* analyzeCallExpr(Shared<CallExpr> expr);
     Type* analyzeMemberExpr(Shared<MemberExpr> expr);
     Type* analyzeIndexExpr(Shared<IndexExpr> expr);
+    Type* analyzeLambda(Shared<LambdaExpr> expr);
     
     // === AST 变换 ===
     // 将块内的 defer 语句展开为 try-finally 模式

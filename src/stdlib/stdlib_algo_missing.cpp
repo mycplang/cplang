@@ -243,6 +243,54 @@ Value transform_(std::vector<Value>& args) {
     return makeArrayVal(result);
 }
 
+// ── reduce (折叠归约，无初始值) ──
+Value reduce_(std::vector<Value>& args) {
+    if (args.size() < 2 || !args[0].isArray()) return Value::nil();
+    auto arr = args[0].asArray();
+    if (arr->data.empty()) return Value::nil();
+    Value fn = args[1];
+    Value acc = arr->data[0];
+    for (size_t i = 1; i < arr->data.size(); i++) {
+        std::vector<Value> cargs = {acc, arr->data[i]};
+        acc = VM::current()->callFunction(fn, cargs);
+    }
+    return acc;
+}
+
+// ── generateN (生成序列，指定个数) ──
+Value generateN_(std::vector<Value>& args) {
+    if (args.size() < 2 || !args[1].isInt()) return Value::nil();
+    Int64 n = args[1].asInt();
+    if (n < 0) return Value::nil();
+    Value gen = args[0];
+    VMArray* result = VMArray::create();
+    for (Int64 i = 0; i < n; i++) {
+        std::vector<Value> cargs;
+        Value v = VM::current()->callFunction(gen, cargs);
+        result->data.push_back(v);
+    }
+    return makeArrayVal(result);
+}
+
+// ── iota (用递增值填充数组) ──
+Value iota_(std::vector<Value>& args) {
+    if (args.size() < 2 || !args[0].isArray() || !args[1].isInt()) return Value::nil();
+    auto arr = args[0].asArray();
+    Int64 start = args[1].asInt();
+    for (size_t i = 0; i < arr->data.size(); i++)
+        arr->data[i] = Value::Int(start + static_cast<Int64>(i));
+    return args[0];
+}
+
+// ── fill (用固定值填充数组) ──
+Value fill_(std::vector<Value>& args) {
+    if (args.size() < 2 || !args[0].isArray()) return Value::nil();
+    auto arr = args[0].asArray();
+    for (auto& v : arr->data)
+        v = args[1];
+    return args[0];
+}
+
 } // namespace algo_missing
 
 void StdLib::registerAlgoMissing(VM* vm) {
@@ -264,6 +312,10 @@ void StdLib::registerAlgoMissing(VM* vm) {
     registerFunction(vm, "generate",        generate_);
     registerFunction(vm, "forEach",         forEach_);
     registerFunction(vm, "transform",       transform_);
+    registerFunction(vm, "reduce",          reduce_);
+    registerFunction(vm, "generateN",       generateN_);
+    registerFunction(vm, "iota",            iota_);
+    registerFunction(vm, "fill",            fill_);
     registerAlias(vm, "稳定排序",           "stableSort");
     registerAlias(vm, "分区",               "partition");
     registerAlias(vm, "稳定分割",           "stablePartition");
@@ -281,4 +333,8 @@ void StdLib::registerAlgoMissing(VM* vm) {
     registerAlias(vm, "生成",               "generate");
     registerAlias(vm, "遍历",               "forEach");
     registerAlias(vm, "数组变换",           "transform");
+    registerAlias(vm, "归约",               "reduce");
+    registerAlias(vm, "生成N",              "generateN");
+    registerAlias(vm, "填充递增值",         "iota");
+    registerAlias(vm, "填充",               "fill");
 }

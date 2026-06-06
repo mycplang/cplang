@@ -105,7 +105,7 @@ void HybridJIT::compileAll(Shared<Program> program) {
             orcJit_->compileAll(program);
             break;
         case Mode::External:
-            // 外部进程模式暂不支持全量编译
+            VERBOSE(std::cerr << "[HybridJIT] 外部进程模式不支持全量预编译，请使用 ORC JIT\n");
             break;
         default:
             break;

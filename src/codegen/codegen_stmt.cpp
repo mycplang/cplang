@@ -1,5 +1,6 @@
 // CP语言 代码生成器实现 - 语句编译
 #include "codegen/codegen.hpp"
+#include <cstdio>
 
 namespace cplang {
 
@@ -9,29 +10,32 @@ void Codegen::compileStmt(Shared<Stmt> stmt) {
     // 设置当前源码行号（用于错误定位）
     setLine(stmt->token.line);
 
-    if (auto p = std::dynamic_pointer_cast<PackageStmt>(stmt)) compilePackage(p);
-    else if (auto imp = std::dynamic_pointer_cast<ImportStmt>(stmt)) compileImport(imp);
-    else if (auto v = std::dynamic_pointer_cast<VarDeclStmt>(stmt)) compileVarDecl(v);
-    else if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(stmt)) compileFuncDecl(func);
-    else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(stmt)) compileClassDecl(cls);
-    else if (auto enm = std::dynamic_pointer_cast<EnumDeclStmt>(stmt)) compileEnumDecl(enm);
-    else if (auto s = std::dynamic_pointer_cast<StructDeclStmt>(stmt)) compileStructDecl(s);
-    else if (auto blk = std::dynamic_pointer_cast<BlockStmt>(stmt)) compileBlock(blk);
+    if (auto p = std::dynamic_pointer_cast<PackageStmt>(stmt)) { printf("compileStmt: Package\n"); fflush(stdout); compilePackage(p); }
+    else if (auto imp = std::dynamic_pointer_cast<ImportStmt>(stmt)) { printf("compileStmt: Import\n"); fflush(stdout); compileImport(imp); }
+    else if (auto v = std::dynamic_pointer_cast<VarDeclStmt>(stmt)) { printf("compileStmt: VarDecl\n"); fflush(stdout); compileVarDecl(v); }
+    else if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(stmt)) { printf("compileStmt: FuncDecl\n"); fflush(stdout); compileFuncDecl(func); printf("compileStmt: FuncDecl done\n"); fflush(stdout); }
+    else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(stmt)) { printf("compileStmt: ClassDecl\n"); fflush(stdout); compileClassDecl(cls); }
+    else if (auto enm = std::dynamic_pointer_cast<EnumDeclStmt>(stmt)) { printf("compileStmt: EnumDecl\n"); fflush(stdout); compileEnumDecl(enm); }
+    else if (auto s = std::dynamic_pointer_cast<StructDeclStmt>(stmt)) { printf("compileStmt: StructDecl\n"); fflush(stdout); compileStructDecl(s); }
+    else if (auto blk = std::dynamic_pointer_cast<BlockStmt>(stmt)) { printf("compileStmt: Block\n"); fflush(stdout); compileBlock(blk); }
     else if (auto trust = std::dynamic_pointer_cast<TrustBlockStmt>(stmt)) {
         if (trust->body) compileBlock(trust->body);  // 可信块目前就是普通块
     }
-    else if (auto ifStmt = std::dynamic_pointer_cast<IfStmt>(stmt)) compileIf(ifStmt);
-    else if (auto forStmt = std::dynamic_pointer_cast<ForStmt>(stmt)) compileFor(forStmt);
-    else if (auto fe = std::dynamic_pointer_cast<ForEachStmt>(stmt)) compileForEach(fe);
-    else if (auto w = std::dynamic_pointer_cast<WhileStmt>(stmt)) compileWhile(w);
-    else if (auto r = std::dynamic_pointer_cast<ReturnStmt>(stmt)) compileReturn(r);
-    else if (auto brk = std::dynamic_pointer_cast<BreakStmt>(stmt)) compileBreak(brk);
-    else if (auto cont = std::dynamic_pointer_cast<ContinueStmt>(stmt)) compileContinue(cont);
-    else if (auto tr = std::dynamic_pointer_cast<TryStmt>(stmt)) compileTry(tr);
-    else if (auto th = std::dynamic_pointer_cast<ThrowStmt>(stmt)) compileThrow(th);
-    else if (auto sw = std::dynamic_pointer_cast<SwitchStmt>(stmt)) compileSwitch(sw);
-    else if (auto e = std::dynamic_pointer_cast<ExprStmt>(stmt)) compileExprStmt(e);
-    else if (auto d = std::dynamic_pointer_cast<DeferStmt>(stmt)) compileDefer(d);
+    else if (auto ifStmt = std::dynamic_pointer_cast<IfStmt>(stmt)) { printf("compileStmt: If\n"); fflush(stdout); compileIf(ifStmt); }
+    else if (auto forStmt = std::dynamic_pointer_cast<ForStmt>(stmt)) { printf("compileStmt: For\n"); fflush(stdout); compileFor(forStmt); }
+    else if (auto fe = std::dynamic_pointer_cast<ForEachStmt>(stmt)) { printf("compileStmt: ForEach\n"); fflush(stdout); compileForEach(fe); }
+    else if (auto w = std::dynamic_pointer_cast<WhileStmt>(stmt)) { printf("compileStmt: While\n"); fflush(stdout); compileWhile(w); }
+    else if (auto dw = std::dynamic_pointer_cast<DoWhileStmt>(stmt)) { printf("compileStmt: DoWhile\n"); fflush(stdout); compileDoWhile(dw); }
+    else if (auto iface = std::dynamic_pointer_cast<InterfaceDeclStmt>(stmt)) { printf("compileStmt: InterfaceDecl\n"); fflush(stdout); compileInterfaceDecl(iface); }
+    else if (auto r = std::dynamic_pointer_cast<ReturnStmt>(stmt)) { printf("compileStmt: Return\n"); fflush(stdout); compileReturn(r); }
+    else if (auto brk = std::dynamic_pointer_cast<BreakStmt>(stmt)) { printf("compileStmt: Break\n"); fflush(stdout); compileBreak(brk); }
+    else if (auto cont = std::dynamic_pointer_cast<ContinueStmt>(stmt)) { printf("compileStmt: Continue\n"); fflush(stdout); compileContinue(cont); }
+    else if (auto tr = std::dynamic_pointer_cast<TryStmt>(stmt)) { printf("compileStmt: Try\n"); fflush(stdout); compileTry(tr); }
+    else if (auto th = std::dynamic_pointer_cast<ThrowStmt>(stmt)) { printf("compileStmt: Throw\n"); fflush(stdout); compileThrow(th); }
+    else if (auto sw = std::dynamic_pointer_cast<SwitchStmt>(stmt)) { printf("compileStmt: Switch\n"); fflush(stdout); compileSwitch(sw); }
+    else if (auto matchStmt = std::dynamic_pointer_cast<MatchStmt>(stmt)) { printf("compileStmt: Match\n"); fflush(stdout); compileMatch(matchStmt); }
+    else if (auto e = std::dynamic_pointer_cast<ExprStmt>(stmt)) { printf("compileStmt: ExprStmt\n"); fflush(stdout); compileExprStmt(e); }
+    else if (auto d = std::dynamic_pointer_cast<DeferStmt>(stmt)) { printf("compileStmt: Defer\n"); fflush(stdout); compileDefer(d); }
 }
 
 void Codegen::compilePackage(Shared<PackageStmt> /*stmt*/) {
@@ -155,8 +159,11 @@ void Codegen::compileFuncDecl(Shared<FuncDeclStmt> stmt) {
 
     // 编译函数体
     if (stmt->body) {
+        printf("DEBUG: compileFuncDecl: compiling body\n"); fflush(stdout);
         compileBlock(stmt->body);
     }
+
+    printf("DEBUG: compileFuncDecl: adding default return\n"); fflush(stdout);
 
     // 默认返回 nil
     if (func_->code.empty() || func_->code.back() != OP_RETURN) {
@@ -164,14 +171,17 @@ void Codegen::compileFuncDecl(Shared<FuncDeclStmt> stmt) {
         emit(OP_RETURN, 0, 0, 0);
     }
 
+    printf("DEBUG: compileFuncDecl: popScope\n"); fflush(stdout);
     // 弹出函数作用域
     popScope();
 
+    printf("DEBUG: compileFuncDecl: setting properties\n"); fflush(stdout);
     // 设置新函数的属性
     newFunc->maxStack = maxReg_ + 16;
     newFunc->constants = constants_;  // 复制常量表
     newFunc->isTyped = allTyped_;     // 渐进类型标记
     
+    printf("DEBUG: compileFuncDecl: restoring context\n"); fflush(stdout);
     lastCompiledFunc_ = func_;
     // 恢复外层编译状态
     func_ = oldFunc;
@@ -182,14 +192,17 @@ void Codegen::compileFuncDecl(Shared<FuncDeclStmt> stmt) {
     // 重置 typed 追踪
     allTyped_ = true;
 
+    printf("DEBUG: compileFuncDecl: adding function to constant pool\n"); fflush(stdout);
     // 添加新函数到外层的常量池
     Value funcVal = makeFunctionVal(reinterpret_cast<VMFunction*>(newFunc));
     Int32 funcIdx = addConstant(funcVal);
 
+    printf("DEBUG: compileFuncDecl: creating name string\n"); fflush(stdout);
     // 全局注册函数名
     VMString* nameStr = VMString::create(stmt->name);
     Int32 nameIdx = addConstant(makeStringVal(nameStr));
 
+    printf("DEBUG: compileFuncDecl: emitting LOADCONST\n"); fflush(stdout);
     // 生成代码:加载函数引用,存入全局(使用Slot化优化)
     int r = allocReg();
     emitInt(OP_LOADCONST, r, funcIdx);
@@ -208,15 +221,77 @@ void Codegen::compileFuncDecl(Shared<FuncDeclStmt> stmt) {
 }
 
 void Codegen::compileEnumDecl(Shared<EnumDeclStmt> stmt) {
-    // 将枚举值注册为全局常量
-    if (!vm_) return;
-    Int64 val = 0;
-    for (auto& [name, init] : stmt->values) {
-        if (init.has_value()) {
-            val = init.value();
+    if (stmt->isADT) {
+        // ADT 风格枚举：为每个变体创建构造器函数并注册 tag 常量
+        if (!vm_) return;
+
+        Int64 tag = 0;
+        for (auto& variant : stmt->variants) {
+            // 注册变体 tag 常量: EnumName::VariantName = tag
+            String tagName = stmt->name + "::" + variant.name;
+            vm_->registerGlobal(tagName.c_str(), Value::Int(tag));
+
+            // 创建构造器函数: make_EnumName_VariantName(field1, field2, ...)
+            VMFunction* ctor = new VMFunction();
+            String ctorName = "make_" + stmt->name + "_" + variant.name;
+            ctor->name = VMString::create(ctorName);
+            ctor->maxStack = 256;
+            ctor->numParams = static_cast<UInt32>(variant.fields.size());
+            ctor->numLocals = 0;
+            ctor->isVararg = false;
+            ctor->hasSlots = (vm_ != nullptr);
+            ctor->sourceFile = sourceFile_;
+
+            // 构造器体：创建变体表 {tag, field0, field1, ...}
+            // NEWVARIANT ra, tag
+            // SETFIELD(value, obj, 1+N) for each field
+            int resultReg = 0;
+            ctor->code.push_back(OP_NEWVARIANT);
+            ctor->code.push_back(static_cast<UInt8>(resultReg));  // a
+            ctor->code.push_back(static_cast<UInt8>(tag));         // b = tag
+            ctor->code.push_back(0);  // c
+            for (int i = 0; i < 12; i++) ctor->code.push_back(0); // padding to 16 bytes
+
+            // 存储每个字段到变体
+            for (size_t i = 0; i < variant.fields.size(); i++) {
+                // SETFIELD ra, rb, c: rb.fields[c] = ra
+                // field 参数在寄存器 0, 1, 2, ...; resultReg 是 resultReg
+                // 字段索引从 1 开始（0 是 tag）
+                int fieldReg = static_cast<int>(i);  // 参数寄存器
+                ctor->code.push_back(OP_SETFIELD);
+                ctor->code.push_back(static_cast<UInt8>(fieldReg));  // a = value
+                ctor->code.push_back(static_cast<UInt8>(resultReg));  // b = obj
+                ctor->code.push_back(static_cast<UInt8>(i + 1));      // c = field index (1-based, 0=tag)
+                for (int j = 0; j < 12; j++) ctor->code.push_back(0); // padding
+            }
+
+            // RETURN resultReg
+            ctor->code.push_back(OP_RETURN);
+            ctor->code.push_back(static_cast<UInt8>(resultReg));
+            ctor->code.push_back(0);
+            ctor->code.push_back(0);
+            for (int i = 0; i < 12; i++) ctor->code.push_back(0);
+
+            // 注册构造器函数
+            vm_->registerGlobal(ctorName.c_str(), makeFunctionVal(ctor));
+
+            tag++;
         }
-        vm_->registerGlobal(name.c_str(), Value::Int(val));
-        val++;
+    } else {
+        // 简单 C 风格枚举（向后兼容）
+        if (!vm_) return;
+        Int64 val = 0;
+        for (auto& [name, init] : stmt->values) {
+            if (init.has_value()) {
+                val = init.value();
+            }
+            // 注册无前缀版本（向后兼容）
+            vm_->registerGlobal(name.c_str(), Value::Int(val));
+            // 也注册带枚举名前缀的版本（支持 颜色.红 语法）
+            String prefixed = stmt->name + "::" + name;
+            vm_->registerGlobal(prefixed.c_str(), Value::Int(val));
+            val++;
+        }
     }
 }
 
@@ -238,6 +313,44 @@ void Codegen::compileClassDecl(Shared<ClassDeclStmt> stmt) {
         }
     }
     classMeta_[stmt->name] = meta;
+}
+
+void Codegen::compileInterfaceDecl(Shared<InterfaceDeclStmt> stmt) {
+    // 接口声明：注册类型名，方法签名暂不强制检查
+    // 为每个方法创建存根函数
+    if (!vm_) return;
+
+    for (auto& method : stmt->methods) {
+        if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(method)) {
+            // 注册接口方法为全局函数(存根)
+            VMString* nameStr = VMString::create(stmt->name + "_" + func->name);
+            Int32 nameIdx = addConstant(makeStringVal(nameStr));
+            // 创建一个空函数作为存根
+            VMFunction* stub = new VMFunction();
+            stub->name = nameStr;
+            stub->maxStack = 16;
+            stub->numParams = static_cast<UInt32>(func->params.size());
+            stub->numLocals = 0;
+            stub->isVararg = false;
+            stub->hasSlots = (vm_ != nullptr);
+            // 存根返回 nil
+            stub->code.push_back(OP_LOADNIL);
+            stub->code.push_back(0); stub->code.push_back(0); stub->code.push_back(0);
+            for (int i = 0; i < 12; i++) stub->code.push_back(0);
+            stub->code.push_back(OP_RETURN);
+            stub->code.push_back(0); stub->code.push_back(0); stub->code.push_back(0);
+            for (int i = 0; i < 12; i++) stub->code.push_back(0);
+
+            Value funcVal = makeFunctionVal(reinterpret_cast<VMFunction*>(stub));
+            Int32 funcIdx = addConstant(funcVal);
+            int r = allocReg();
+            emitInt(OP_LOADCONST, r, funcIdx);
+            if (vm_) {
+                Int32 slot = vm_->getOrCreateGlobalSlot((stmt->name + "_" + func->name).c_str());
+                emitInt(OP_STOREGLOBAL, r, slot);
+            }
+        }
+    }
 }
 
 void Codegen::compileStructDecl(Shared<StructDeclStmt> stmt) {
@@ -460,6 +573,35 @@ void Codegen::compileWhile(Shared<WhileStmt> s) {
     loopStack_.pop_back();
 }
 
+void Codegen::compileDoWhile(Shared<DoWhileStmt> s) {
+    size_t loopIdx = loopStack_.size();
+    loopStack_.push_back(LoopContext{});
+    int loopStart = static_cast<int>(code_->size());
+    loopStack_[loopIdx].continueTarget = loopStart;
+
+    // body
+    compileStmt(s->body);
+
+    // patch pending continues: jump to condition check
+    int continuePos = static_cast<int>(code_->size());
+    for (int jmpPos : loopStack_[loopIdx].pendingContinues) {
+        patchJump(jmpPos, continuePos);
+    }
+
+    // condition
+    int condReg = compileExpr(s->condition);
+    int loopJump = emitJumpPlaceholder(OP_JUMPIF, static_cast<UInt8>(condReg));
+    patchJump(loopJump, loopStart);
+
+    // exit: patch all pending break jumps
+    int exitTarget = static_cast<int>(code_->size());
+    for (int jmpPos : loopStack_[loopIdx].pendingBreaks) {
+        patchJump(jmpPos, exitTarget);
+    }
+
+    loopStack_.pop_back();
+}
+
 void Codegen::compileReturn(Shared<ReturnStmt> s) {
     // 在执行 return 之前，逆序执行所有 pending 的 defer
     for (auto it = deferStack_.rbegin(); it != deferStack_.rend(); ++it) {
@@ -518,6 +660,94 @@ void Codegen::emitDeferCleanup() {
             compileStmt(defers[i]);
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  compileMatch — 模式匹配编译
+//  将匹配表达式存储在临时寄存器中，然后用标签比较链匹配每个分支
+// ═══════════════════════════════════════════════════════════════════
+void Codegen::compileMatch(Shared<MatchStmt> s) {
+    printf("DEBUG: compileMatch called, cases=%zu\n", s->cases.size());
+    // 编译匹配表达式
+    int matchReg = compileExpr(s->expr);
+
+    // 获取变体标签: GETVARIANTTAG tagReg, matchReg
+    int tagReg = allocReg();
+    emit(OP_GETVARIANTTAG, static_cast<UInt8>(tagReg), static_cast<UInt8>(matchReg), 0);
+
+    // 收集所有分支的跳转占位符
+    struct CaseJump {
+        int tagValue;           // 要匹配的 tag 值
+        int condJump;           // 条件跳转占位符位置
+        int bodyStartLabel;     // 体开始标签
+    };
+    std::vector<CaseJump> caseJumps;
+    std::vector<int> allEndJumps;  // 所有分支体结束后的跳转到末尾的占位符
+
+    // 为每个分支生成代码
+    for (auto& mc : s->cases) {
+        // 查找变体 tag 值
+        int tag = 0;
+        // 从语义分析器获取变体信息
+        if (analyzer_) {
+            Symbol* sym = analyzer_->lookup(mc.variantName);
+            if (sym && sym->kind == Symbol::ENUM_VARIANT) {
+                tag = static_cast<int>(sym->enumValue);
+            }
+        }
+
+        // 常量 tag 值加载到寄存器
+        int constTagReg = allocReg();
+        emitInt(OP_LOADINT, static_cast<UInt8>(constTagReg), tag);
+
+        // 比较 tagReg == constTagReg
+        int cmpReg = allocReg();
+        emit(OP_CMPEQ, static_cast<UInt8>(cmpReg), static_cast<UInt8>(tagReg), static_cast<UInt8>(constTagReg));
+
+        // 如果不等，跳过此分支体
+        int skipJump = emitJumpPlaceholder(OP_JUMPNIF, static_cast<UInt8>(cmpReg));
+
+        // 推送绑定作用域
+        pushScope();
+
+        // 绑定变体字段到局部变量
+        for (size_t i = 0; i < mc.bindings.size(); i++) {
+            int fieldReg = allocReg();
+            // GETVARIANTFIELD fieldReg, matchReg, fieldIndex+1
+            emit(OP_GETVARIANTFIELD, static_cast<UInt8>(fieldReg),
+                 static_cast<UInt8>(matchReg), static_cast<UInt8>(i + 1));
+            LocalVar lv{fieldReg, nullptr};
+            localScopes_.back()[mc.bindings[i]] = lv;
+        }
+
+        // 编译分支体
+        if (mc.body) {
+            compileStmt(mc.body);
+        }
+
+        // 弹出绑定作用域
+        popScope();
+
+        // 跳转到匹配结束
+        int endJump = emitJumpPlaceholder(OP_JUMP);
+        allEndJumps.push_back(endJump);
+
+        // 修补跳过跳转
+        patchJump(skipJump, static_cast<int>(code_->size()));
+    }
+
+    // 默认分支
+    if (s->defaultCase) {
+        compileStmt(s->defaultCase);
+    }
+
+    printf("DEBUG: compileMatch: patching end jumps\n"); fflush(stdout);
+    // 修补所有结束跳转
+    int endTarget = static_cast<int>(code_->size());
+    for (int jmp : allEndJumps) {
+        patchJump(jmp, endTarget);
+    }
+    printf("DEBUG: compileMatch: done\n"); fflush(stdout);
 }
 
 // ═══════════════════════════════════════════════════════════════════

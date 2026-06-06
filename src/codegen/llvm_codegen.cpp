@@ -206,7 +206,9 @@ llvm::Module* LLVMCodegen::generate(Shared<Program> program, OptLevel opt) {
                                 // 已知的 JIT 运行时符号：这些在 OrcJIT::Impl::initialize() 中已注册
                                 if (calleeName == "jit_printv" || calleeName == "jit_strcat" ||
                                     calleeName == "jit_table_create" || calleeName == "jit_table_get" ||
-                                    calleeName == "jit_table_set" || calleeName == "jit_tick") {
+                                    calleeName == "jit_table_set" || calleeName == "jit_tick" || calleeName == "jit_call_native" ||
+                                    calleeName == "jit_len" || calleeName == "jit_toString" ||
+                                    calleeName == "jit_get_function_value" || calleeName == "jit_call_value") {
                                     continue; // 跳过，这些是已注册的 JIT 符号
                                 }
                                 toRemove.insert(&func);
@@ -417,6 +419,52 @@ llvm::Value* LLVMCodegen::getTempVar(llvm::Function* func, const std::string& ba
 llvm::Value* LLVMCodegen::loadVar(const std::string& varName) {
     auto it = varMap_.find(varName);
     if (it == varMap_.end()) {
+        // AOT 模式：未定义的变量尝试从 VM 全局变量加载
+        if (skipNativeCallRemoval_ && !pureMath_) {
+            llvm::LLVMContext& ctx = *context_;
+            llvm::Type* i64Ty = llvm::Type::getInt64Ty(ctx);
+            llvm::Type* i8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
+            llvm::Constant* nameStr = llvm::ConstantDataArray::getString(ctx, varName);
+            llvm::GlobalVariable* nameGlobal = new llvm::GlobalVariable(
+                *module_, nameStr->getType(), true,
+                llvm::GlobalValue::InternalLinkage, nameStr, ".global_name");
+            llvm::Value* zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0);
+            llvm::Value* namePtr = builder_->CreateInBoundsGEP(nameStr->getType(), nameGlobal,
+                {zero, zero}, "global_name_ptr");
+            llvm::Function* getGlobalFunc = module_->getFunction("aot_get_global");
+            if (!getGlobalFunc) {
+                llvm::FunctionType* ft = llvm::FunctionType::get(i64Ty, {i8PtrTy}, false);
+                getGlobalFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+                    "aot_get_global", module_.get());
+            }
+            return builder_->CreateCall(getGlobalFunc, {namePtr}, "global");
+        }
+        // 检查是否是函数名 → 运行时查函数值
+        if (program_) {
+            for (auto& stmt : program_->statements) {
+                if (auto fd = std::dynamic_pointer_cast<FuncDeclStmt>(stmt)) {
+                    if (fd->name == varName) {
+                        // 生成 jit_get_function_value("funcName") 调用
+                        llvm::Type* i8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(*context_));
+                        llvm::Function* getFuncVal = module_->getFunction("jit_get_function_value");
+                        if (!getFuncVal) {
+                            llvm::FunctionType* ft = llvm::FunctionType::get(
+                                llvm::Type::getInt64Ty(*context_), {i8PtrTy}, false);
+                            getFuncVal = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+                                "jit_get_function_value", module_.get());
+                        }
+                        llvm::Constant* nameStr = llvm::ConstantDataArray::getString(*context_, varName);
+                        llvm::GlobalVariable* nameGV = new llvm::GlobalVariable(
+                            *module_, nameStr->getType(), true,
+                            llvm::GlobalValue::InternalLinkage, nameStr, ".fn_name");
+                        llvm::Value* zero = llvm::ConstantInt::get(*context_, llvm::APInt(32, 0));
+                        llvm::Value* namePtr = builder_->CreateInBoundsGEP(
+                            nameStr->getType(), nameGV, {zero, zero}, "fn_name_ptr");
+                        return builder_->CreateCall(getFuncVal, {namePtr}, "fn_val");
+                    }
+                }
+            }
+        }
         std::cerr << "[LLVMCodegen] 错误: 变量 '" << varName << "' 未定义\n";
         return llvm::ConstantInt::get(*context_, llvm::APInt(64, 0));
     }
@@ -717,9 +765,34 @@ void LLVMCodegen::generateStatement(llvm::Function* func, Shared<Stmt> stmt) {
         generateBreakStmt(func, breakStmt);
     } else if (auto continueStmt = std::dynamic_pointer_cast<ContinueStmt>(stmt)) {
         generateContinueStmt(func, continueStmt);
+    } else if (auto importStmt = std::dynamic_pointer_cast<ImportStmt>(stmt)) {
+        generateImportStmt(func, importStmt);
     } else if (auto exprStmt = std::dynamic_pointer_cast<ExprStmt>(stmt)) {
         generateExpression(func, exprStmt->expr);
     }
+}
+
+void LLVMCodegen::generateImportStmt(llvm::Function* func, Shared<ImportStmt> stmt) {
+    if (!skipNativeCallRemoval_) return;
+    llvm::LLVMContext& ctx = *context_;
+    llvm::Type* i32Ty = llvm::Type::getInt32Ty(ctx);
+    llvm::Type* i8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
+
+    llvm::Constant* nameStr = llvm::ConstantDataArray::getString(ctx, stmt->moduleName);
+    llvm::GlobalVariable* nameGlobal = new llvm::GlobalVariable(
+        *module_, nameStr->getType(), true,
+        llvm::GlobalValue::InternalLinkage, nameStr, ".import_name");
+    llvm::Value* namePtr = builder_->CreateInBoundsGEP(nameStr->getType(), nameGlobal,
+        {llvm::ConstantInt::get(i32Ty, 0), llvm::ConstantInt::get(i32Ty, 0)}, "import_name_ptr");
+
+    llvm::Function* importFunc = module_->getFunction("aot_import_module");
+    if (!importFunc) {
+        llvm::FunctionType* ft = llvm::FunctionType::get(i32Ty, {i8PtrTy}, false);
+        importFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+            "aot_import_module", module_.get());
+    }
+    builder_->CreateCall(importFunc, {namePtr}, "import");
+    (void)func;
 }
 
 void LLVMCodegen::generateVarDecl(llvm::Function* func, Shared<VarDeclStmt> stmt) {
@@ -984,6 +1057,35 @@ llvm::Value* LLVMCodegen::generateExpression(llvm::Function* func, Shared<Expr> 
     if (auto callExpr = std::dynamic_pointer_cast<CallExpr>(expr)) {
         if (auto callee = std::dynamic_pointer_cast<IdentifierExpr>(callExpr->callee)) {
             const std::string& funcName = callee->name;
+            // 间接调用：函数值/变量（fn 在 varMap_ 或 funcParams_ 中，不是直接函数名）
+            if (varMap_.find(funcName) != varMap_.end() || funcParams_.count(funcName)) {
+                llvm::Value* fnVal = loadVar(funcName);
+                // 生成参数数组
+                int nArgs = (int)callExpr->arguments.size();
+                llvm::Type* i64Ty = llvm::Type::getInt64Ty(*context_);
+                llvm::Type* i32Ty = llvm::Type::getInt32Ty(*context_);
+                llvm::ArrayType* arrTy = llvm::ArrayType::get(i64Ty, nArgs ? nArgs : 1);
+                llvm::Value* argsAlloca = builder_->CreateAlloca(arrTy, nullptr, "indirect_args");
+                llvm::Value* zero = llvm::ConstantInt::get(i32Ty, 0);
+                for (int i = 0; i < nArgs; i++) {
+                    llvm::Value* argVal = generateExpression(func, callExpr->arguments[i]);
+                    llvm::Value* gep = builder_->CreateInBoundsGEP(arrTy, argsAlloca,
+                        {zero, llvm::ConstantInt::get(i32Ty, i)}, "indirect_arg");
+                    builder_->CreateStore(argVal, gep);
+                }
+                // 调用 jit_call_value(fnValue, argc, args)
+                llvm::Function* callValFunc = module_->getFunction("jit_call_value");
+                if (!callValFunc) {
+                    llvm::FunctionType* ft = llvm::FunctionType::get(i64Ty,
+                        {i64Ty, i32Ty, llvm::PointerType::getUnqual(i64Ty)}, false);
+                    callValFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+                        "jit_call_value", module_.get());
+                }
+                llvm::Value* argsBase = builder_->CreateInBoundsGEP(arrTy, argsAlloca,
+                    {zero, zero}, "indirect_args_base");
+                return builder_->CreateCall(callValFunc,
+                    {fnVal, llvm::ConstantInt::get(i32Ty, nArgs), argsBase}, "indirect_call");
+            }
             // 单参数数学函数
             if (callExpr->arguments.size() == 1) {
                 llvm::Value* arg = generateExpression(func, callExpr->arguments[0]);
@@ -1320,17 +1422,85 @@ llvm::Value* LLVMCodegen::generateExpression(llvm::Function* func, Shared<Expr> 
             return builder_->CreateCall(tickFunc, {}, "tick");
         }
         
-        // 普通函数调用
+// 普通函数调用
         std::string safeFuncName = sanitizeName(funcName);
         
         // 纯数学模式下：跳过 print/打印 的普通函数调用（防御性检查，防止 BOM 导致的手写检查遗漏）
         if (pureMath_ && (safeFuncName.find("__u6253____u5370__") != std::string::npos || 
                           safeFuncName.find("print") != std::string::npos)) {
-            std::cerr << "[LLVMCodegen] 警告: pure-math 模式下跳过 " << funcName << "() 调用（fallback 检测）\n";
+            std::cerr << "[LLVMCodegen] 警告: pure-math 模式下跳过 " << funcName << "() 调用（fallback 检测）";
             return llvm::ConstantInt::get(*context_, llvm::APInt(64, 0));
         }
         
+        // 已知 standalone 函数（直接在 jit_runtime / aot_vm_bridge 中实现）：直连不经过桥接
+        static const char* standaloneFuncs[] = {
+            "len", "toString", "min", "max", "push", "pop", "insert",
+            "remove", "substr", "find", "lower", "upper", "concat",
+            "arrlen", "startsWith", "endsWith", "trim", "replace",
+            "slice", "jit_abs", "clamp",
+            "jit_strcat", "jit_printv", "jit_tick",
+            "jit_table_create", "jit_table_get", "jit_table_set",
+            "jit_len", "jit_toString", // JIT 原生实现
+        };
+        bool isStandalone = false;
+        if (!pureMath_) {
+            for (auto& fn : standaloneFuncs) {
+                if (safeFuncName == fn) { isStandalone = true; break; }
+            }
+            // 中文函数名映射到 JIT 运行时独立函数
+            if (!isStandalone) {
+                if (safeFuncName == "__u957F____u5EA6__") {       // 长度 → jit_len
+                    isStandalone = true; safeFuncName = "jit_len";
+                } else if (safeFuncName == "__u8F6C____u5B57____u7B26____u4E32__") { // 转字符串 → jit_toString
+                    isStandalone = true; safeFuncName = "jit_toString";
+                }
+            }
+        }
+        
+        // 对不在 LLVM module 中的函数：通过桥接调用
+        bool useBridge = (!pureMath_ && !isStandalone);
         llvm::Function* calleeFunc = module_->getFunction(safeFuncName);
+        
+        if (!calleeFunc && useBridge) {
+            llvm::Type* i64Ty = llvm::Type::getInt64Ty(*context_);
+            llvm::Type* i32Ty = llvm::Type::getInt32Ty(*context_);
+            llvm::Type* i8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(*context_));
+            
+            // 创建函数名字符串常量
+            llvm::Constant* nameStr = llvm::ConstantDataArray::getString(*context_, funcName);
+            llvm::GlobalVariable* nameGlobal = new llvm::GlobalVariable(
+                *module_, nameStr->getType(), true,
+                llvm::GlobalValue::InternalLinkage, nameStr, ".native_name");
+            llvm::Value* zero = llvm::ConstantInt::get(i32Ty, 0);
+            llvm::Value* namePtr = builder_->CreateInBoundsGEP(nameStr->getType(), nameGlobal,
+                {zero, zero}, "native_name_ptr");
+            
+            // 生成参数数组
+            int argCount = (int)call->arguments.size();
+            llvm::ArrayType* arrTy = llvm::ArrayType::get(i64Ty, argCount ? (unsigned)argCount : 1);
+            llvm::Value* argsAlloca = builder_->CreateAlloca(arrTy, nullptr, "bridge_args");
+            for (int i = 0; i < argCount; i++) {
+                llvm::Value* argVal = generateExpression(func, call->arguments[i]);
+                llvm::Value* gep = builder_->CreateInBoundsGEP(arrTy, argsAlloca,
+                    {zero, llvm::ConstantInt::get(i32Ty, i)}, "bridge_arg");
+                builder_->CreateStore(argVal, gep);
+            }
+            
+            // 根据模式选择桥接函数：JIT 用 jit_call_native，AOT 用 aot_call_native
+            const char* bridgeName = skipNativeCallRemoval_ ? "aot_call_native" : "jit_call_native";
+            llvm::Function* bridgeFunc = module_->getFunction(bridgeName);
+            if (!bridgeFunc) {
+                llvm::FunctionType* ft = llvm::FunctionType::get(i64Ty,
+                    {i8PtrTy, i32Ty, llvm::PointerType::getUnqual(i64Ty)}, false);
+                bridgeFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+                    bridgeName, module_.get());
+            }
+            
+            llvm::Value* argsBase = builder_->CreateInBoundsGEP(arrTy, argsAlloca,
+                {zero, zero}, "bridge_args_base");
+            return builder_->CreateCall(bridgeFunc,
+                {namePtr, llvm::ConstantInt::get(i32Ty, argCount), argsBase}, "bridge");
+        }
         
         if (!calleeFunc) {
             // 函数可能还未定义，先创建一个声明
@@ -1473,18 +1643,33 @@ llvm::Value* LLVMCodegen::generateExpression(llvm::Function* func, Shared<Expr> 
         return table;
     }
     
-    // 空表字面量: {}（匿名表）
+    // 结构体/表字面量: {}、{a:1, b:2}、Point{x:42, y:10}
     if (auto structLit = std::dynamic_pointer_cast<StructLiteralExpr>(expr)) {
-        if (structLit->structName.empty() && structLit->fields.empty()) {
-            llvm::Function* createFunc = module_->getFunction("jit_table_create");
-            if (!createFunc) {
-                llvm::Type* i64Ty = llvm::Type::getInt64Ty(*context_);
-                llvm::FunctionType* ft = llvm::FunctionType::get(i64Ty, {}, false);
-                createFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "jit_table_create", module_.get());
-            }
-            return builder_->CreateCall(createFunc, {}, "table");
+        llvm::Type* i64Ty = llvm::Type::getInt64Ty(*context_);
+        
+        // 创建表
+        llvm::Function* createFunc = module_->getFunction("jit_table_create");
+        if (!createFunc) {
+            llvm::FunctionType* ft = llvm::FunctionType::get(i64Ty, {}, false);
+            createFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "jit_table_create", module_.get());
         }
-        // 具名字段表或命名结构体：暂时 fallthrough 返回 0
+        llvm::Value* table = builder_->CreateCall(createFunc, {}, "struct");
+        
+        // 声明 jit_table_set(i64 table, i64 key, i64 val) -> i64
+        llvm::Function* setFunc = module_->getFunction("jit_table_set");
+        if (!setFunc) {
+            llvm::FunctionType* ft = llvm::FunctionType::get(i64Ty, {i64Ty, i64Ty, i64Ty}, false);
+            setFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "jit_table_set", module_.get());
+        }
+        
+        // 逐个设置字段
+        for (auto& field : structLit->fields) {
+            llvm::Value* keyVal = registerStringConstant(field.first);
+            llvm::Value* fieldVal = generateExpression(func, field.second);
+            builder_->CreateCall(setFunc, {table, keyVal, fieldVal}, "setfield");
+        }
+        
+        return table;
     }
     
     return llvm::ConstantInt::get(*context_, llvm::APInt(64, 0));

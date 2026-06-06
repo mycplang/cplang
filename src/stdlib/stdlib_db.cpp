@@ -1,18 +1,17 @@
-// ═══════════════════════════════════════════════════════════════════
+// ╔═════════════════════════════════════════════════════════════════╗
 //  MySQL + PostgreSQL 数据库支持（运行时动态加载）
 //  无需预装客户端库，DLL 存在则自动可用
-// ═══════════════════════════════════════════════════════════════════
-
+// ╚═════════════════════════════════════════════════════════════════╝
 #ifdef _WIN32
 #include <windows.h>
 #else
 #include <dlfcn.h>
 #endif
 
-// ═══════════════════════════════════════════════════════════════════
-//  通用动态库加载器
-// ═══════════════════════════════════════════════════════════════════
-
+// ══════════════════════════════════════════════════════════════════╗
+//  通用动态库加载
+// ════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════╝
 #ifdef _WIN32
 static HMODULE loadLib(const char* name) { return LoadLibraryA(name); }
 static void* getSym(HMODULE h, const char* name) { return (void*)GetProcAddress(h, name); }
@@ -25,10 +24,10 @@ using LibHandle = void*;
 static void freeLib(LibHandle h) { if (h) dlclose(h); }
 #endif
 
-// ═══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════╗
 //  MySQL 运行时绑定（跨平台 Win/Linux，兼容 MySQL 5.7+ / 8.0+ / MariaDB）
-// ═══════════════════════════════════════════════════════════════════
-// MySQL MYSQL_FIELD 最小定义（name 在偏移 0）
+// ══════════════════════════════════════════════════════════════════╝
+// MySQL MYSQL_FIELD 最小定义（name 在偏移为 0 处）
 struct MysqlField { char* name; char* org_name; char* table; char* org_table; char* db; char* catalog; char* def; unsigned long length; unsigned long max_length; unsigned int name_length; unsigned int org_name_length; unsigned int table_length; unsigned int org_table_length; unsigned int db_length; unsigned int catalog_length; unsigned int def_length; unsigned int flags; unsigned int decimals; unsigned int charsetnr; int type; void* extension; };
 
 // MySQL 客户端标志（mysql_com.h 常量，避免依赖 MySQL 头文件）
@@ -61,7 +60,7 @@ enum {
     MYSQL_CP_SSL_MODE_VERIFY_IDENTITY = 5,
 };
 
-// 默认客户端标志组合 (兼容 MySQL 5.5 ~ 8.4 + MariaDB)
+// 默认客户端标志组（兼容 MySQL 5.5 ~ 8.4 + MariaDB）
 static const unsigned long MYSQL_CP_DEFAULT_CLIENT_FLAGS =
     MYSQL_CP_CLIENT_PLUGIN_AUTH
     | MYSQL_CP_CLIENT_PLUGIN_AUTH_LENENC_DATA
@@ -113,27 +112,27 @@ struct MySQLAPI {
     using mysql_options_t          = int (*)(void*, int, const void*);
     using mysql_get_client_info_t  = const char* (*)();
 
-    mysql_init_t          init = nullptr;
-    mysql_real_connect_t  real_connect = nullptr;
-    mysql_close_t         close = nullptr;
-    mysql_error_t         error = nullptr;
-    mysql_query_t         query = nullptr;
-    mysql_store_result_t  store_result = nullptr;
-    mysql_free_result_t   free_result = nullptr;
-    mysql_fetch_row_t     fetch_row = nullptr;
-    mysql_num_fields_t    num_fields = nullptr;
-    mysql_fetch_fields_t  fetch_fields = nullptr;
-    mysql_fetch_lengths_t fetch_lengths = nullptr;
-    mysql_insert_id_t     insert_id = nullptr;
-    mysql_affected_rows_t affected_rows = nullptr;
-    mysql_ping_t          ping = nullptr;
-    mysql_real_escape_string_t real_escape_string = nullptr;
-    mysql_select_db_t     select_db = nullptr;
-    mysql_list_dbs_t      list_dbs = nullptr;
-    mysql_list_tables_t   list_tables = nullptr;
-    mysql_field_count_t   field_count = nullptr;
-    mysql_options_t       options = nullptr;
-    mysql_get_client_info_t get_client_info = nullptr;
+    mysql_init_t          mysql_init = nullptr;
+    mysql_real_connect_t  mysql_real_connect = nullptr;
+    mysql_close_t         mysql_close = nullptr;
+    mysql_error_t         mysql_error = nullptr;
+    mysql_query_t         mysql_query = nullptr;
+    mysql_store_result_t  mysql_store_result = nullptr;
+    mysql_free_result_t   mysql_free_result = nullptr;
+    mysql_fetch_row_t     mysql_fetch_row = nullptr;
+    mysql_num_fields_t    mysql_num_fields = nullptr;
+    mysql_fetch_fields_t  mysql_fetch_fields = nullptr;
+    mysql_fetch_lengths_t mysql_fetch_lengths = nullptr;
+    mysql_insert_id_t     mysql_insert_id = nullptr;
+    mysql_affected_rows_t mysql_affected_rows = nullptr;
+    mysql_ping_t          mysql_ping = nullptr;
+    mysql_real_escape_string_t mysql_real_escape_string = nullptr;
+    mysql_select_db_t     mysql_select_db = nullptr;
+    mysql_list_dbs_t      mysql_list_dbs = nullptr;
+    mysql_list_tables_t   mysql_list_tables = nullptr;
+    mysql_field_count_t   mysql_field_count = nullptr;
+    mysql_options_t       mysql_options = nullptr;
+    mysql_get_client_info_t mysql_get_client_info = nullptr;
 
     bool tryLoad() {
         if (loaded) return lib != nullptr;
@@ -202,21 +201,21 @@ static bool configureBeforeConnect(void* conn, const char* charset) {
     auto& api = mysqlAPI();
 
     // 1. 设置字符集 utf8mb4（必须在 mysql_real_connect 之前）
-    if (api.options && charset && charset[0]) {
-        api.options(conn, MYSQL_CP_SET_CHARSET_NAME, charset);
+    if (api.mysql_options && charset && charset[0]) {
+        api.mysql_options(conn, MYSQL_CP_SET_CHARSET_NAME, charset);
     }
 
     // 2. SSL mode = PREFERRED (尝试 SSL，不支持则回退明文)
-    //    对云数据库兼容至关重要：阿里云 RDS / 腾讯云 CDB 默认开启 SSL
-    if (api.options) {
+    //    对云数据库兼容至关重要：阿里云RDS / 腾讯云CDB 默认开启SSL
+    if (api.mysql_options) {
         int sslMode = MYSQL_CP_SSL_MODE_PREFERRED;
-        api.options(conn, MYSQL_CP_OPT_SSL_MODE, &sslMode);
+        api.mysql_options(conn, MYSQL_CP_OPT_SSL_MODE, &sslMode);
     }
 
     // 3. 自动重连（网络闪断恢复）
-    if (api.options) {
+    if (api.mysql_options) {
         bool reconnect = true;
-        api.options(conn, MYSQL_CP_OPT_RECONNECT, &reconnect);
+        api.mysql_options(conn, MYSQL_CP_OPT_RECONNECT, &reconnect);
     }
 
     return true;
@@ -237,19 +236,19 @@ Value connect_(std::vector<Value>& args) {
     const char* charset = (args.size() >= 6 && args[5].isString())
         ? args[5].asString()->data : "utf8mb4";
 
-    void* conn = api.init(nullptr);
+    void* conn = api.mysql_init(nullptr);
     if (!conn) return Value::nil();
 
     configureBeforeConnect(conn, charset);
 
-    void* result = api.real_connect(
+    void* result = api.mysql_real_connect(
         conn, host, user, pass, db, port, nullptr,
         MYSQL_CP_DEFAULT_CLIENT_FLAGS);
 
     if (!result) {
-        const char* err = api.error(conn);
-        setLastErr(conn, err ? err : "连接被拒绝");
-        api.close(conn);
+        const char* err = api.mysql_error(conn);
+        setLastErr(conn, err ? err : "连接被拒");
+        api.mysql_close(conn);
         return Value::nil();
     }
 
@@ -264,24 +263,24 @@ Value query_(std::vector<Value>& args) {
     void* db = getDb(args[0]);
     if (!db) return Value::nil();
     std::string sql(args[1].asString()->data, args[1].asString()->length);
-    if (api.query(db, sql.c_str()) != 0) {
-        setLastErr(db, api.error(db));
+    if (api.mysql_query(db, sql.c_str()) != 0) {
+        setLastErr(db, api.mysql_error(db));
         return Value::nil();
     }
 
-    void* result = api.store_result(db);
+    void* result = api.mysql_store_result(db);
     if (!result) {
-        if (api.field_count(db) == 0) return makeArrayVal(VMArray::create());
-        setLastErr(db, api.error(db));
+        if (api.mysql_field_count(db) == 0) return makeArrayVal(VMArray::create());
+        setLastErr(db, api.mysql_error(db));
         return Value::nil();
     }
 
-    unsigned int numFields = api.num_fields(result);
-    auto* fields = (MysqlField*)api.fetch_fields(result);
+    unsigned int numFields = api.mysql_num_fields(result);
+    auto* fields = (MysqlField*)api.mysql_fetch_fields(result);
 
     VMArray* rows = VMArray::create();
     char** row;
-    while ((row = api.fetch_row(result))) {
+    while ((row = api.mysql_fetch_row(result))) {
         VMTable* tbl = VMTable::create();
         for (unsigned int i = 0; i < numFields; i++) {
             Value key = makeStringVal(VMString::create(fields[i].name));
@@ -290,7 +289,7 @@ Value query_(std::vector<Value>& args) {
         }
         rows->data.push_back(makeTableVal(tbl));
     }
-    api.free_result(result);
+    api.mysql_free_result(result);
     return makeArrayVal(rows);
 }
 
@@ -300,8 +299,8 @@ Value exec_(std::vector<Value>& args) {
     void* db = getDb(args[0]);
     if (!db) return Value::Bool(false);
     std::string sql(args[1].asString()->data, args[1].asString()->length);
-    bool ok = (api.query(db, sql.c_str()) == 0);
-    if (!ok) setLastErr(db, api.error(db));
+    bool ok = (api.mysql_query(db, sql.c_str()) == 0);
+    if (!ok) setLastErr(db, api.mysql_error(db));
     return Value::Bool(ok);
 }
 
@@ -310,7 +309,7 @@ Value close_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::Bool(false);
     void* db = getDb(args[0]);
     if (!db) return Value::Bool(false);
-    api.close(db);
+    api.mysql_close(db);
     clearLastErr(db);
     if (args[0].isTable()) mysqlDbMap.erase(args[0].asTable());
     return Value::Bool(true);
@@ -327,7 +326,7 @@ Value errMsg_(std::vector<Value>& args) {
     const char* cached = getLastErr(db);
     if (cached && cached[0]) return makeStringVal(VMString::create(cached));
 
-    const char* err = api.error(db);
+    const char* err = api.mysql_error(db);
     return makeStringVal(VMString::create(err ? err : "未知错误"));
 }
 
@@ -336,7 +335,7 @@ Value insertId_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::Int(0);
     void* db = getDb(args[0]);
     if (!db) return Value::Int(0);
-    return Value::Int(static_cast<Int64>(api.insert_id(db)));
+    return Value::Int(static_cast<Int64>(api.mysql_insert_id(db)));
 }
 
 Value affectedRows_(std::vector<Value>& args) {
@@ -344,7 +343,7 @@ Value affectedRows_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::Int(0);
     void* db = getDb(args[0]);
     if (!db) return Value::Int(0);
-    return Value::Int(static_cast<Int64>(api.affected_rows(db)));
+    return Value::Int(static_cast<Int64>(api.mysql_affected_rows(db)));
 }
 
 Value isOpen_(std::vector<Value>& args) {
@@ -352,7 +351,7 @@ Value isOpen_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::Bool(false);
     void* db = getDb(args[0]);
     if (!db) return Value::Bool(false);
-    return Value::Bool(api.ping(db) == 0);
+    return Value::Bool(api.mysql_ping(db) == 0);
 }
 
 Value escape_(std::vector<Value>& args) {
@@ -363,7 +362,7 @@ Value escape_(std::vector<Value>& args) {
     std::string src(args[1].asString()->data, args[1].asString()->length);
     size_t bufLen = src.size() * 2 + 1;
     std::vector<char> buf(bufLen);
-    unsigned long len = api.real_escape_string(db, buf.data(), src.c_str(), static_cast<unsigned long>(src.size()));
+    unsigned long len = api.mysql_real_escape_string(db, buf.data(), src.c_str(), static_cast<unsigned long>(src.size()));
     return makeStringVal(VMString::create(std::string(buf.data(), len)));
 }
 
@@ -373,7 +372,7 @@ Value selectDb_(std::vector<Value>& args) {
     void* db = getDb(args[0]);
     if (!db) return Value::Bool(false);
     std::string name(args[1].asString()->data, args[1].asString()->length);
-    return Value::Bool(api.select_db(db, name.c_str()) == 0);
+    return Value::Bool(api.mysql_select_db(db, name.c_str()) == 0);
 }
 
 Value listDbs_(std::vector<Value>& args) {
@@ -381,14 +380,14 @@ Value listDbs_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::nil();
     void* db = getDb(args[0]);
     if (!db) return Value::nil();
-    void* result = api.list_dbs(db, nullptr);
+    void* result = api.mysql_list_dbs(db, nullptr);
     if (!result) return Value::nil();
     VMArray* arr = VMArray::create();
     char** row;
-    while ((row = api.fetch_row(result))) {
+    while ((row = api.mysql_fetch_row(result))) {
         arr->data.push_back(makeStringVal(VMString::create(row[0])));
     }
-    api.free_result(result);
+    api.mysql_free_result(result);
     return makeArrayVal(arr);
 }
 
@@ -397,30 +396,30 @@ Value listTables_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::nil();
     void* db = getDb(args[0]);
     if (!db) return Value::nil();
-    void* result = api.list_tables(db, nullptr);
+    void* result = api.mysql_list_tables(db, nullptr);
     if (!result) return Value::nil();
     VMArray* arr = VMArray::create();
     char** row;
-    while ((row = api.fetch_row(result))) {
+    while ((row = api.mysql_fetch_row(result))) {
         arr->data.push_back(makeStringVal(VMString::create(row[0])));
     }
-    api.free_result(result);
+    api.mysql_free_result(result);
     return makeArrayVal(arr);
 }
 
 Value clientInfo_(std::vector<Value>& args) {
     auto& api = mysqlAPI();
     if (!api.tryLoad()) return makeStringVal(VMString::create("客户端库未安装"));
-    if (!api.get_client_info) return makeStringVal(VMString::create("unavailable"));
-    const char* info = api.get_client_info();
+    if (!api.mysql_get_client_info) return makeStringVal(VMString::create("unavailable"));
+    const char* info = api.mysql_get_client_info();
     return makeStringVal(VMString::create(info ? info : "unknown"));
 }
 
 } // namespace mysql_ns
 
-// ═══════════════════════════════════════════════════════════════════
-//  PostgreSQL 运行时绑定（跨平台 Win/Linux）
-// ═══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════╗
+//  PostgreSQL 运行时绑定（跨平台(Win/Linux╚
+// ══════════════════════════════════════════════════════════════════╝
 namespace pg_ns {
 
 struct PGAPI {
@@ -440,18 +439,18 @@ struct PGAPI {
     using PQgetvalue_t       = const char* (*)(void*, int, int);
     using PQcmdTuples_t      = const char* (*)(void*);
 
-    PQconnectdb_t    connectdb = nullptr;
-    PQstatus_t       status = nullptr;
-    PQfinish_t       finish = nullptr;
-    PQerrorMessage_t errorMessage = nullptr;
-    PQexec_t         exec = nullptr;
-    PQresultStatus_t resultStatus = nullptr;
-    PQclear_t        clear = nullptr;
-    PQntuples_t      ntuples = nullptr;
-    PQnfields_t      nfields = nullptr;
-    PQfname_t        fname = nullptr;
-    PQgetvalue_t     getvalue = nullptr;
-    PQcmdTuples_t    cmdTuples = nullptr;
+    PQconnectdb_t    PQconnectdb = nullptr;
+    PQstatus_t       PQstatus = nullptr;
+    PQfinish_t       PQfinish = nullptr;
+    PQerrorMessage_t PQerrorMessage = nullptr;
+    PQexec_t         PQexec = nullptr;
+    PQresultStatus_t PQresultStatus = nullptr;
+    PQclear_t        PQclear = nullptr;
+    PQntuples_t      PQntuples = nullptr;
+    PQnfields_t      PQnfields = nullptr;
+    PQfname_t        PQfname = nullptr;
+    PQgetvalue_t     PQgetvalue = nullptr;
+    PQcmdTuples_t    PQcmdTuples = nullptr;
 
     bool tryLoad() {
         if (loaded) return lib != nullptr;
@@ -507,9 +506,9 @@ Value connect_(std::vector<Value>& args) {
     auto& api = pgAPI();
     if (!api.tryLoad() || args.empty() || !args[0].isString()) return Value::nil();
     std::string connStr(args[0].asString()->data, args[0].asString()->length);
-    void* conn = api.connectdb(connStr.c_str());
-    if (api.status(conn) != 0 /* CONNECTION_OK */) {
-        api.finish(conn);
+    void* conn = api.PQconnectdb(connStr.c_str());
+    if (api.PQstatus(conn) != 0 /* CONNECTION_OK */) {
+        api.PQfinish(conn);
         return Value::nil();
     }
     VMTable* tbl = VMTable::create();
@@ -523,25 +522,25 @@ Value query_(std::vector<Value>& args) {
     void* db = getDb(args[0]);
     if (!db) return Value::nil();
     std::string sql(args[1].asString()->data, args[1].asString()->length);
-    void* res = api.exec(db, sql.c_str());
-    int st = api.resultStatus(res);
+    void* res = api.PQexec(db, sql.c_str());
+    int st = api.PQresultStatus(res);
     if (st != 2 /* PGRES_TUPLES_OK */ && st != 1 /* PGRES_COMMAND_OK */) {
-        api.clear(res);
+        api.PQclear(res);
         return Value::nil();
     }
-    int nRows = api.ntuples(res);
-    int nCols = api.nfields(res);
+    int nRows = api.PQntuples(res);
+    int nCols = api.PQnfields(res);
     VMArray* rows = VMArray::create();
     for (int r = 0; r < nRows; r++) {
         VMTable* tbl = VMTable::create();
         for (int c = 0; c < nCols; c++) {
-            Value key = makeStringVal(VMString::create(api.fname(res, c)));
-            const char* val = api.getvalue(res, r, c);
+            Value key = makeStringVal(VMString::create(api.PQfname(res, c)));
+            const char* val = api.PQgetvalue(res, r, c);
             tbl->set(key, val ? makeStringVal(VMString::create(val)) : Value::nil());
         }
         rows->data.push_back(makeTableVal(tbl));
     }
-    api.clear(res);
+    api.PQclear(res);
     return makeArrayVal(rows);
 }
 
@@ -551,13 +550,13 @@ Value exec_(std::vector<Value>& args) {
     void* db = getDb(args[0]);
     if (!db) return Value::Int(-1);
     std::string sql(args[1].asString()->data, args[1].asString()->length);
-    void* res = api.exec(db, sql.c_str());
+    void* res = api.PQexec(db, sql.c_str());
     int affected = -1;
-    if (api.resultStatus(res) == 1 /* PGRES_COMMAND_OK */) {
-        const char* tuples = api.cmdTuples(res);
+    if (api.PQresultStatus(res) == 1 /* PGRES_COMMAND_OK */) {
+        const char* tuples = api.PQcmdTuples(res);
         affected = tuples[0] ? atoi(tuples) : 0;
     }
-    api.clear(res);
+    api.PQclear(res);
     return Value::Int(affected);
 }
 
@@ -566,7 +565,7 @@ Value close_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::Bool(false);
     void* db = getDb(args[0]);
     if (!db) return Value::Bool(false);
-    api.finish(db);
+    api.PQfinish(db);
     if (args[0].isTable()) pgDbMap.erase(args[0].asTable());
     return Value::Bool(true);
 }
@@ -576,7 +575,7 @@ Value errMsg_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return makeStringVal(VMString::create("PostgreSQL 客户端库未安装"));
     void* db = getDb(args[0]);
     if (!db) return makeStringVal(VMString::create("invalid handle"));
-    return makeStringVal(VMString::create(api.errorMessage(db)));
+    return makeStringVal(VMString::create(api.PQerrorMessage(db)));
 }
 
 Value isOpen_(std::vector<Value>& args) {
@@ -584,7 +583,7 @@ Value isOpen_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::Bool(false);
     void* db = getDb(args[0]);
     if (!db) return Value::Bool(false);
-    return Value::Bool(api.status(db) == 0 /* CONNECTION_OK */);
+    return Value::Bool(api.PQstatus(db) == 0 /* CONNECTION_OK */);
 }
 
 Value listDbs_(std::vector<Value>& args) {
@@ -592,14 +591,14 @@ Value listDbs_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::nil();
     void* db = getDb(args[0]);
     if (!db) return Value::nil();
-    void* res = api.exec(db, "SELECT datname FROM pg_database ORDER BY datname");
-    if (api.resultStatus(res) != 2) { api.clear(res); return Value::nil(); }
+    void* res = api.PQexec(db, "SELECT datname FROM pg_database ORDER BY datname");
+    if (api.PQresultStatus(res) != 2) { api.PQclear(res); return Value::nil(); }
     VMArray* arr = VMArray::create();
-    int n = api.ntuples(res);
+    int n = api.PQntuples(res);
     for (int i = 0; i < n; i++) {
-        arr->data.push_back(makeStringVal(VMString::create(api.getvalue(res, i, 0))));
+        arr->data.push_back(makeStringVal(VMString::create(api.PQgetvalue(res, i, 0))));
     }
-    api.clear(res);
+    api.PQclear(res);
     return makeArrayVal(arr);
 }
 
@@ -608,25 +607,25 @@ Value listTables_(std::vector<Value>& args) {
     if (!api.tryLoad() || args.empty()) return Value::nil();
     void* db = getDb(args[0]);
     if (!db) return Value::nil();
-    void* res = api.exec(db,
+    void* res = api.PQexec(db,
         "SELECT table_name FROM information_schema.tables "
         "WHERE table_schema='public' ORDER BY table_name");
-    if (api.resultStatus(res) != 2) { api.clear(res); return Value::nil(); }
+    if (api.PQresultStatus(res) != 2) { api.PQclear(res); return Value::nil(); }
     VMArray* arr = VMArray::create();
-    int n = api.ntuples(res);
+    int n = api.PQntuples(res);
     for (int i = 0; i < n; i++) {
-        arr->data.push_back(makeStringVal(VMString::create(api.getvalue(res, i, 0))));
+        arr->data.push_back(makeStringVal(VMString::create(api.PQgetvalue(res, i, 0))));
     }
-    api.clear(res);
+    api.PQclear(res);
     return makeArrayVal(arr);
 }
 
 } // namespace pg_ns
 
-// ═══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════╗
 //  注册函数（始终注册，DLL 存在时才可用）
-// ═══════════════════════════════════════════════════════════════════
-
+// ════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════╝
 void StdLib::registerMysql(VM* vm) {
     registerFunction(vm, "mysqlConnect",      mysql_ns::connect_);
     registerFunction(vm, "mysqlQuery",        mysql_ns::query_);

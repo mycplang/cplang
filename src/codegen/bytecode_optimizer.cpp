@@ -39,14 +39,13 @@ VMFunction* BytecodeOptimizer::optimize(VMFunction* func) {
 }
 
 void BytecodeOptimizer::printStats() const {
-    VERBOSE(
+    if (!cplang::verboseEnabled()) return;
         std::cout << "=== 字节码优化统计 ===" << std::endl;
         std::cout << "窥孔优化: " << stats_.peepholesApplied << " 次" << std::endl;
         std::cout << "死指令移除: " << stats_.deadInstructionsRemoved << " 条" << std::endl;
         std::cout << "常量传播: " << stats_.constantPropagations << " 次" << std::endl;
         std::cout << "寄存器分配: " << stats_.registersAllocated << " 个" << std::endl;
         std::cout << "节省字节: " << stats_.totalBytesSaved << " B" << std::endl;
-    );
 }
 
 // === 优化通道 ===

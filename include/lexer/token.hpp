@@ -32,6 +32,7 @@ enum class TokenType {
     K_IF,         // 如果
     K_ELSE,       // 否则
     K_SWITCH,     // 选择
+    K_MATCH,      // 匹配
     K_CASE,       // 情况
     K_DEFAULT,    // 其他
     K_FOR,        // 循环
@@ -63,6 +64,7 @@ enum class TokenType {
     K_ABSTRACT,   // 抽象
     K_VIRTUAL,    // 虚拟
     K_OVERRIDE,   // 重写
+    K_MUTABLE,    // 可变
 
     // === 双语运算符关键词 ===
     // 控制流连接词
@@ -124,6 +126,8 @@ enum class TokenType {
     OP_DBL_COLON, // ::
     OP_DOT,       // .
     OP_ARROW,     // ->
+    OP_PIPE,      // |>
+    OP_FAT_ARROW, // =>
     OP_SCOPE,     // ::
     
     // 分隔符
@@ -204,6 +208,7 @@ private:
             {"如果", TokenType::K_IF},
             {"否则", TokenType::K_ELSE},
             {"选择", TokenType::K_SWITCH},
+            {"匹配", TokenType::K_MATCH},
             {"情况", TokenType::K_CASE},
             {"其他", TokenType::K_DEFAULT},
             {"循环", TokenType::K_FOR},
@@ -237,6 +242,7 @@ private:
             {"抽象", TokenType::K_ABSTRACT},
             {"虚拟", TokenType::K_VIRTUAL},
             {"重写", TokenType::K_OVERRIDE},
+            {"可变", TokenType::K_MUTABLE},
 
             // === 双语运算符关键词 ===
             {"则", TokenType::K_THEN},
@@ -277,6 +283,7 @@ private:
             {"if", TokenType::K_IF},
             {"else", TokenType::K_ELSE},
             {"switch", TokenType::K_SWITCH},
+            {"match", TokenType::K_MATCH},
             {"case", TokenType::K_CASE},
             {"default", TokenType::K_DEFAULT},
             {"for", TokenType::K_FOR},
@@ -304,6 +311,7 @@ private:
             {"await", TokenType::K_AWAIT},
             {"const", TokenType::K_CONST},
             {"var", TokenType::K_VAR},
+            {"mutable", TokenType::K_MUTABLE},
             {"static", TokenType::K_STATIC},
             {"abstract", TokenType::K_ABSTRACT},
             {"virtual", TokenType::K_VIRTUAL},

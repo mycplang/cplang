@@ -218,6 +218,8 @@ add_library(cplang_jit STATIC
     src/jit/jit_compiler.cpp
     src/jit/jit_runtime.cpp
     src/jit/orc_jit.cpp
+    src/jit/jit_dispatch.cpp
+    src/jit/jit_dispatch.cpp
     src/jit/hybrid_jit.cpp
 )
 target_include_directories(cplang_jit PUBLIC
@@ -346,6 +348,8 @@ set_target_warnings(cplang_cli)
 set_target_properties(cplang_cli PROPERTIES
     OUTPUT_NAME cplang
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    LINK_FLAGS "/FORCE:MULTIPLE"
+    LINK_FLAGS "/FORCE:MULTIPLE"
 )
 
 # ============================================================================
@@ -364,6 +368,8 @@ set_target_warnings(cplang_cpkg)
 set_target_properties(cplang_cpkg PROPERTIES
     OUTPUT_NAME cpkg
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    LINK_FLAGS "/FORCE:MULTIPLE"
+    LINK_FLAGS "/FORCE:MULTIPLE"
 )
 
 # ============================================================================
@@ -396,6 +402,8 @@ set_target_warnings(cplang_repl)
 set_target_properties(cplang_repl PROPERTIES
     OUTPUT_NAME cplang_repl
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    LINK_FLAGS "/FORCE:MULTIPLE"
+    LINK_FLAGS "/FORCE:MULTIPLE"
 )
 
 # ============================================================================

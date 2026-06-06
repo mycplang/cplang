@@ -120,6 +120,7 @@ public:
     static void registerStrCi(VM* vm);
     static void registerRaylib(VM* vm);
     static void registerFixMissing(VM* vm);
+    static void registerFFI(VM* vm);
 
 private:
     // 辅助函数

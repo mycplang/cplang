@@ -9,8 +9,22 @@
 /build/
 /build_llvm/
 /build_cmake*/
+/build_clang/
 /artifacts/
 /workspace_artifacts/
+
+# --- 编译中间文件 ---
+*.exe
+*.lib
+*.exp
+*.obj
+*.pdb
+*.ilk
+*.sbr
+*.o
+*.a
+*.so
+*.dylib
 
 # --- LLVM 开发 ---
 /llvm-dev/
@@ -21,7 +35,7 @@ llvm-dev/
 .vscode/
 *.vsix
 tools/electron-ide/
-tools/vscode-cp/
+tools/vscode-cp/node_modules/
 tools/cp_ide.py
 tools/cp_ide_v1.py
 *.suo
@@ -47,6 +61,66 @@ debug*.txt
 _preprocessed.txt
 _all_tests.txt
 _output.txt
+_aot_*.txt
+_aot_*.bin
+_aot_debug.txt
+_aot_e.txt
+_aot_errors.txt
+_aot_l.txt
+_aot_log.txt
+_aot_raw.bin
+_aot_stderr.txt
+_aot_stdout.txt
+_aot_v2.txt
+_aot_verbose.txt
+_arr_err.txt
+_err5.txt
+_err_final.txt
+_final_err.txt
+_gfx*.txt
+_lnk2019.txt
+_symbols.txt
+_dxdiag.txt
+_*_err.txt
+build_log.txt
+build_log_err.txt
+
+# --- 调试二进制 ---
+_aot_last.bin
+_test_bin.dat
+_test_bin_input.bin
+_test_hex.txt
+*.dat
+*.bin
+
+# --- 临时构建脚本（下划线前缀工具） ---
+_bld.cmd
+_build.cmd
+_build_aot_libs.cmd
+_build_final.cmd
+_compile_bridge.cmd
+_do_build.cmd
+_fix_reg.ps1
+_jt.cp
+_rebuild.cmd
+_rebuild_all.cmd
+_run_build.cmd
+_test_aot.cmd
+_test_bridge.cmd
+_test_bridge2.cmd
+_test_bridge3.cmd
+_test_link2.c
+_x.cmd
+temp_count_natives.py
+test_aot_manual.cmd
+test_aot_new.cmd
+
+# --- 临时测试文件（tests/ 下划线前缀） ---
+tests/_t*.cp
+tests/_tmp*.cp
+tests/_tbind*.cp
+tests/_tmysql*.cp
+tests/_tpg.cp
 
 # --- 上传缓存 ---
 /.uploads/
@@ -66,13 +140,40 @@ desktop.ini
 # --- 凭据（已被 git credential 管理） ---
 .git-credentials*
 push_to_github.bat
+_push_to_github.bat
 
 # --- 测试临时文件 ---
 _test_fs_dir/
 examples/*.exe
 
-# --- 其他 ---
+# --- 数据目录 ---
 /data/
 /data_admin/
+/mysql-tmp/
+/pg-tmp/
+
+# --- 工具二进制 ---
 /tools/cplang.exe
 /tools/__pycache__/
+
+# --- 图标源文件（非源码） ---
+/icon/
+
+# --- 第三方库编译产物 ---
+third_party/raylib/src/*.obj
+third_party/raylib/src/*.lib
+third_party/raylib/src/*.o
+third_party/raylib/src/*.a
+
+# --- 压缩包 / 数据库文件 ---
+*.zip
+*.tar
+*.tar.gz
+*.tar.xz
+*.7z
+*.rar
+*.iso
+
+# --- DLL（第三方运行时） ---
+/libmysql.dll
+/libpq.dll

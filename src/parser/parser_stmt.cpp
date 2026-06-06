@@ -303,6 +303,93 @@ Shared<Stmt> Parser::parseDeferStatement() {
     return deferStmt;
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  match 语句 — 模式匹配
+//  语法: 匹配 表达式 {
+//            情况 变体名(绑定1, 绑定2) => { ... }
+//          | 情况 变体名 => { ... }
+//          | 其他 => { ... }
+//        }
+// ═══════════════════════════════════════════════════════════════
+Shared<Stmt> Parser::parseMatchStatement() {
+    consume();  // consume '匹配'
+    auto matchStmt = Shared<MatchStmt>(new MatchStmt());
+    matchStmt->token = current_;
+
+    // 解析要匹配的表达式
+    matchStmt->expr = parseExpression();
+
+    expect(TokenType::LBRACE, "匹配后需要 '{'");
+
+    while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
+        // 处理 '|' 分隔符
+        if (match(TokenType::OP_BIT_OR)) {
+            consume();
+            continue;
+        }
+
+        // 默认分支: 其他 => { ... }
+        if (match(TokenType::K_DEFAULT)) {
+            consume();  // consume '其他'
+            expect(TokenType::OP_FAT_ARROW, "其他后需要 '=>'");
+            if (match(TokenType::LBRACE)) {
+                matchStmt->defaultCase = parseBlock();
+            } else {
+                matchStmt->defaultCase = parseStatement();
+            }
+            // 检查后续是否有更多内容
+            if (match(TokenType::OP_BIT_OR)) {
+                consume();
+            }
+            continue;
+        }
+
+        // 情况分支: 情况 变体名(绑定1, 绑定2) => { ... }
+        if (match(TokenType::K_CASE)) {
+            consume();  // consume '情况'
+        }
+
+        MatchCase mc;
+        mc.variantName = current_.text;
+        expect(TokenType::IDENTIFIER, "情况后需要变体名");
+
+        // 可选的绑定参数: (绑1, 绑2, ...)
+        if (match(TokenType::LPAREN)) {
+            consume();  // consume '('
+            while (!match(TokenType::RPAREN) && !match(TokenType::END_OF_FILE)) {
+                mc.bindings.push_back(current_.text);
+                expect(TokenType::IDENTIFIER, "需要绑定变量名");
+                if (match(TokenType::COMMA)) {
+                    consume();
+                } else {
+                    break;
+                }
+            }
+            expect(TokenType::RPAREN, "需要 ')'");
+        }
+
+        expect(TokenType::OP_FAT_ARROW, "变体后需要 '=>'");
+
+        // 分支体
+        if (match(TokenType::LBRACE)) {
+            mc.body = parseBlock();
+        } else {
+            mc.body = parseStatement();
+        }
+
+        matchStmt->cases.push_back(mc);
+
+        // 检查 '|' 分隔符
+        if (match(TokenType::OP_BIT_OR)) {
+            consume();
+        }
+    }
+
+    expect(TokenType::RBRACE, "匹配语句需要 '}'");
+
+    return matchStmt;
+}
+
 Shared<Stmt> Parser::parseExpressionStatement() {
     if (match(TokenType::IDENTIFIER) && peek_.type == TokenType::OP_ASSIGN) {
         Token nameToken = current_;

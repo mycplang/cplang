@@ -270,7 +270,7 @@ Shared<Program> TailRecursionOptimizer::optimizeProgram(Shared<Program> program)
 // ═══════════════════════════════════════════════════════════════════
 
 void TailRecursionOptimizer::printAnalysis(Shared<FuncDeclStmt> func) const {
-    VERBOSE(
+    if (!cplang::verboseEnabled()) return;
         std::cout << "=== 尾递归分析 ===" << std::endl;
         std::cout << "函数名: " << func->name << std::endl;
 
@@ -294,7 +294,6 @@ void TailRecursionOptimizer::printAnalysis(Shared<FuncDeclStmt> func) const {
         }
 
         std::cout << "\n优化次数: " << optCount_ << std::endl;
-    );
 }
 
 } // namespace cplang

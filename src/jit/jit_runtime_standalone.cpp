@@ -491,10 +491,113 @@ uint64_t toString(uint64_t v) {
     return makeNanBoxedStringPtr(s);
 }
 
+// 转字符串 — Chinese alias for toString
+uint64_t __u8F6C____u5B57____u7B26____u4E32__(uint64_t v) {
+    return toString(v);
+}
+
 // min(a, b) — 返回最小值（仅整数）
 uint64_t min(uint64_t a, uint64_t b) {
     int64_t sa = (int64_t)a, sb = (int64_t)b;
     return (sa < sb) ? a : b;
+}
+
+// max(a, b) — 返回最大值（仅整数）
+uint64_t max(uint64_t a, uint64_t b) {
+    int64_t sa = (int64_t)a, sb = (int64_t)b;
+    return (sa > sb) ? a : b;
+}
+
+// abs(v) — 整数绝对值
+uint64_t jit_abs(uint64_t v) {
+    int64_t s = (int64_t)v;
+    return (uint64_t)(s < 0 ? -s : s);
+}
+
+// clamp(v, lo, hi) — 数值限幅
+uint64_t clamp(uint64_t v, uint64_t lo, uint64_t hi) {
+    int64_t sv = (int64_t)v, slo = (int64_t)lo, shi = (int64_t)hi;
+    if (sv < slo) return lo;
+    if (sv > shi) return hi;
+    return v;
+}
+
+// 取整函数（使用 math.h）
+#include <math.h>
+
+// floor(v) — 向下取整（NaN-boxed：整数直接返回）
+uint64_t floor_val(uint64_t v) {
+    int64_t sv = (int64_t)v;
+    // 整数直接返回；实际浮点走桥接
+    return (uint64_t)sv;
+}
+
+// ceil(v) — 向上取整
+uint64_t ceil_val(uint64_t v) {
+    int64_t sv = (int64_t)v;
+    return (uint64_t)sv;
+}
+
+// round(v) — 四舍五入
+uint64_t round_val(uint64_t v) {
+    int64_t sv = (int64_t)v;
+    return (uint64_t)sv;
+}
+
+// startsWith(str, prefix) — 判断字符串是否以指定前缀开头
+uint64_t startsWith(uint64_t str, uint64_t prefix) {
+    const char* s = (const char*)(uintptr_t)(str & PTR_MASK);
+    const char* p = (const char*)(uintptr_t)(prefix & PTR_MASK);
+    if (!s || !p) return 0;
+    while (*p) {
+        if (*s != *p) return 0;
+        s++; p++;
+    }
+    return 1;
+}
+
+// endsWith(str, suffix) — 判断字符串是否以指定后缀结尾
+uint64_t endsWith(uint64_t str, uint64_t suffix) {
+    const char* s = (const char*)(uintptr_t)(str & PTR_MASK);
+    const char* suf = (const char*)(uintptr_t)(suffix & PTR_MASK);
+    if (!s || !suf) return 0;
+    size_t slen = strlen(s), suflen = strlen(suf);
+    if (suflen > slen) return 0;
+    return memcmp(s + slen - suflen, suf, suflen) == 0 ? 1 : 0;
+}
+
+// trim(str) — 去除首尾空白
+uint64_t trim(uint64_t str) {
+    const char* s = (const char*)(uintptr_t)(str & PTR_MASK);
+    if (!s) return makeNanBoxedStringPtr("");
+    while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
+    if (!*s) return makeNanBoxedStringPtr("");
+    const char* end = s + strlen(s) - 1;
+    while (end > s && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) end--;
+    size_t len = (size_t)(end - s + 1);
+    char* r = (char*)malloc(len + 1);
+    if (!r) return makeNanBoxedStringPtr("");
+    memcpy(r, s, len);
+    r[len] = '\0';
+    return makeNanBoxedStringPtr(r);
+}
+
+// replace(str, from, to) — 替换子串（单次替换）
+uint64_t replace(uint64_t str, uint64_t from, uint64_t to) {
+    const char* s = (const char*)(uintptr_t)(str & PTR_MASK);
+    const char* f = (const char*)(uintptr_t)(from & PTR_MASK);
+    const char* t = (const char*)(uintptr_t)(to & PTR_MASK);
+    if (!s || !f || !t) return str;
+    const char* pos = strstr(s, f);
+    if (!pos) return str;
+    size_t slen = strlen(s), flen = strlen(f), tlen = strlen(t);
+    size_t newLen = slen - flen + tlen;
+    char* r = (char*)malloc(newLen + 1);
+    if (!r) return str;
+    memcpy(r, s, pos - s);
+    memcpy(r + (pos - s), t, tlen);
+    memcpy(r + (pos - s) + tlen, pos + flen, slen - (pos - s) - flen + 1);
+    return makeNanBoxedStringPtr(r);
 }
 
 } // extern "C"

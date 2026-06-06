@@ -434,7 +434,7 @@ Shared<Program> LoopUnroller::unrollProgram(Shared<Program> program) {
 // ═══════════════════════════════════════════════════════════════════
 
 void LoopUnroller::printAnalysis(Shared<Stmt> loop) const {
-    VERBOSE(
+    if (!cplang::verboseEnabled()) return;
         std::cout << "=== 循环展开分析 ===" << std::endl;
 
         auto info = analyzeLoop(loop);
@@ -458,7 +458,6 @@ void LoopUnroller::printAnalysis(Shared<Stmt> loop) const {
         }
 
         std::cout << "已展开次数: " << unrollCount_ << std::endl;
-    );
 }
 
 } // namespace cplang

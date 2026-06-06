@@ -1,0 +1,117 @@
+{
+  "name": "cp-language",
+  "displayName": "CP Language Support",
+  "version": "0.3.0",
+  "publisher": "cplang",
+  "description": "CP语言 — 中文编程语言：语法高亮、代码补全、跳转定义、悬停提示、语义诊断、一键运行",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cplang/cplang"
+  },
+  "engines": {"vscode": "^1.80.0"},
+  "categories": ["Programming Languages", "Linters"],
+  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.info"],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [{
+      "id": "cp",
+      "aliases": ["CP", "cp", "cplang"],
+      "extensions": [".cp"],
+      "configuration": "./language-configuration.json",
+      "icon": {
+        "light": "./icons/cp-light.svg",
+        "dark": "./icons/cp-dark.svg"
+      }
+    }],
+    "grammars": [{
+      "language": "cp",
+      "scopeName": "source.cp",
+      "path": "./syntaxes/cp.tmLanguage.json"
+    }],
+    "snippets": [{
+      "language": "cp",
+      "path": "./snippets.json"
+    }],
+    "commands": [
+      {
+        "command": "cp.run",
+        "title": "CP: 运行当前文件",
+        "icon": "$(play)",
+        "description": "编译并运行当前 .cp 文件"
+      },
+      {
+        "command": "cp.build",
+        "title": "CP: 编译当前文件",
+        "description": "编译检查当前 .cp 文件（不运行）"
+      },
+      {
+        "command": "cp.info",
+        "title": "CP: 查看环境信息",
+        "description": "显示 CPLANG_HOME 和编译器路径"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "cp.run",
+        "key": "ctrl+shift+r",
+        "when": "editorLangId == cp && editorTextFocus"
+      },
+      {
+        "command": "cp.build",
+        "key": "ctrl+f7",
+        "when": "editorLangId == cp && editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "cp.run",
+          "group": "navigation",
+          "when": "editorLangId == cp"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "cp.run",
+          "group": "cp@1",
+          "when": "editorLangId == cp"
+        },
+        {
+          "command": "cp.build",
+          "group": "cp@2",
+          "when": "editorLangId == cp"
+        }
+      ]
+    },
+    "debuggers": [{
+      "type": "cp",
+      "label": "CP Language",
+      "languages": ["cp"],
+      "program": "./cp-debug.js",
+      "runtime": "node",
+      "configurationAttributes": {
+        "launch": {
+          "required": ["program"],
+          "properties": {
+            "program": {
+              "type": "string",
+              "description": "CP 程序文件路径"
+            }
+          }
+        }
+      },
+      "initialConfigurations": [
+        {
+          "name": "CP: 运行当前文件",
+          "type": "cp",
+          "request": "launch",
+          "program": "${file}"
+        }
+      ]
+    }]
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}

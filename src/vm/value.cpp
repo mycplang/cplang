@@ -195,6 +195,14 @@ bool ValueLess::operator()(const Value& a, const Value& b) const {
     if (a.isInt() && b.isInt()) return a.asInt() < b.asInt();
     if (a.isDouble() && b.isDouble()) return a.asFloat() < b.asFloat();
     if (a.isNumber() && b.isNumber()) return a.asFloat() < b.asFloat();
+    if (a.isString() && b.isString()) {
+        auto* sa = a.asString(); auto* sb = b.asString();
+        if (!sa || !sb) return sa < sb;
+        size_t ml = sa->length < sb->length ? sa->length : sb->length;
+        int cmp = std::memcmp(sa->data, sb->data, ml);
+        if (cmp != 0) return cmp < 0;
+        return sa->length < sb->length;
+    }
     return a.raw() < b.raw();
 }
 

@@ -34,7 +34,7 @@ Shared<Expr> Parser::parseAssignment() {
 }
 
 Shared<Expr> Parser::parseTernary() {
-    auto cond = parseOr();
+    auto cond = parsePipe();
     
     if (match(TokenType::OP_QUESTION)) {
         consume();
@@ -56,6 +56,22 @@ Shared<Expr> Parser::parseTernary() {
     }
     
     return cond;
+}
+
+Shared<Expr> Parser::parsePipe() {
+    auto left = parseOr();
+
+    while (match(TokenType::OP_PIPE)) {
+        consume();  // consume |>
+        auto right = parseOr();
+        auto pipe = Shared<PipeExpr>(new PipeExpr());
+        pipe->left = left;
+        pipe->right = right;
+        pipe->token = left->token;
+        left = pipe;
+    }
+
+    return left;
 }
 
 Shared<Expr> Parser::parseOr() {
@@ -480,8 +496,40 @@ Shared<Expr> Parser::parsePostfix() {
 }
 
 Shared<Expr> Parser::parsePrimary() {
-    // 括号
+    // Lambda表达式: |x, y| { ... } 或 |x, y| expr
+    if (match(TokenType::OP_BIT_OR)) {
+        return parseLambda();
+    }
+    
+    // 括号 (可能是 lambda: (x, y) => { ... } 或普通括号表达式)
     if (match(TokenType::LPAREN)) {
+        // 用 lookahead 判断是否是 lambda: (标识符 ...) =>
+        // 模式: ( ) => 或 ( 标识符  : 或 , 或 ) 然后 =>
+        bool isLambda = false;
+        if (peek_.type == TokenType::RPAREN) {
+            // () => 模式
+            if (peek2_.type == TokenType::OP_FAT_ARROW) {
+                isLambda = true;
+            }
+        } else if (peek_.type == TokenType::IDENTIFIER) {
+            // (标识符 ...) => 模式
+            // 需要扫描到匹配的 )，然后检查后面是否是 =>
+            // 简化：检查 peek_ 是否为标识符，且后面有 : 或 , 或 )
+            if (peek2_.type == TokenType::OP_COLON || peek2_.type == TokenType::COMMA || peek2_.type == TokenType::RPAREN) {
+                // 可能为 lambda，扫描到 ) 后检查 =>
+                int parenDepth = 1;
+                size_t lookaheadIdx = 1; // 已跳过 '(' 和 peek_[0]
+                // 我们需要扫描 tokens 来找到匹配的 )
+                // 由于没有 Token 流缓存，使用简化的启发式判断：
+                // 如果 peek_ 是标识符且 peek2_ 是 : 或 , 或 )，则认为是 lambda 参数列表的开始
+                isLambda = true;
+            }
+        }
+        
+        if (isLambda) {
+            return parseLambda();
+        }
+        
         consume();
         auto expr = parseExpression();
         expect(TokenType::RPAREN, "Expected ')' after expression");
@@ -691,7 +739,10 @@ Shared<Expr> Parser::parsePrimary() {
         // 泛型结构体字面量由 parsePostfix 处理（此处不处理 < 运算符）
 
         // 检查是否是结构体字面量: TypeName{field: value, ...}
-        if (match(TokenType::LBRACE)) {
+        // 但需要排除匹配语句: 匹配 x { ... } — { 后跟情况/其他 关键字
+        if (match(TokenType::LBRACE) &&
+            peek_.type != TokenType::K_CASE &&
+            peek_.type != TokenType::K_DEFAULT) {
             consume();  // consume '{'
             auto structLit = Shared<StructLiteralExpr>(new StructLiteralExpr());
             structLit->structName = name;
@@ -738,6 +789,80 @@ Shared<Expr> Parser::parsePrimary() {
     reportError("未预期的符号: " + current_.text);
     consume();
     return Shared<IdentifierExpr>(new IdentifierExpr());
+}
+
+Shared<Expr> Parser::parseLambda() {
+    // 语法: |参数1, 参数2: 类型| { 语句; ... }  或  |参数1, 参数2| 表达式
+    // 语法: (参数1, 参数2: 类型) => { 语句; ... }  或  (参数1, 参数2) => 表达式
+    // 语法: () => { 语句; ... }  或  () => 表达式
+    
+    bool isArrowSyntax = match(TokenType::LPAREN);  // ( ) => { } 语法
+    
+    if (isArrowSyntax) {
+        consume();  // consume '('
+    } else {
+        // | 语法
+        consume();  // consume '|'
+    }
+    
+    auto lambda = Shared<LambdaExpr>(new LambdaExpr());
+    lambda->token = current_;  // 记录位置信息
+    
+    // 解析参数列表
+    if (!isArrowSyntax || !match(TokenType::RPAREN)) {
+        while (true) {
+            if (isArrowSyntax && match(TokenType::RPAREN)) break;
+            if (!isArrowSyntax && match(TokenType::OP_BIT_OR)) break;
+            if (match(TokenType::END_OF_FILE)) {
+                reportError("Lambda表达式参数列表未关闭");
+                return lambda;
+            }
+            
+            // 参数名
+            String paramName = current_.text;
+            expect(TokenType::IDENTIFIER, "Lambda参数需要标识符名称");
+            
+            // 可选类型注解
+            Optional<String> paramType;
+            if (match(TokenType::OP_COLON)) {
+                consume();  // consume ':'
+                paramType = parseType();
+            }
+            
+            lambda->params.push_back({paramName, paramType});
+            
+            // 逗号继续
+            if (match(TokenType::COMMA)) {
+                consume();
+                continue;
+            } else {
+                break;
+            }
+        }
+    }
+    
+    // 关闭分隔符
+    if (isArrowSyntax) {
+        expect(TokenType::RPAREN, "Expected ')' after lambda parameters");
+        expect(TokenType::OP_FAT_ARROW, "Expected '=>' after lambda parameters");
+    } else {
+        expect(TokenType::OP_BIT_OR, "Expected '|' after lambda parameters");
+    }
+    
+    // 解析函数体
+    if (match(TokenType::LBRACE)) {
+        // 块体: { 语句; ... }
+        lambda->body = parseBlock();
+    } else {
+        // 表达式体: expr (自动包装为 return)
+        auto bodyBlock = Shared<BlockStmt>(new BlockStmt());
+        auto retStmt = Shared<ReturnStmt>(new ReturnStmt());
+        retStmt->value = parseExpression();
+        bodyBlock->statements.push_back(retStmt);
+        lambda->body = bodyBlock;
+    }
+    
+    return lambda;
 }
 
 } // namespace cplang

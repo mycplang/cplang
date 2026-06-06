@@ -273,7 +273,7 @@ Shared<Program> FunctionInliner::inlineFunctions(Shared<Program> program) {
 // ═══════════════════════════════════════════════════════════════════
 
 void FunctionInliner::printAnalysis() const {
-    VERBOSE(
+    if (!cplang::verboseEnabled()) return;
         std::cout << "=== 函数内联分析 ===" << std::endl;
 
         std::vector<FuncInfo> sortedFuncs;
@@ -301,7 +301,6 @@ void FunctionInliner::printAnalysis() const {
         }
 
         std::cout << "\n内联次数: " << inlineCount_ << std::endl;
-    );
 }
 
 } // namespace cplang

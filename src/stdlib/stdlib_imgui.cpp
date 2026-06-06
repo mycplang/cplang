@@ -2,7 +2,7 @@
 //  Dear ImGui CP 语言绑定（基于 rlImGui + raylib 后端）
 // ═══════════════════════════════════════════════════════════════════
 
-#define NO_FONT_AWESOME
+// NO_FONT_AWESOME 已在命令行定义
 #include "stdlib/stdlib.hpp"
 #include "imgui.h"
 #include "rlImGui.h"

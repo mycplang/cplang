@@ -1,10 +1,6 @@
-﻿// CP语言 虚拟机实现 - 字节码执行
+// CP语言 虚拟机实现 - 字节码执行
 #include "vm/vm.hpp"
-
-#ifdef CPLANG_HAS_LLVM
-#  include "jit/hybrid_jit.hpp"
-#  include "jit/orc_jit.hpp"
-#endif
+#include "jit/jit_dispatch.hpp"
 
 namespace cplang {
 
@@ -84,8 +80,9 @@ bool VM::run(ExecContext* ctx) {
         /* 0xDB-0xDF */ &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid,
         /* 0xE0 */ &&op_NEWCLASS, /* 0xE1 */ &&op_IMPORT, /* 0xE2 */ &&op_NEWSTRUCT,
         /* 0xE3 */ &&op_GETFIELD, /* 0xE4 */ &&op_SETFIELD,
-        // 0xE5-0xFE → invalid
-        &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid,
+        /* 0xE5 */ &&op_NEWVARIANT, /* 0xE6 */ &&op_GETVARIANTTAG, /* 0xE7 */ &&op_GETVARIANTFIELD,
+        // 0xE8-0xFE → except 0xE8 = MAKECLOSURE
+        &&op_MAKECLOSURE, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid,
         &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid, &&op_invalid,
         /* 0xFF */ &&op_NOP
     };
@@ -142,6 +139,8 @@ bool VM::run(ExecContext* ctx) {
                 }
             }
         }
+        // DEBUG: 打印当前执行的指令
+        printf("VM_OP: 0x%02X pc=%zu a=%d b=%d c=%d\n", op, ctx->pc - 1, a, b, c);
         switch (op) {
 #endif
 
@@ -701,86 +700,15 @@ case OP_CALLMETHOD: {
                         break;
                     }
                     
-#ifdef CPLANG_HAS_LLVM
-                    // ── JIT 热点检测与编译 ──
-                    if (jit_) {
-                        // 渐进类型：全 typed 指令或显式类型标注 → 直接 JIT 编译（跳过字节码）
-                        if ((func->isTyped || func->hasExplicitTypes) && !func->jitCompiled) {
-                            void* entry = jit_->compileHotFunction(func);
-                            if (entry) {
-                                func->jitEntry = entry;
-                                func->jitCompiled = true;
-                            }
-                        }
-                        // 快速路径：已编译 → 直接原生调用
-                        if (func->jitCompiled && func->jitEntry) {
-                            using JITFn0 = int64_t(*)(void);
-                            using JITFn1 = int64_t(*)(int64_t);
-                            using JITFn2 = int64_t(*)(int64_t,int64_t);
-                            using JITFn3 = int64_t(*)(int64_t,int64_t,int64_t);
-                            using JITFn4 = int64_t(*)(int64_t,int64_t,int64_t,int64_t);
-                            using JITFn5 = int64_t(*)(int64_t,int64_t,int64_t,int64_t,int64_t);
-                            using JITFn6 = int64_t(*)(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
-                            using JITFn7 = int64_t(*)(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
-                            using JITFn8 = int64_t(*)(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
-                            using JITFn9 = int64_t(*)(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
-                            using JITFn10= int64_t(*)(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
-                            using JITFn11= int64_t(*)(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
-                            using JITFn12= int64_t(*)(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
-
-                            auto arg = [&](int i) -> int64_t {
-                                if (i < argc) return (int64_t)args[i].asInt();
-                                return 0;
-                            };
-
-                            int64_t result = 0;
-                            switch (argc) {
-                                case 0: result = ((JITFn0)func->jitEntry)(); break;
-                                case 1: result = ((JITFn1)func->jitEntry)(arg(0)); break;
-                                case 2: result = ((JITFn2)func->jitEntry)(arg(0),arg(1)); break;
-                                case 3: result = ((JITFn3)func->jitEntry)(arg(0),arg(1),arg(2)); break;
-                                case 4: result = ((JITFn4)func->jitEntry)(arg(0),arg(1),arg(2),arg(3)); break;
-                                case 5: result = ((JITFn5)func->jitEntry)(arg(0),arg(1),arg(2),arg(3),arg(4)); break;
-                                case 6: result = ((JITFn6)func->jitEntry)(arg(0),arg(1),arg(2),arg(3),arg(4),arg(5)); break;
-                                case 7: result = ((JITFn7)func->jitEntry)(arg(0),arg(1),arg(2),arg(3),arg(4),arg(5),arg(6)); break;
-                                case 8: result = ((JITFn8)func->jitEntry)(arg(0),arg(1),arg(2),arg(3),arg(4),arg(5),arg(6),arg(7)); break;
-                                case 9: result = ((JITFn9)func->jitEntry)(arg(0),arg(1),arg(2),arg(3),arg(4),arg(5),arg(6),arg(7),arg(8)); break;
-                                case 10:result = ((JITFn10)func->jitEntry)(arg(0),arg(1),arg(2),arg(3),arg(4),arg(5),arg(6),arg(7),arg(8),arg(9)); break;
-                                case 11:result = ((JITFn11)func->jitEntry)(arg(0),arg(1),arg(2),arg(3),arg(4),arg(5),arg(6),arg(7),arg(8),arg(9),arg(10)); break;
-                                case 12:result = ((JITFn12)func->jitEntry)(arg(0),arg(1),arg(2),arg(3),arg(4),arg(5),arg(6),arg(7),arg(8),arg(9),arg(10),arg(11)); break;
-                                default: result = 0; break;
-                            }
-                            RA(a) = Value::Int(result);
+                    // ── JIT 分派（委托给独立模块） ──
+                    {
+                        Value jitResult;
+                        if (jitTryCallDispatch(this, func, argc, args.data(), jitResult)) {
+                            RA(a) = jitResult;
                             ctx->pc += 15;
                             break;
                         }
-
-                        // 未编译：记录调用，达到阈值后触发编译
-                        jit_->recordCall(func);
-                        if (jit_->shouldCompile(func)) {
-                            void* entry = jit_->compileHotFunction(func);
-                            if (entry) {
-                                func->jitEntry = entry;
-                                func->jitCompiled = true;
-                                // 编译成功：直接用 JIT 入口执行，跳过字节码
-                                auto jitArg = [&](int i) -> int64_t {
-                                    if (i < argc) return (int64_t)args[i].asInt();
-                                    return 0;
-                                };
-                                int64_t result = 0;
-                                switch (argc) {
-                                    case 0: result = ((int64_t(*)(void))entry)(); break;
-                                    case 1: result = ((int64_t(*)(int64_t))entry)(jitArg(0)); break;
-                                    case 2: result = ((int64_t(*)(int64_t,int64_t))entry)(jitArg(0),jitArg(1)); break;
-                                    default: result = 0; break;
-                                }
-                                RA(a) = Value::Int(result);
-                                ctx->pc += 15;
-                                break;
-                            }
-                        }
                     }
-#endif
                     
                     // 用户函数字节码调用
                     CallFrame frame;
@@ -1248,6 +1176,48 @@ case OP_NEWSTRUCT: {
                 break;
             }
 
+case OP_NEWVARIANT: {
+                // NEWVARIANT ra, tag: 创建变体表 {0: tag, 1: nil, 2: nil, ...}
+                VMTable* tbl = VMTable::create();
+                trackGC(reinterpret_cast<VMObject*>(tbl));
+                // 设置 tag 在字段 0
+                tbl->set(Value::Int(0), Value::Int(b));
+                RA(a) = makePtrVal(reinterpret_cast<VMObject*>(tbl));
+                ctx->pc += 15;
+                break;
+            }
+
+case OP_GETVARIANTTAG: {
+                // GETVARIANTTAG ra, rb: ra = rb.fields[0] (the tag)
+                // 对于ADT枚举(表对象)，提取第0字段作为tag
+                // 对于简单枚举(整数)，值本身就是tag
+                Value obj = RB(b);
+                if (obj.asPtr() && obj.asPtr()->typeTag == ObjectHeader::TAG_TABLE) {
+                    VMTable* tbl = static_cast<VMTable*>(obj.asPtr());
+                    RA(a) = tbl->get(Value::Int(0));
+                } else if (obj.isInt()) {
+                    RA(a) = obj;  // 简单枚举：值本身就是tag
+                } else {
+                    RA(a) = Value::Int(0);
+                }
+                ctx->pc += 15;
+                break;
+            }
+
+case OP_GETVARIANTFIELD: {
+                // GETVARIANTFIELD ra, rb, c: ra = rb.fields[c] (c is field index)
+                Value obj = RB(b);
+                Int32 fieldIdx = c;
+                if (obj.asPtr() && obj.asPtr()->typeTag == ObjectHeader::TAG_TABLE) {
+                    VMTable* tbl = static_cast<VMTable*>(obj.asPtr());
+                    RA(a) = tbl->get(Value::Int(fieldIdx));
+                } else {
+                    RA(a) = Value::nil();
+                }
+                ctx->pc += 15;
+                break;
+            }
+
 case OP_GETFIELD: {
                 // GETFIELD ra, rb, c: ra = rb.fields[c]
                 Value obj = RB(b);
@@ -1279,6 +1249,47 @@ case OP_SETFIELD: {
                     VMTable* tbl = static_cast<VMTable*>(obj.asPtr());
                     tbl->set(Value::Int(fieldIdx), val);
                 }
+                ctx->pc += 15;
+                break;
+            }
+
+case OP_MAKECLOSURE: {
+                // OP_MAKECLOSURE: a=resultReg, b=funcConstIdx(low8), c=captureCount
+                // 从常量池获取 VMFunction，创建 VMClosure 包装它
+                // 捕获的变量从 RA(a+1) 开始的连续寄存器中读取
+                Int32 funcIdx = b;
+                Int32 captureCount = c;
+                
+                VMFunction* targetFunc = nullptr;
+                if (funcIdx >= 0 && funcIdx < static_cast<Int32>(ctx->func->constants.size())) {
+                    const Value& funcVal = ctx->func->constants[funcIdx];
+                    if (funcVal.isFunction()) {
+                        targetFunc = funcVal.asFunction();
+                    }
+                }
+                
+                if (!targetFunc) {
+                    RA(a) = Value::nil();
+                    ctx->pc += 15;
+                    break;
+                }
+                
+                // 创建闭包对象
+                VMClosure* closure = VMClosure::create(targetFunc);
+                
+                // 捕获变量：从 RA(a+1) 开始的连续寄存器
+                if (captureCount > 0) {
+                    closure->upvalues.resize(captureCount);
+                    for (Int32 i = 0; i < captureCount; i++) {
+                        // 复制捕获的变量值到闭包的 upvalue
+                        VMUpvalue* upval = VMUpvalue::create(&RA(a + 1 + i));
+                        upval->closed = RA(a + 1 + i);  // 立即关闭（捕获值拷贝）
+                        closure->upvalues[i] = upval;
+                    }
+                }
+                
+                // 将闭包包装为 Value
+                RA(a) = Value::Ptr(reinterpret_cast<VMObject*>(closure));
                 ctx->pc += 15;
                 break;
             }
@@ -1351,10 +1362,6 @@ bool VM::loadModule(VMFunction* func) {
     for (size_t i = codeSz; i < codeSz + 256; i++) codeBuf[i] = OP_NOP;
 
 
-
-    for (size_t i = 0; i < 16 && i < codeSz+256; i++) {
-
-    }
 
 
     ExecContext ctx;

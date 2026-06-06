@@ -82,6 +82,10 @@ private:
     
     // 临时文件列表
     std::vector<String> tempFiles_;
+    
+    // 图形检测（编译时自动选择轻量/图形库）
+    bool graphicsNeeded_ = false;
+    static void scanGraphicsUsage(Shared<Program> ast, bool& found);
 };
 
 } // namespace cplang

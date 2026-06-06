@@ -61,6 +61,9 @@ AOTResult AOTCompiler::compileSource(const String& source, const AOTConfig& conf
 AOTResult AOTCompiler::compileAST(Shared<Program> ast, const AOTConfig& config) {
     AOTResult result;
     
+    // 检测是否需要图形库
+    scanGraphicsUsage(ast, graphicsNeeded_);
+    
     // 语义分析
     SemanticAnalyzer analyzer;
     if (!analyzer.analyze(ast)) {
@@ -161,19 +164,48 @@ bool AOTCompiler::generateLLVMIR(Shared<Program> ast, String& ir, const AOTConfi
 
 #ifdef _WIN32
 static bool runTool(const std::string& cmdLine) {
+    SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
+    HANDLE hRead, hWrite;
+    if (!CreatePipe(&hRead, &hWrite, &sa, 4096)) {
+        return false;
+    }
+    SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
+    
     STARTUPINFOA si = { sizeof(STARTUPINFOA) };
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = hWrite;
+    si.hStdError = hWrite;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     PROCESS_INFORMATION pi;
-    // CreateProcessA 需要可写缓冲区
+    
     std::string mutableCmd = cmdLine;
-    if (!CreateProcessA(NULL, &mutableCmd[0], NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+    if (!CreateProcessA(NULL, &mutableCmd[0], NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
+        CloseHandle(hRead); CloseHandle(hWrite);
         std::cerr << "[AOT] 错误: 进程启动失败 (error=" << GetLastError() << ")\n";
         return false;
     }
+    CloseHandle(hWrite);
+    
+    // 读取子进程输出
+    char buf[4096];
+    DWORD read;
+    std::string output;
+    while (ReadFile(hRead, buf, sizeof(buf) - 1, &read, NULL) && read > 0) {
+        buf[read] = '\0';
+        output += buf;
+    }
+    CloseHandle(hRead);
+    
     WaitForSingleObject(pi.hProcess, INFINITE);
     DWORD exitCode;
     GetExitCodeProcess(pi.hProcess, &exitCode);
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
+    
+    // 打印子进程输出
+    if (!output.empty()) {
+        std::cerr << output;
+    }
     return exitCode == 0;
 }
 #endif
@@ -256,6 +288,25 @@ AOTCompiler::MSVCPaths AOTCompiler::detectMSVCPaths() {
             if (d.find("ucrt") != String::npos) paths.ucrtLib = d;
             else if (d.find("um\\x64") != String::npos || d.find("um/x64") != String::npos) paths.umLib = d;
             else if (d.find("MSVC") != String::npos || d.find("14.") != String::npos) paths.msvcLib = d;
+        }
+        // 从 msvcLib 推导 msvcBin（LIB 环境变量中有 lib 路径但没有 bin 路径）
+        if (!paths.msvcLib.empty() && paths.msvcBin.empty()) {
+            String binDir = paths.msvcLib;
+            auto pos = binDir.rfind("lib");
+            if (pos != String::npos) {
+                binDir = binDir.substr(0, pos);
+                // 优先 Hostx64\x86（64 位原生 linker），其次 Hostx64\x64
+                String candidate1 = binDir + "bin\\Hostx64\\x86\\link.exe";
+                String candidate2 = binDir + "bin\\Hostx64\\x64\\link.exe";
+                std::ifstream test1(candidate1);
+                if (test1.good()) {
+                    test1.close();
+                    paths.msvcBin = binDir + "bin\\Hostx64\\x86";
+                } else {
+                    test1.close();
+                    paths.msvcBin = binDir + "bin\\Hostx64\\x64";
+                }
+            }
         }
     }
     
@@ -351,15 +402,8 @@ bool AOTCompiler::compileIRToObject(const String& ir, const String& objFile, con
     }
     
     if (llcExe.empty()) {
-        // 尝试验证已知路径是否有 llc.exe
-        std::ifstream test("C:\\cplang\\llvm-dev\\bin\\llc.exe");
-        if (test.good()) {
-            test.close();
-            llcExe = "C:\\cplang\\llvm-dev\\bin\\llc.exe";
-        } else {
-            std::cerr << "[AOT] 错误: 未找到 llc.exe，请设置 llvmToolsDir 或安装 LLVM\n";
-            return false;
-        }
+        std::cerr << "[AOT] 错误: 未找到 llc.exe，请设置 llvmToolsDir 或安装 LLVM\n";
+        return false;
     }
     
     // 步骤 3：构建并执行 llc 命令
@@ -390,11 +434,18 @@ bool AOTCompiler::generateMainWrapper(const String& wrapperLl, const String& wra
     
     if (hasEntry) {
         // 有 __cplang_entry：生成 main 包装器调用它
+        // 非纯数学模式：先初始化 AOT VM 桥接，再执行用户代码
+        if (!config.pureMath) {
+            ofs << "declare void @aot_init_runtime()\n";
+        }
         ofs << "declare i64 @__cplang_entry()\n"
                "\n"
                "define i32 @main(i32 %argc, ptr %argv) {\n"
-               "entry:\n"
-               "  %result = call i64 @__cplang_entry()\n"
+               "entry:\n";
+        if (!config.pureMath) {
+            ofs << "  call void @aot_init_runtime()\n";
+        }
+        ofs << "  %result = call i64 @__cplang_entry()\n"
                "  %exit_code = trunc i64 %result to i32\n"
                "  ret i32 %exit_code\n"
                "}\n";
@@ -412,7 +463,11 @@ bool AOTCompiler::generateMainWrapper(const String& wrapperLl, const String& wra
     if (!config.llvmToolsDir.empty()) {
         llcExe = config.llvmToolsDir + "/llc.exe";
     } else {
-        llcExe = "C:\\cplang\\llvm-dev\\bin\\llc.exe";
+        llcExe = findLLVMTool("llc.exe", config);
+    }
+    if (llcExe.empty()) {
+        std::cerr << "[AOT] 错误: 未找到 llc.exe，请设置 llvmToolsDir 或安装 LLVM\n";
+        return false;
     }
     
     std::string cmd = "\"" + llcExe + "\" -filetype=obj \"" + wrapperLl + "\" -o \"" + wrapperObj + "\"";
@@ -429,16 +484,69 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
     // 2. 收集所有 .obj 文件
     std::vector<String> allObjs = objFiles;
     
-    // 3. 非纯数学模式：链接预编译的 jit_runtime.lib
+    // 3. 非纯数学模式：链接预编译的运行时库
     if (!config.pureMath) {
-        String runtimeLib = "C:\\cplang\\build\\jit_runtime.lib";
+        // 在 cplang.exe 同级目录查找运行时库文件
+        char ownPath[MAX_PATH];
+        GetModuleFileNameA(NULL, ownPath, MAX_PATH);
+        String ownDir(ownPath);
+        auto pos = ownDir.find_last_of("\\/");
+        if (pos != String::npos) ownDir = ownDir.substr(0, pos);
+        
+        // 3b. 链接 aot_vm_bridge.obj（运行时桥接入口）
+        String bridgeObj = ownDir + "\\aot_vm_bridge.obj";
+        std::ifstream testBridge(bridgeObj);
+        if (testBridge.good()) {
+            testBridge.close();
+            allObjs.push_back(bridgeObj);
+        } else {
+            std::cerr << "[AOT] 警告: 未找到 " << bridgeObj << "，将跳过桥接初始化\n";
+        }
+        
+        // 3a. 自动选择运行时库（检测是否需要图形支持）
+        String cplangLib = ownDir + (graphicsNeeded_ ? "\\cplang_graphics.lib" : "\\cplang_full.lib");
+        std::ifstream testCplang(cplangLib);
+        if (testCplang.good()) {
+            testCplang.close();
+            allObjs.push_back(cplangLib);
+            // /WHOLEARCHIVE 强制提取全部 .obj 解决循环引用
+            allObjs.push_back(String("/WHOLEARCHIVE:\"") + cplangLib + String("\""));
+        } else {
+            std::cerr << "[AOT] 警告: 未找到 " << cplangLib << "，stdlib 桥接将不可用\n";
+            std::cerr << "[AOT] 提示: 请运行 build_msvc.bat 以生成 cplang.lib\n";
+        }
+        
+        // 3c. 链接所有 LLVM lib（自动扫描目录）
+        {
+            String llvmDir = ownDir + "\\..\\llvm-dev\\lib";
+            String testFile = llvmDir + "\\LLVMCore.lib";
+            std::ifstream tf(testFile.c_str());
+            if (tf.good()) {
+                tf.close();
+#ifdef _WIN32
+                // 扫描 LLVM lib 目录，添加所有 .lib 文件
+                WIN32_FIND_DATAA ffd;
+                String searchPath = llvmDir + "\\*.lib";
+                HANDLE hFind = FindFirstFileA(searchPath.c_str(), &ffd);
+                if (hFind != INVALID_HANDLE_VALUE) {
+                    do {
+                        String fp = llvmDir + "\\" + ffd.cFileName;
+                        allObjs.push_back(fp);
+                    } while (FindNextFileA(hFind, &ffd));
+                    FindClose(hFind);
+                }
+#endif
+            }
+        }
+        
+        // 3d. 链接 jit_runtime.lib
+        String runtimeLib = ownDir + "\\jit_runtime.lib";
         std::ifstream testLib(runtimeLib);
         if (testLib.good()) {
             testLib.close();
             allObjs.push_back(runtimeLib);
         } else {
-            std::cerr << "[AOT] 警告: 未找到 " << runtimeLib << "，将仅链接纯数学模式\n";
-            std::cerr << "[AOT] 提示: 请运行 build_msvc.bat 以生成 jit_runtime.lib\n";
+            std::cerr << "[AOT] 警告: 未找到 jit_runtime.lib\n";
         }
     }
     
@@ -453,10 +561,7 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
             linker = findLLVMTool("lld-link.exe", config);
         }
         if (linker.empty()) {
-            std::ifstream test("C:\\cplang\\llvm-dev\\bin\\lld-link.exe");
-            if (test.good()) {
-                linker = "C:\\cplang\\llvm-dev\\bin\\lld-link.exe";
-            } else {
+            if (findLLVMTool("lld-link.exe", config).empty()) {
                 std::cerr << "[AOT] 错误: 未找到 lld-link.exe\n";
                 return false;
             }
@@ -471,6 +576,13 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
         cmd += "\"" + obj + "\" ";
     }
     cmd += "/subsystem:console /nologo /out:\"" + exeFile + "\"";
+    // 允许 CRT 不匹配（LLVM lib 与本地 MSVC 版本不同）
+    cmd += " /ignore:4098 /ignore:4099 /WX:NO /FORCE:MULTIPLE";
+    cmd += " /merge:.CRT=.rdata";
+    cmd += " msvcrt.lib";
+    // 添加系统库（Shell32 / WinHTTP / Winsock / OpenGL 等）
+    cmd += " Shell32.lib Winhttp.lib Ws2_32.lib Cabinet.lib opengl32.lib";
+    cmd += " gdi32.lib winmm.lib ole32.lib comctl32.lib user32.lib urlmon.lib";
     
     // 非纯数学模式：需要 entry:mainCRTStartup 以初始化 C++ 运行时
     if (config.pureMath) {
@@ -488,14 +600,12 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
         cmd += " /libpath:\"" + msvc.umLib + "\"";
     }
     
-    // LLVM 生成的 .obj 不含 #pragma comment(lib)，需手动指定 CRT 静态库
-    // 注意: MSVC 的 link.exe 对 llc 生成的 .obj（无 pragma 指令）不自动链接 CRT，
-    // 必须显式指定 /defaultlib。使用静态库以避免 VCRUNTIME140.dll 运行时依赖:
-    cmd += " /defaultlib:libcmt /defaultlib:libucrt /defaultlib:libvcruntime";
+
     
     VERBOSE(
         if (config.pureMath) std::cout << "[AOT] 链接中: lld-link...\n";
         else std::cout << "[AOT] 链接中: MSVC link.exe...\n";
+        std::cerr << "[AOT] DEBUG 命令: " << cmd << "\n";
     );
     if (!runTool(cmd)) {
         std::cerr << "[AOT] 错误: 链接失败\n";
@@ -575,6 +685,86 @@ void AOTCompiler::cleanupTempFiles() {
 #endif
     }
     tempFiles_.clear();
+}
+
+// 递归扫描 AST 检测是否需要图形库（raylib/ImGui 函数调用）
+static void scanGraphicsNode(Shared<Expr> expr, bool& found) {
+    if (!expr || found) return;
+    if (auto call = std::dynamic_pointer_cast<CallExpr>(expr)) {
+        if (auto ident = std::dynamic_pointer_cast<IdentifierExpr>(call->callee)) {
+            String name = ident->name;
+            // 检查 raylib 函数（中文/英文）
+            if (name.find("raylib.") != String::npos ||
+                name == "InitWindow" || name == "BeginDrawing" || name == "EndDrawing" ||
+                name.find("Drawing") != String::npos ||
+                name.find("Window") != String::npos ||
+                name.find("Texture") != String::npos ||
+                name.find("Shader") != String::npos ||
+                name.find("Camera") != String::npos ||
+                name.find("Model") != String::npos ||
+                name.find("Mesh") != String::npos ||
+                name.find("Font") != String::npos ||
+                name.find("Audio") != String::npos ||
+                name.find("Sound") != String::npos ||
+                name.find("Music") != String::npos ||
+                // 检查 ImGui 函数
+                name.find("ImGui") != String::npos ||
+                name.find("imgui.") != String::npos ||
+                name.find("Push") != String::npos ||
+                name.find("Pop") != String::npos ||
+                name.find("Slider") != String::npos || name.find("Button") != String::npos ||
+                name == "开启窗口" || name == "关闭窗口" || name == "窗口应关闭" ||
+                name == "开始绘制" || name == "结束绘制" || name == "清空背景" ||
+                name == "绘制圆形" || name == "绘制矩形" ||
+                name == "检测按键" || name == "检测按键按下")
+            {
+                found = true; return;
+            }
+        }
+    }
+    if (auto bin = std::dynamic_pointer_cast<BinaryExpr>(expr)) {
+        scanGraphicsNode(bin->left, found);
+        scanGraphicsNode(bin->right, found);
+    }
+    if (auto unary = std::dynamic_pointer_cast<UnaryExpr>(expr)) {
+        scanGraphicsNode(unary->operand, found);
+    }
+    if (auto idx = std::dynamic_pointer_cast<IndexExpr>(expr)) {
+        scanGraphicsNode(idx->array, found);
+        scanGraphicsNode(idx->index, found);
+    }
+    if (auto member = std::dynamic_pointer_cast<MemberExpr>(expr)) {
+        scanGraphicsNode(member->object, found);
+    }
+}
+
+static void scanGraphicsStmt(Shared<Stmt> stmt, bool& found) {
+    if (!stmt || found) return;
+    if (auto exprStmt = std::dynamic_pointer_cast<ExprStmt>(stmt)) {
+        scanGraphicsNode(exprStmt->expr, found);
+    } else if (auto varDecl = std::dynamic_pointer_cast<VarDeclStmt>(stmt)) {
+        if (varDecl->init) scanGraphicsNode(varDecl->init, found);
+    } else if (auto ret = std::dynamic_pointer_cast<ReturnStmt>(stmt)) {
+        scanGraphicsNode(ret->value, found);
+    } else if (auto ifStmt = std::dynamic_pointer_cast<IfStmt>(stmt)) {
+        scanGraphicsNode(ifStmt->condition, found);
+        scanGraphicsStmt(ifStmt->thenBranch, found);
+        if (ifStmt->elseBranch) scanGraphicsStmt(ifStmt->elseBranch, found);
+    } else if (auto whileStmt = std::dynamic_pointer_cast<WhileStmt>(stmt)) {
+        scanGraphicsNode(whileStmt->condition, found);
+        scanGraphicsStmt(whileStmt->body, found);
+    } else if (auto forStmt = std::dynamic_pointer_cast<ForStmt>(stmt)) {
+        scanGraphicsStmt(forStmt->body, found);
+    } else if (auto block = std::dynamic_pointer_cast<BlockStmt>(stmt)) {
+        for (auto& s : block->statements) scanGraphicsStmt(s, found);
+    }
+}
+
+void AOTCompiler::scanGraphicsUsage(Shared<Program> ast, bool& found) {
+    for (auto& stmt : ast->statements) {
+        scanGraphicsStmt(stmt, found);
+        if (found) return;
+    }
 }
 
 } // namespace cplang

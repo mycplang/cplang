@@ -29,7 +29,7 @@
 打印("═══════════════════════════════════════════");
 
 // ─── 1. 连接测试 ─────────────────────────────────
-变量 连接串 = "host=120.48.128.250 port=5432 dbname=claw_mall user=claw_mall password=ClawMall_2026!";
+变量 连接串 = "host=120.220.76.108 port=5432 dbname=ceshipg user=postgres password=total.pgsql.11";
 变量 conn = PG连接(连接串);
 断言非空(conn, "1.1 PG连接");
 

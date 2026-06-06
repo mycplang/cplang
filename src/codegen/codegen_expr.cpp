@@ -75,6 +75,14 @@ int Codegen::compileExpr(Shared<Expr> expr) {
     if (auto structLit = std::dynamic_pointer_cast<StructLiteralExpr>(expr))
         return compileStructLiteral(structLit);
 
+    // Lambda表达式
+    if (auto lambda = std::dynamic_pointer_cast<LambdaExpr>(expr))
+        return compileLambda(lambda);
+
+    // 默认管道表达式
+    if (auto pipe = std::dynamic_pointer_cast<PipeExpr>(expr))
+        return compilePipe(pipe);
+
     // 默认
     int r = allocReg();
     emit(OP_LOADNIL, r, 0, 0);
@@ -293,6 +301,138 @@ int Codegen::compileNew(Shared<NewExpr> n) {
     }
     
     return tblReg;
+}
+
+int Codegen::compilePipe(Shared<PipeExpr> expr) {
+    // a |> f → f(a)
+    // First compile the function (right side) to get the callee register
+    int funcReg = compileExpr(expr->right);
+
+    // The argument must be in funcReg + 1 per calling convention
+    nextReg_ = funcReg + 1;
+    int argReg = compileExpr(expr->left);
+    if (argReg != funcReg + 1) {
+        emit(OP_MOVE, funcReg + 1, argReg, 0);
+    }
+
+    // Call: result in funcReg, function at funcReg, 1 argument
+    emit(OP_CALL, funcReg, funcReg, 1);
+    return funcReg;
+}
+
+int Codegen::compileLambda(Shared<LambdaExpr> expr) {
+    // Lambda 编译策略:
+    // 1. 将 lambda 体编译为独立的 VMFunction
+    // 2. 将该 VMFunction 添加到常量池
+    // 3. 生成 OP_MAKECLOSURE 指令在运行时创建闭包并捕获变量
+    
+    // 保存当前编译状态
+    VMFunction* oldFunc = func_;
+    std::vector<UInt8>* oldCode = code_;
+    int oldNextReg = nextReg_;
+    std::vector<Value> oldConstants = constants_;
+    bool oldAllTyped = allTyped_;
+    
+    // 清空常量表，为 lambda 函数准备
+    constants_.clear();
+    
+    // 创建 lambda 的 VMFunction
+    VMFunction* lambdaFunc = new VMFunction();
+    lambdaFunc->name = nullptr;  // 匿名函数
+    lambdaFunc->maxStack = 256;
+    lambdaFunc->numParams = static_cast<UInt32>(expr->params.size());
+    lambdaFunc->numLocals = 0;
+    lambdaFunc->isVararg = false;
+    lambdaFunc->hasSlots = (vm_ != nullptr);
+    lambdaFunc->sourceFile = sourceFile_;
+    
+    // 切换到 lambda 函数的编译上下文
+    func_ = lambdaFunc;
+    code_ = &lambdaFunc->code;
+    nextReg_ = 0;
+    maxReg_ = 0;
+    allTyped_ = true;
+    
+    // 创建新作用域
+    pushScope();
+    
+    // 注册参数到局部变量
+    for (size_t p = 0; p < expr->params.size(); p++) {
+        LocalVar lv{static_cast<int>(p), nullptr};
+        localScopes_.back()[expr->params[p].first] = lv;
+        if (static_cast<int>(p) >= nextReg_) nextReg_ = static_cast<int>(p) + 1;
+    }
+    
+    // 编译 lambda 体
+    if (expr->body) {
+        compileBlock(expr->body);
+    }
+    
+    // 确保有返回指令
+    if (lambdaFunc->code.empty() || lambdaFunc->code[lambdaFunc->code.size() - 16] != OP_RETURN) {
+        emit(OP_LOADNIL, 0, 0, 0);
+        emit(OP_RETURN, 0, 0, 0);
+    }
+    
+    // 弹出 lambda 作用域
+    popScope();
+    
+    // 设置 lambda 函数属性
+    lambdaFunc->maxStack = maxReg_ + 16;
+    lambdaFunc->constants = constants_;
+    lambdaFunc->isTyped = allTyped_;
+    
+    // 恢复外层编译状态
+    func_ = oldFunc;
+    code_ = oldCode;
+    nextReg_ = oldNextReg;
+    constants_ = oldConstants;
+    allTyped_ = oldAllTyped;
+    
+    // 将 lambda 的 VMFunction 添加到外层常量池
+    Value funcVal = makeFunctionVal(lambdaFunc);
+    Int32 funcIdx = addConstant(funcVal);
+    
+    // 收集需要捕获的变量
+    // 简化实现：扫描 lambda 体中使用的外部局部变量
+    // 通过对比 lambda 作用域内的变量和外层作用域的变量来识别
+    std::vector<String> captureNames;
+    
+    // 使用 expr->captures 如果语义分析器已经填充
+    if (!expr->captures.empty()) {
+        captureNames = expr->captures;
+    }
+    // 否则，codegen 自动检测：检查外层作用域中在 lambda 体内被引用的变量
+    // 简化：暂时依赖语义分析器填充 captures
+    
+    // 分配结果寄存器
+    int resultReg = allocReg();
+    
+    if (captureNames.empty()) {
+        // 无捕获变量：直接创建闭包（仍然需要 OP_MAKECLOSURE 以包装为闭包对象）
+        // OP_MAKECLOSURE: a=result, b=funcConstIdx(low8), c=captureCount
+        emit(OP_MAKECLOSURE, static_cast<UInt8>(resultReg),
+             static_cast<UInt8>(funcIdx & 0xFF), 0);
+    } else {
+        // 有捕获变量：先加载每个捕获变量到连续寄存器，然后创建闭包
+        int captureBaseReg = resultReg + 1;
+        for (size_t i = 0; i < captureNames.size(); i++) {
+            int capReg = captureBaseReg + static_cast<int>(i);
+            int localReg = getLocalReg(captureNames[i]);
+            if (localReg >= 0) {
+                emit(OP_MOVE, capReg, localReg, 0);
+            } else {
+                // 捕获变量未找到，加载 nil 作为占位
+                emit(OP_LOADNIL, capReg, 0, 0);
+            }
+        }
+        // OP_MAKECLOSURE: a=result, b=funcConstIdx(low8), c=captureCount
+        emit(OP_MAKECLOSURE, static_cast<UInt8>(resultReg),
+             static_cast<UInt8>(funcIdx & 0xFF),
+             static_cast<UInt8>(captureNames.size()));
+    }
+    
+    return resultReg;
 }
 
 int Codegen::compileBinaryOp(TokenType op, int ra, int rb, int rc) {

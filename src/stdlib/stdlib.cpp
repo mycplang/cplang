@@ -1,4 +1,4 @@
-﻿// 标准库实现
+// 标准库实现
 
 #include "stdlib/stdlib.hpp"
 #include <cmath>
@@ -137,6 +137,7 @@ void StdLib::registerAll(VM* vm) {
     registerStrCi(vm);
     registerRaylib(vm);
     registerFixMissing(vm);
+    registerFFI(vm);
 }
 
 void StdLib::registerFunction(VM* vm, const char* name, VMNativeFunc::Fn fn) {
@@ -206,6 +207,8 @@ static void registerRedis(cplang::VM*) {}
 static void registerHttp(cplang::VM*) {}
 static void registerLogPlus(cplang::VM*) {}
 #endif
+#include "stdlib_ffi.cpp"
+
 // stdlib_raylib.cpp → compiled separately as stdlib_raylib_unit.cpp to isolate raylib.h from windows.h conflicts
 
 } // namespace cplang

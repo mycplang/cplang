@@ -2,6 +2,7 @@
 #include <memory>
 #include <string>
 #include "vm/value.hpp"
+#include "jit/jit_dispatch.hpp"
 
 namespace cplang {
 
@@ -28,6 +29,10 @@ public:
     void setHotThreshold(int);
     void dumpStats() const;
 
+    // JIT 信息注册表（外部映射，不污染 VMFunction）
+    JITRegistry& getJITRegistry() { return jitReg_; }
+    const JITRegistry& getJITRegistry() const { return jitReg_; }
+
 private:
     enum class Mode { None, Orc, External };
 
@@ -35,6 +40,7 @@ private:
     std::unique_ptr<OrcJIT> orcJit_;
     std::unique_ptr<ExternalJIT> externalJit_;
     Mode mode_ = Mode::None;
+    JITRegistry jitReg_;
 };
 
 }

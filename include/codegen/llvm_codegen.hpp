@@ -169,6 +169,7 @@ private:
     void generateBreakStmt(llvm::Function* func, Shared<BreakStmt> stmt);
     void generateContinueStmt(llvm::Function* func, Shared<ContinueStmt> stmt);
     void generateForEachStmt(llvm::Function* func, Shared<ForEachStmt> stmt);
+    void generateImportStmt(llvm::Function* func, Shared<ImportStmt> stmt);
     
     // === 表达式生成，返回 LLVM Value* ===
     llvm::Value* generateExpression(llvm::Function* func, Shared<Expr> expr);

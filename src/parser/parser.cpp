@@ -149,10 +149,16 @@ Shared<Stmt> Parser::parseStatement() {
     // var / 变量
     if (match(TokenType::K_VAR)) {
         consume();  // consume 'var' keyword
-        return parseVariableDecl(false);
+        return parseVariableDecl(true);
     }
     
     // let / 设
+
+    // mutable
+    if (match(TokenType::K_MUTABLE)) {
+        consume();
+        return parseVariableDecl(false);
+    }
     if (match(TokenType::K_LET)) {
         consume();  // consume '设' keyword
         return parseVariableDecl(false, true);
@@ -166,6 +172,11 @@ Shared<Stmt> Parser::parseStatement() {
     // switch
     if (match(TokenType::K_SWITCH)) {
         return parseSwitchStatement();
+    }
+    
+    // match
+    if (match(TokenType::K_MATCH)) {
+        return parseMatchStatement();
     }
     
     // for

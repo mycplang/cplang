@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "common/types.hpp"
 
 namespace cplang {
@@ -42,6 +42,10 @@ enum Opcode : UInt8 {
     OP_NEWSTRUCT=0xE2,
     OP_GETFIELD=0xE3,
     OP_SETFIELD=0xE4,
+    OP_MAKECLOSURE=0xE8,
+    OP_NEWVARIANT=0xE5,
+    OP_GETVARIANTTAG=0xE6,
+    OP_GETVARIANTFIELD=0xE7,
     OP_NOP=0xFF,
 };
 

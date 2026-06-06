@@ -399,7 +399,7 @@ const VarEscape* EscapeAnalyzer::getEscapeInfo(const std::string& /*funcName*/,
 // ═══════════════════════════════════════════════════════════════════
 
 void EscapeAnalyzer::printResult(const ProgramEscapeResult& result) const {
-    VERBOSE(
+    if (!cplang::verboseEnabled()) return;
         std::cout << "\n╔══════════════════════════════════════════════════════╗\n";
         std::cout << "║        逃逸分析结果                                 ║\n";
         std::cout << "╚══════════════════════════════════════════════════════╝\n\n";
@@ -441,7 +441,6 @@ void EscapeAnalyzer::printResult(const ProgramEscapeResult& result) const {
             std::cout << "    可栈上分配: " << (funcResult.canStackAlloc ? "是" : "否") << "\n";
             std::cout << "    节省分配: " << funcResult.stackSaved << "\n";
         }
-    );
 }
 
 } // namespace cplang

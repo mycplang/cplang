@@ -9,7 +9,7 @@
 |------|------|
 | `.github.bak` | GitHub Action配置备份 |
 | `.vscode` | VSCode开发配置 |
-| `artifacts` | 构建产物输出目录 |
+| `artifacts` | 历史滚动文档（已归档） |
 | `assets` | 静态资源（Logo、图标等） |
 | `benchmarks` | 性能基准测试用例 |
 | `build` | 编译构建临时目录 |
@@ -39,15 +39,25 @@
 ## ✅ 当前功能状态
 ### 核心编译管线
 ✅ 词法分析器（支持UTF-8中文关键字）  
-✅ 语法分析器（生成AST）  
+✅ 语法分析器（生成AST，已拆分为4个文件）  
 ✅ 语义分析器（类型检查、作用域分析）  
-✅ 字节码生成器  
-✅ LLVM IR生成器（支持JIT编译）  
-✅ 全套优化器（常数折叠、死代码消除、函数内联、循环展开、尾递归优化、转义分析）  
-### 执行引擎
+✅ 字节码生成器（16字节指令格式）  
+✅ LLVM IR生成器  
+✅ 全套优化器（常数折叠、死代码消除、函数内联、循环展开、尾递归优化、逃逸分析）  
+
+### 双引擎架构
+```
+源码 → Compiler(共享前端: Lex→Parse→Semantic) → AST + 字节码
+         ├── DevEngine(VM+JIT)  ── 开发/学习/脚本
+         │    ├ DevMode::Bytecode → 字节码解释执行
+         │    ├ DevMode::Hotspot  → 字节码+热点JIT(95x)
+         │    └ DevMode::JitAll   → 全量JIT预编译
+         └── AOTEngine(LLVM IR→.obj→.exe) ── 部署/发布
+```
 ✅ 栈式字节码虚拟机  
 ✅ LLVM 18 ORC JIT编译器（热点函数加速最高95x）  
 ✅ 三色标记GC（支持循环引用检测）  
+✅ JIT 字段已从 VMFunction 抽到外部 JITRegistry 映射表  
 ### 特性
 ✅ 中文原生语法（关键字、变量名、函数名全中文支持）  
 ✅ 隐式变量声明（无需var/let）  

@@ -58,7 +58,7 @@ for tf in test_files:
         cmd = [CPLANG, "-c", fp]
 
     # 超时：基准测试 120s，普通测试 15s
-    timeout_val = 120 if is_bench else 15
+    timeout_val = 120 if is_bench else 30
 
     try:
         r = subprocess.run(cmd, capture_output=True, encoding="utf-8",

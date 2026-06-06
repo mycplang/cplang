@@ -1,4 +1,4 @@
-﻿// Network, WebSocket, Sqlite functions
+// Network, WebSocket, Sqlite functions
 // #include'd from stdlib.cpp, already inside namespace cplang
 
 namespace net {
@@ -272,6 +272,155 @@ Value errMsg_(std::vector<Value>& args) {if(args.empty())return Value::String(VM
 Value lastInsertRowId_(std::vector<Value>& args) {if(args.empty())return Value::Int(0);sqlite3*db=getDb(args[0]);if(!db)return Value::Int(0);return Value::Int(static_cast<Int64>(sqlite3_last_insert_rowid(db)));}
 Value changes_(std::vector<Value>& args) {if(args.empty())return Value::Int(0);sqlite3*db=getDb(args[0]);if(!db)return Value::Int(0);return Value::Int(static_cast<Int64>(sqlite3_changes(db)));}
 Value isOpen_(std::vector<Value>& args) {if(args.empty())return Value::Bool(false);return Value::Bool(getDb(args[0])!=nullptr);}
+
+// ═══════════════════════════════════════════════════════════════════
+//  事务支持
+// ═══════════════════════════════════════════════════════════════════
+Value begin_(std::vector<Value>& args) {
+    if(args.empty())return Value::Bool(false);sqlite3*db=getDb(args[0]);if(!db)return Value::Bool(false);
+    char*em=nullptr;int rc=sqlite3_exec(db,"BEGIN",nullptr,nullptr,&em);
+    if(rc!=SQLITE_OK){if(em)sqlite3_free(em);return Value::Bool(false);}return Value::Bool(true);
+}
+Value commit_(std::vector<Value>& args) {
+    if(args.empty())return Value::Bool(false);sqlite3*db=getDb(args[0]);if(!db)return Value::Bool(false);
+    char*em=nullptr;int rc=sqlite3_exec(db,"COMMIT",nullptr,nullptr,&em);
+    if(rc!=SQLITE_OK){if(em)sqlite3_free(em);return Value::Bool(false);}return Value::Bool(true);
+}
+Value rollback_(std::vector<Value>& args) {
+    if(args.empty())return Value::Bool(false);sqlite3*db=getDb(args[0]);if(!db)return Value::Bool(false);
+    char*em=nullptr;int rc=sqlite3_exec(db,"ROLLBACK",nullptr,nullptr,&em);
+    if(rc!=SQLITE_OK){if(em)sqlite3_free(em);return Value::Bool(false);}return Value::Bool(true);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  预编译语句（Prepared Statement）
+//  用法:
+//    stmt = 数据库准备(db, "SELECT * FROM t WHERE id=? AND name=?")
+//    数据库绑定整数(stmt, 1, 42)
+//    数据库绑定文本(stmt, 2, "张三")
+//    while (数据库步进(stmt)) { row = 数据库读取行(stmt); ... }
+//    数据库结束(stmt)
+// ═══════════════════════════════════════════════════════════════════
+static sqlite3_stmt* getStmt(Value& v) {
+    if(!v.isTable())return nullptr;
+    VMTable*t=v.asTable();Value k=Value::String(VMString::create("_stmt"));
+    if(!t->has(k))return nullptr;
+    return reinterpret_cast<sqlite3_stmt*>(t->get(k).asInt());
+}
+
+Value prepare_(std::vector<Value>& args) {
+    if(args.size()<2||!args[1].isString())return Value::nil();
+    sqlite3*db=getDb(args[0]);if(!db)return Value::nil();
+    std::string sql(args[1].asString()->data,args[1].asString()->length);
+    sqlite3_stmt*stmt=nullptr;
+    if(sqlite3_prepare_v2(db,sql.c_str(),-1,&stmt,nullptr)!=SQLITE_OK)
+        return Value::nil();
+    VMTable*tbl=VMTable::create();
+    tbl->set(Value::String(VMString::create("_stmt")),Value::Int(reinterpret_cast<Int64>(stmt)));
+    return Value::Table(tbl);
+}
+
+Value bindInt_(std::vector<Value>& args) {
+    if(args.size()<2)return Value::Bool(false);
+    sqlite3_stmt*stmt=getStmt(args[0]);if(!stmt)return Value::Bool(false);
+    int idx=args[1].isInt()?static_cast<int>(args[1].asInt()):1;
+    Int64 val=args.size()>=3?(args[2].isInt()?args[2].asInt():0):0;
+    return Value::Bool(sqlite3_bind_int64(stmt,idx,val)==SQLITE_OK);
+}
+
+Value bindText_(std::vector<Value>& args) {
+    if(args.size()<2)return Value::Bool(false);
+    sqlite3_stmt*stmt=getStmt(args[0]);if(!stmt)return Value::Bool(false);
+    int idx=args[1].isInt()?static_cast<int>(args[1].asInt()):1;
+    const char*val=args.size()>=3&&args[2].isString()?args[2].asString()->data:"";
+    return Value::Bool(sqlite3_bind_text(stmt,idx,val,-1,SQLITE_TRANSIENT)==SQLITE_OK);
+}
+
+Value bindNull_(std::vector<Value>& args) {
+    if(args.size()<2)return Value::Bool(false);
+    sqlite3_stmt*stmt=getStmt(args[0]);if(!stmt)return Value::Bool(false);
+    int idx=args[1].isInt()?static_cast<int>(args[1].asInt()):1;
+    return Value::Bool(sqlite3_bind_null(stmt,idx)==SQLITE_OK);
+}
+
+Value step_(std::vector<Value>& args) {
+    if(args.empty())return Value::Bool(false);
+    sqlite3_stmt*stmt=getStmt(args[0]);if(!stmt)return Value::Bool(false);
+    int rc=sqlite3_step(stmt);
+    if(rc==SQLITE_ROW)return Value::Bool(true);
+    return Value::Bool(false);
+}
+
+Value readRow_(std::vector<Value>& args) {
+    if(args.empty())return Value::nil();
+    sqlite3_stmt*stmt=getStmt(args[0]);if(!stmt)return Value::nil();
+    int nCols=sqlite3_column_count(stmt);
+    VMTable*row=VMTable::create();
+    for(int i=0;i<nCols;i++){
+        const char*colName=sqlite3_column_name(stmt,i);
+        Value key=Value::String(VMString::create(colName?colName:""));
+        int colType=sqlite3_column_type(stmt,i);
+        Value val;
+        switch(colType){
+            case SQLITE_INTEGER: val=Value::Int(sqlite3_column_int64(stmt,i));break;
+            case SQLITE_FLOAT:   val=Value::Float(sqlite3_column_double(stmt,i));break;
+            case SQLITE_TEXT:{
+                const char*txt=(const char*)sqlite3_column_text(stmt,i);
+                val=txt?Value::String(VMString::create(txt)):Value::nil();
+                break;
+            }
+            case SQLITE_BLOB:    val=Value::String(VMString::create("(blob)"));break;
+            default:             val=Value::nil();break;
+        }
+        row->set(key,val);
+    }
+    return Value::Table(row);
+}
+
+Value column_(std::vector<Value>& args) {
+    if(args.size()<2)return Value::nil();
+    sqlite3_stmt*stmt=getStmt(args[0]);if(!stmt)return Value::nil();
+    int idx=static_cast<int>(args[1].asInt());
+    int nCols=sqlite3_column_count(stmt);
+    if(idx<0||idx>=nCols)return Value::nil();
+    int colType=sqlite3_column_type(stmt,idx);
+    switch(colType){
+        case SQLITE_INTEGER: return Value::Int(sqlite3_column_int64(stmt,idx));
+        case SQLITE_FLOAT:   return Value::Float(sqlite3_column_double(stmt,idx));
+        case SQLITE_TEXT:{
+            const char*txt=(const char*)sqlite3_column_text(stmt,idx);
+            return txt?Value::String(VMString::create(txt)):Value::nil();
+        }
+        default: return Value::nil();
+    }
+}
+
+Value finalize_(std::vector<Value>& args) {
+    if(args.empty())return Value::Bool(false);
+    sqlite3_stmt*stmt=getStmt(args[0]);if(!stmt)return Value::Bool(false);
+    int rc=sqlite3_finalize(stmt);
+    if(args[0].isTable())args[0].asTable()->remove(Value::String(VMString::create("_stmt")));
+    return Value::Bool(rc==SQLITE_OK);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  表结构 + SQLite 版本
+// ═══════════════════════════════════════════════════════════════════
+Value tableInfo_(std::vector<Value>& args) {
+    if(args.size()<2||!args[1].isString())return Value::nil();
+    sqlite3*db=getDb(args[0]);if(!db)return Value::nil();
+    std::string sql=std::string("PRAGMA table_info(")+args[1].asString()->data+")";
+    char*em=nullptr;VMArray*cols=VMArray::create();
+    int rc=sqlite3_exec(db,sql.c_str(),qcb,cols,&em);
+    if(rc!=SQLITE_OK){if(em)sqlite3_free(em);return Value::nil();}
+    return Value::Array(cols);
+}
+
+Value version_(std::vector<Value>& args) {
+    (void)args;
+    return Value::String(VMString::create(sqlite3_libversion()));
+}
+
 } // namespace sql_ns
 
 void StdLib::registerWebSocket(VM* vm) {
@@ -295,10 +444,36 @@ void StdLib::registerSqlite(VM* vm) {
     registerFunction(vm, "sqliteLastInsertId", sql_ns::lastInsertRowId_);
     registerFunction(vm, "sqliteChanges",     sql_ns::changes_);
     registerFunction(vm, "sqliteIsOpen",      sql_ns::isOpen_);
+    registerFunction(vm, "sqliteVersion",     sql_ns::version_);
+    registerFunction(vm, "sqliteBegin",       sql_ns::begin_);
+    registerFunction(vm, "sqliteCommit",      sql_ns::commit_);
+    registerFunction(vm, "sqliteRollback",    sql_ns::rollback_);
+    registerFunction(vm, "sqlitePrepare",     sql_ns::prepare_);
+    registerFunction(vm, "sqliteBindInt",     sql_ns::bindInt_);
+    registerFunction(vm, "sqliteBindText",    sql_ns::bindText_);
+    registerFunction(vm, "sqliteBindNull",    sql_ns::bindNull_);
+    registerFunction(vm, "sqliteStep",        sql_ns::step_);
+    registerFunction(vm, "sqliteReadRow",     sql_ns::readRow_);
+    registerFunction(vm, "sqliteColumn",      sql_ns::column_);
+    registerFunction(vm, "sqliteFinalize",    sql_ns::finalize_);
+    registerFunction(vm, "sqliteTableInfo",   sql_ns::tableInfo_);
     registerAlias(vm, "数据库打开",           "sqliteOpen");
     registerAlias(vm, "数据库执行",           "sqliteExec");
     registerAlias(vm, "数据库查询",           "sqliteQuery");
     registerAlias(vm, "数据库关闭",           "sqliteClose");
     registerAlias(vm, "数据库错误",           "sqliteErrMsg");
     registerAlias(vm, "数据库最后插入ID",     "sqliteLastInsertId");
+    registerAlias(vm, "数据库开始事务",         "sqliteBegin");
+    registerAlias(vm, "数据库提交",             "sqliteCommit");
+    registerAlias(vm, "数据库回滚",             "sqliteRollback");
+    registerAlias(vm, "数据库准备",             "sqlitePrepare");
+    registerAlias(vm, "数据库绑定整数",         "sqliteBindInt");
+    registerAlias(vm, "数据库绑定文本",         "sqliteBindText");
+    registerAlias(vm, "数据库绑定空",           "sqliteBindNull");
+    registerAlias(vm, "数据库步进",             "sqliteStep");
+    registerAlias(vm, "数据库读取行",           "sqliteReadRow");
+    registerAlias(vm, "数据库取列",             "sqliteColumn");
+    registerAlias(vm, "数据库结束",             "sqliteFinalize");
+    registerAlias(vm, "数据库表信息",           "sqliteTableInfo");
+    registerAlias(vm, "数据库版本",             "sqliteVersion");
 }

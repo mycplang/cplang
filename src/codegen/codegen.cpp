@@ -1,5 +1,6 @@
 // CP语言 代码生成器实现
 #include "codegen/codegen.hpp"
+#include <cstdio>
 #include "parser/parser.hpp"
 #include "stdlib/stdlib.hpp"
 #include <sstream>
@@ -69,20 +70,27 @@ VMFunction* Codegen::compile(Shared<Program> program) {
     // 编译每个语句
     for (size_t si = 0; si < program->statements.size(); si++) {
         if (hasError_) break;
+        printf("DEBUG: compiling stmt %zu\n", si); fflush(stdout);
         compileStmt(program->statements[si]);
         releaseTempRegs();
     }
 
+    printf("DEBUG: all statements compiled, adding default return\n"); fflush(stdout);
+    printf("DEBUG: code size = %zu, empty = %d\n", func_->code.size(), func_->code.empty()); fflush(stdout);
     // 默认返回nil
-    if (!hasError_ && (func_->code.empty() ||
-        func_->code.back() != OP_RETURN)) {
+    if (!hasError_ && (func_->code.empty() || func_->code.back() != OP_RETURN)) {
+        printf("DEBUG: emitting default return\n"); fflush(stdout);
         emit(OP_LOADNIL, 0, 0, 0);
         emit(OP_RETURN, 0, 0, 0);
     }
+    printf("DEBUG: setting maxStack\n"); fflush(stdout);
 
     // 设置最大栈深度
+    printf("DEBUG: func_=%p maxReg_=%d\n", (void*)func_, maxReg_); fflush(stdout);
     func_->maxStack = maxReg_ + 32;
+    printf("DEBUG: setting constants, size=%zu\n", constants_.size()); fflush(stdout);
     func_->constants = constants_;
+    printf("DEBUG: compile done, returning\n"); fflush(stdout);
 
     return hasError_ ? nullptr : func_;
 }
@@ -396,10 +404,12 @@ VMFunction* Compiler::compileFile(const String& filename) {
 }
 
 VMFunction* Compiler::compileInternal(const String& source, const String& sourceFile) {
+    printf("DEBUG: compileInternal start\n"); fflush(stdout);
     // 词法分析
     Lexer lexer(source);
 
     // 语法分析
+    printf("DEBUG: parsing...\n"); fflush(stdout);
     Parser parser(&lexer);
     auto program = parser.parse();
     if (!program) {
@@ -413,6 +423,7 @@ VMFunction* Compiler::compileInternal(const String& source, const String& source
         return nullptr;
     }
 
+    printf("DEBUG: parsing done, semantic...\n"); fflush(stdout);
     // 语义分析
     SemanticAnalyzer analyzer;
     if (!analyzer.analyze(program)) {
@@ -421,10 +432,13 @@ VMFunction* Compiler::compileInternal(const String& source, const String& source
         return nullptr;
     }
 
+    printf("DEBUG: semantic done, codegen...\n"); fflush(stdout);
     // 代码生成
     Codegen codegen(useSlotOpt_ ? vm_.get() : nullptr, &analyzer);
     codegen.setSourceFile(sourceFile);
+    printf("DEBUG: codegen created, compiling...\n"); fflush(stdout);
     VMFunction* func = codegen.compile(program);
+    printf("DEBUG: compile returned, func=%p\n", (void*)func); fflush(stdout);
     if (codegen.hasError()) {
         hasError_ = true;
         errorMsg_ = "代码生成: " + codegen.errorMessage();

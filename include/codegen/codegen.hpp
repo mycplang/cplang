@@ -138,6 +138,9 @@ private:
     void compileTry(Shared<TryStmt> s);
     void compileThrow(Shared<ThrowStmt> s);
     void compileSwitch(Shared<SwitchStmt> s);
+    void compileMatch(Shared<MatchStmt> s);
+    void compileDoWhile(Shared<DoWhileStmt> s);
+    void compileInterfaceDecl(Shared<InterfaceDeclStmt> stmt);
     void compileExprStmt(Shared<ExprStmt> s);
 
     int compileExpr(Shared<Expr> expr);
@@ -153,6 +156,8 @@ private:
     int compileAssign(Shared<BinaryExpr> expr);
     int compileTernary(Shared<BinaryExpr> expr);
     int compileNew(Shared<NewExpr> expr);
+    int compileLambda(Shared<LambdaExpr> expr);
+    int compilePipe(Shared<PipeExpr> expr);
 
     int compileBinaryOp(TokenType op, int ra, int rb, int rc);
     void compileComparison(TokenType op, int ra, int rb, int rc);

@@ -6,6 +6,7 @@
 #include "jit/jit_compiler.hpp"
 #include "jit/jit_runtime.hpp"
 #include "core/verbose.hpp"
+
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -60,7 +61,18 @@ public:
         addSymbol("jit_table_get", reinterpret_cast<void*>(&jit_table_get));
         addSymbol("jit_table_set", reinterpret_cast<void*>(&jit_table_set));
         addSymbol("jit_tick", reinterpret_cast<void*>(&jit_tick));
-        return true;
+        addSymbol("jit_call_native", reinterpret_cast<void*>(&jit_call_native));
+        addSymbol("jit_len", reinterpret_cast<void*>(&jit_len));
+        addSymbol("jit_toString", reinterpret_cast<void*>(&jit_toString));
+        addSymbol("jit_get_function_value", reinterpret_cast<void*>(&jit_get_function_value));
+        addSymbol("jit_call_value", reinterpret_cast<void*>(&jit_call_value));
+
+        // 注册所有 native 函数的 sanitized 名称到 JIT symbol table，
+        // 确保 LLVM IR 中的外部引用能被 JIT 隐式链接解析
+        // 遍历 VM 已注册的 native 函数，生成 __uXXXX__ 格式并注册
+        // (通过 jit_setVM 传入的 VM 指针访问 native 函数表)
+        // 注意：这里只注册 core 运行时符号，动态注册由 jit_dispatch 完成
+            return true;
 #else
         // 无LLVM，返回失败
         VERBOSE(std::cout << "[OrcJIT] LLVM 开发库未配置，ORC JIT 不可用\n");
@@ -424,6 +436,13 @@ void* OrcJIT::compileHotFunction(VMFunction* func) {
     if (cacheIt == fullCompileCache_.end()) {
         cacheIt = fullCompileCache_.find(safeName);
     }
+    // Also try __cp_main (LLVM codegen renames "main" to avoid CRT conflict)
+    if (cacheIt == fullCompileCache_.end() && funcName == "main") {
+        cacheIt = fullCompileCache_.find("__cp_main");
+    }
+    if (cacheIt == fullCompileCache_.end() && safeName == "main") {
+        cacheIt = fullCompileCache_.find("__cp_main");
+    }
     if (cacheIt != fullCompileCache_.end()) {
         return cacheIt->second;
     }
@@ -540,7 +559,7 @@ void OrcJIT::clearCache() {
 }
 
 void OrcJIT::dumpStats() const {
-    VERBOSE(
+    if (!cplang::verboseEnabled()) return;
     std::cout << "\n╔══════════════════════════════════════════════╗\n";
     std::cout << "║           ORC JIT 统计                      ║\n";
     std::cout << "╠══════════════════════════════════════════════╣\n";
@@ -557,7 +576,6 @@ void OrcJIT::dumpStats() const {
         std::cout << "║  平均耗时:     " << std::fixed << std::setprecision(2) << avg << " ms                ║\n";
     }
     std::cout << "╚══════════════════════════════════════════════╝\n\n";
-    );
 }
 
 } // namespace cplang
