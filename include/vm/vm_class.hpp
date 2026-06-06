@@ -10,6 +10,8 @@ namespace cplang { class HybridJIT; }
 namespace cplang {
 
 class VM {
+    friend class Debugger;  // 调试器需要访问 frames_, globals_ 等内部成员
+
 public:
     static constexpr int MAX_REGISTERS = 256;
     static constexpr int MAX_STACK    = 65536;

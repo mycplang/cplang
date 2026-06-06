@@ -113,19 +113,172 @@ void Debugger::runToCursor(const String& file, int line) {
 
 std::vector<DebugFrame> Debugger::getCallStack() const {
     std::vector<DebugFrame> stack;
-    // 从 VM 获取调用栈
+    if (!vm_) return stack;
+
+    // 从 VM 的调用帧栈读取帧信息（从底到顶）
+    for (size_t i = 0; i < vm_->frames_.size(); i++) {
+        const auto& cf = vm_->frames_[i];
+        DebugFrame df;
+        if (cf.func && cf.func->name) {
+            df.functionName = std::string(cf.func->name->data, cf.func->name->length);
+        } else {
+            df.functionName = "<main>";
+        }
+
+        // 从函数源码文件名获取文件信息
+        if (cf.func && !cf.func->sourceFile.empty()) {
+            df.file = cf.func->sourceFile;
+        }
+
+        // 尝试从函数的 lineInfo 获取当前行号
+        if (cf.func && !cf.func->lineInfo.empty()) {
+            // 查找当前 PC 对应的行（frame 中没有直接存储 PC，使用近似值）
+            // 用 returnPcOffset 近似定位
+            size_t idx = (size_t)(cf.returnPcOffset / 16);
+            if (idx < cf.func->lineInfo.size()) {
+                df.line = cf.func->lineInfo[idx];
+            } else if (!cf.func->lineInfo.empty()) {
+                df.line = cf.func->lineInfo.back();
+            }
+        }
+
+        stack.push_back(df);
+    }
+
+    // 栈顶是当前正在执行的函数 — 使用 VM 的 currentLine
+    if (!stack.empty() && currentLine_ > 0) {
+        stack.back().line = currentLine_;
+        stack.back().file = currentFile_.empty() ? stack.back().file : currentFile_;
+    }
+
     return stack;
 }
 
-Value Debugger::evaluateExpression(const String& /*expr*/) {
-    // 在 VM 上下文中求值表达式
-    // 需要实现表达式解析和求值
+Value Debugger::evaluateExpression(const String& expr) {
+    if (!vm_) return Value::nil();
+
+    // 简单表达式求值：
+    // 1. 字面量: 整数、浮点数、字符串、true/false、nil
+    // 2. 变量名: 在全局和当前作用域中查找
+    // 3. 简单的成员访问: var.field
+
+    // 去除首尾空白
+    String trimmed = expr;
+    trimmed.erase(0, trimmed.find_first_not_of(" \t"));
+    trimmed.erase(trimmed.find_last_not_of(" \t") + 1);
+
+    if (trimmed.empty()) return Value::nil();
+
+    // true / false / nil
+    if (trimmed == "真" || trimmed == "true") return Value::Bool(true);
+    if (trimmed == "假" || trimmed == "false") return Value::Bool(false);
+    if (trimmed == "空" || trimmed == "nil") return Value::nil();
+
+    // 整数
+    bool isInt = !trimmed.empty();
+    for (char c : trimmed) {
+        if (c == '-' && &c == &trimmed[0]) continue;  // leading minus
+        if (c < '0' || c > '9') { isInt = false; break; }
+    }
+    if (isInt) return Value::Int(std::stoll(trimmed));
+
+    // 浮点数
+    bool isFloat = true;
+    int dotCount = 0;
+    for (size_t i = 0; i < trimmed.size(); i++) {
+        char c = trimmed[i];
+        if (c == '-' && i == 0) continue;
+        if (c == '.') { dotCount++; continue; }
+        if (c < '0' || c > '9') { isFloat = false; break; }
+    }
+    if (isFloat && dotCount == 1) return Value::fromFloat(std::stod(trimmed));
+
+    // 字符串字面量 "..." 或 '...'
+    if ((trimmed.front() == '"' && trimmed.back() == '"') ||
+        (trimmed.front() == '\'' && trimmed.back() == '\'')) {
+        String content = trimmed.substr(1, trimmed.size() - 2);
+        return makeStringVal(VMString::create(content));
+    }
+
+    // 成员访问: obj.field
+    size_t dotPos = trimmed.find('.');
+    if (dotPos != String::npos) {
+        String objName = trimmed.substr(0, dotPos);
+        String fieldName = trimmed.substr(dotPos + 1);
+        Value obj = evaluateExpression(objName);
+        if (obj.asPtr() && obj.asPtr()->typeTag == ObjectHeader::TAG_TABLE) {
+            auto* tbl = static_cast<VMTable*>(obj.asPtr());
+            return tbl->get(makeStringVal(VMString::create(fieldName)));
+        }
+        if (obj.asPtr() && obj.asPtr()->typeTag == ObjectHeader::TAG_INSTANCE) {
+            auto* inst = static_cast<VMInstance*>(obj.asPtr());
+            if (inst->cls) {
+                for (size_t i = 0; i < inst->cls->fieldNames.size(); i++) {
+                    auto* fn = inst->cls->fieldNames[i];
+                    if (fn && std::string(fn->data, fn->length) == fieldName) {
+                        return inst->getField(static_cast<Int32>(i));
+                    }
+                }
+            }
+        }
+        return Value::nil();
+    }
+
+    // 变量查找: 在 VM 全局变量中查找
+    auto varIt = vm_->globals_.find(trimmed);
+    if (varIt != vm_->globals_.end()) {
+        return varIt->second;
+    }
+
+    // 在 slot 表中查找
+    auto slotIt = vm_->globalNameToSlot_.find(trimmed);
+    if (slotIt != vm_->globalNameToSlot_.end()) {
+        UInt16 slot = slotIt->second;
+        if (slot < vm_->globalSlots_.size()) {
+            return vm_->globalSlots_[slot];
+        }
+    }
+
     return Value::nil();
 }
 
-std::unordered_map<String, Value> Debugger::getVariables(int /*frameIndex*/) const {
+std::unordered_map<String, Value> Debugger::getVariables(int frameIndex) const {
     std::unordered_map<String, Value> vars;
-    // 从指定帧获取变量
+    if (!vm_) return vars;
+
+    // 添加全局变量
+    for (const auto& [name, val] : vm_->globals_) {
+        if (val.isFunction() || val.isCFunction() || val.isClosure()) {
+            continue;  // 跳过函数，只显示数据变量
+        }
+        vars[name] = val;
+    }
+
+    // 如果指定了帧索引，尝试读取该帧的局部变量
+    if (frameIndex >= 0 && (size_t)frameIndex < vm_->frames_.size()) {
+        const auto& cf = vm_->frames_[frameIndex];
+        if (cf.func && cf.base) {
+            // 读取函数参数和局部变量
+            // 参数从 base[0] 开始
+            for (UInt32 i = 0; i < cf.func->numParams; i++) {
+                Value paramVal = cf.base[i];
+                if (!paramVal.isNil()) {
+                    // 尝试从函数签名获取参数名
+                    String paramName = "参数" + std::to_string(i);
+                    vars[paramName] = paramVal;
+                }
+            }
+            // 局部变量从 base[numParams] 开始
+            for (UInt32 i = cf.func->numParams; i < cf.func->numLocals + cf.func->numParams && i < 256; i++) {
+                Value localVal = cf.base[i];
+                if (!localVal.isNil()) {
+                    String localName = "局部" + std::to_string(i - cf.func->numParams);
+                    vars[localName] = localVal;
+                }
+            }
+        }
+    }
+
     return vars;
 }
 
