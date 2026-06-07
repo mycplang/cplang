@@ -1,0 +1,86 @@
+%YAML 1.2
+---
+name: CP Language
+file_extensions: [cp]
+scope: source.cp
+
+variables:
+  ident: '[A-Za-z_\x{4e00}-\x{9fff}\x{3400}-\x{4dbf}][A-Za-z0-9_\x{4e00}-\x{9fff}\x{3400}-\x{4dbf}]*'
+
+contexts:
+  main:
+    - include: comments
+    - include: strings
+    - include: numbers
+    - include: keywords
+    - include: types
+    - include: builtins
+    - include: operators
+    - include: identifiers
+
+  comments:
+    - match: '//'
+      scope: punctuation.definition.comment.cp
+      push:
+        - meta_scope: comment.line.double-slash.cp
+        - match: $
+          pop: true
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.cp
+      push:
+        - meta_scope: string.quoted.double.cp
+        - match: '\\.'
+          scope: constant.character.escape.cp
+        - match: '"'
+          scope: punctuation.definition.string.end.cp
+          pop: true
+    - match: "'"
+      scope: punctuation.definition.string.begin.cp
+      push:
+        - meta_scope: string.quoted.single.cp
+        - match: '\\.'
+          scope: constant.character.escape.cp
+        - match: "'"
+          scope: punctuation.definition.string.end.cp
+          pop: true
+    - match: '\{\{'
+      scope: punctuation.definition.string.begin.cp
+      push:
+        - meta_scope: string.interpolated.cp
+        - match: '\}\}'
+          scope: punctuation.definition.string.end.cp
+          pop: true
+
+  numbers:
+    - match: '\b[0-9]+\.[0-9]+(?:[eE][+-]?[0-9]+)?\b'
+      scope: constant.numeric.float.cp
+    - match: '\b[0-9]+(?:[eE][+-]?[0-9]+)?\b'
+      scope: constant.numeric.integer.cp
+
+  keywords:
+    - match: '\b(?:函数|function|fn|异步|async|变量|var|常量|const|设|let|可变|mutable|返回|return|如果|if|否则|else|当|while|循环|for|遍历|foreach|为|do|跳出|break|继续|continue|选择|switch|情况|case|其他|default|匹配|match|尝试|try|捕获|catch|抛出|throw|最终|finally|推迟|defer)\b'
+      scope: keyword.control.cp
+    - match: '\b(?:真|true|假|false|空|nil|null)\b'
+      scope: constant.language.cp
+    - match: '\b(?:类|class|结构体|struct|枚举|enum|接口|interface|实现|extends|新建|new|这个|this|继承|super|公有|public|私有|private|保护|protected|静态|static|虚拟|virtual|重写|override|抽象|abstract|导入|import|包名|package|等待|await)\b'
+      scope: keyword.other.cp
+
+  types:
+    - match: '\b(?:整数|int|布尔|bool|浮点|float|文本|string|变体|字节|数组|表|void|auto|i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|char|byte)\b'
+      scope: storage.type.cp
+
+  builtins:
+    - match: '\b(?:打印|print|println|输入|input|长度|len|类型|typeof|转字符串|toString|转整数|parseInt|转浮点|parseFloat|绝对值|abs|平方根|sqrt|幂|pow|向下取整|floor|向上取整|ceil|四舍五入|round|随机值|random|正弦|sin|余弦|cos|正切|tan|圆周率|pi|自然常数|e|子串|substr|连接|concat|查找|find|替换|replace|分割|split|修剪|trim|小写|lower|大写|upper|包含|contains|追加|push|弹出|pop|插入|insert|移除|remove|切片|slice|排序|sort|反转|reverse|映射|map|过滤|filter|累积|reduce|去重|unique|展平|flatten|打包|zip|头出|shift|头插|unshift|表创建|table|表设|tableSet|表取|tableGet|表长|tblen|表键|keys|表值|values|表有|has|表删|tableDel|表清空|tableClear|表合并|tableMerge|JSON解析|jsonParse|转JSON|jsonStringify|读取文件|readFile|写入文件|writeFile|文件存在|fileExists|时间戳|now|延时|sleep|计时器|tick|平台|platform|程序退出|exit|环境变量|getEnv|当前目录|cwd|执行命令|exec|进程ID|pid|CPU核数|cpuCount|栈创建|stackCreate|入栈|stackPush|出栈|stackPop|队列创建|queueCreate|入队|queuePush|出队|queuePop|集合新建|setNew|集合添加|setAdd|通道创建|channelCreate|通道发送|channelSend|通道接收|channelRecv|互斥创建|mutexCreate|互斥加锁|mutexLock|互斥解锁|mutexUnlock|线程创建|threadCreate|线程等待|threadJoin|异步执行|futureGo|HTTP获取|httpGet|HTTP提交|httpPost|TCP连接|tcpConnect|TCP发送|tcpSend|TCP接收|tcpRecv|TCP关闭|tcpClose|MD5|md5|SHA256|sha256|Base64编码|base64Encode|Base64解码|base64Decode|UUID|uuid4|数据库打开|sqliteOpen|数据库查询|sqliteQuery|数据库执行|sqliteExec|数据库关闭|sqliteClose|MySQL连接|mysqlConnect|MySQL查询|mysqlQuery|Redis连接|redisConnect|初始化窗口|设置目标帧率|窗口应关闭|开始绘图|结束绘图|关闭窗口|清空背景|绘制文本|绘制矩形|绘制圆形|绘制帧率|键盘按下|正则匹配|regexMatch|正则搜索|regexSearch|正则替换|regexReplace|正则分割|regexSplit|稳定排序|二分查找|全排列|位与|bitAnd|位或|bitOr|位异或|bitXor)\b'
+      scope: support.function.cp
+
+  operators:
+    - match: '==|!=|>=|<=|&&|\|\||\+\+|--|\+=|-=|\*=|/=|%=|::|->|\|>|=>|<<'
+      scope: keyword.operator.cp
+    - match: '[+\-*/%<>=!&|^~.]'
+      scope: keyword.operator.cp
+
+  identifiers:
+    - match: '{{ident}}'
+      scope: variable.other.cp
