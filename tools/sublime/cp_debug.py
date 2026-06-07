@@ -14,7 +14,8 @@ def debug_run(cp_file, breakpoints=None):
     # 启动编译器
     proc = subprocess.Popen(
         [CPLANG, '--debug-server', '4711', '-c', cp_file],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+        encoding='utf-8', errors='replace'
     )
 
     # 转发 stdout
@@ -36,14 +37,14 @@ def debug_run(cp_file, breakpoints=None):
         print("❌ 无法连接调试服务器")
         proc.kill(); return
 
-    def send(cmd): sock.sendall((json.dumps(cmd) + '\n').encode())
+    def send(cmd): sock.sendall((json.dumps(cmd) + '\n').encode('utf-8'))
     def recv():
         data = b''
         while True:
             c = sock.recv(1)
             if not c or c == b'\n': break
             data += c
-        return json.loads(data.decode()) if data else {}
+        return json.loads(data.decode('utf-8')) if data else {}
 
     # Connected
     print(recv().get('type', ''))
