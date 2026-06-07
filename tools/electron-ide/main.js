@@ -895,129 +895,172 @@ ipcMain.handle('package-exe', async (e, filePath) => {
   }
 });
 
-// ── IPC: 调试器 ──
+// ── IPC: 调试器（TCP 调试服务器） ──
+
+const net = require('net');
 
 let debugProcess = null;
+let debugSocket = null;
 let debugOutput = '';
+let debugLineBuffer = '';
+let debugSessionId = 0;
+
+function sendDebugCommand(cmd) {
+  if (!debugSocket || debugSocket.destroyed) return;
+  debugSocket.write(JSON.stringify(cmd) + '\n');
+}
 
 ipcMain.handle('debug-start', async (e, filePath, breakpoints, sessionId) => {
   const compiler = findCompiler();
   if (!compiler) return { ok: false, output: '❌ 编译器未找到' };
 
-  // 停止已有调试进程
-  if (debugProcess) {
-    try { debugProcess.kill(); } catch (_) {}
-    debugProcess = null;
-  }
+  // 停止已有调试会话
+  if (debugProcess) { try { debugProcess.kill(); } catch (_) {} debugProcess = null; }
+  if (debugSocket) { try { debugSocket.destroy(); } catch (_) {} debugSocket = null; }
 
   debugOutput = '';
+  debugLineBuffer = '';
+  debugSessionId = sessionId || Date.now();
+
+  const debugPort = 4711 + (debugSessionId % 1000); // 避免端口冲突
 
   try {
-    // 运行编译后的程序，启用详细输出以获取执行信息
-    const proc = spawn(`"${compiler}"`, ['-c', `"${filePath}"`], {
+    // 启动编译器（调试服务器模式）
+    const proc = spawn(`"${compiler}"`, ['--debug-server', String(debugPort), '-c', `"${filePath}"`], {
       shell: true,
       env: process.env,
     });
     debugProcess = proc;
     currentRunProcess = proc;
 
-    let buffer = '';
-
     proc.stdout.on('data', (data) => {
       const text = data.toString();
-      buffer += text;
       debugOutput += text;
       try { mainWin.webContents.send('debug-output', text); } catch (_) {}
     });
 
     proc.stderr.on('data', (data) => {
       const text = data.toString();
-      buffer += text;
       debugOutput += text;
       try { mainWin.webContents.send('debug-output', text); } catch (_) {}
     });
 
     proc.on('exit', (code) => {
       debugProcess = null;
-      currentRunProcess = null;
-      // 解析最终输出中的错误和行号信息
+      if (debugSocket) { try { debugSocket.destroy(); } catch (_) {} debugSocket = null; }
       const errors = parseErrors(debugOutput);
       try {
         mainWin.webContents.send('debug-end', {
-          exitCode: code,
-          output: debugOutput,
-          errors,
-          _sessionId: sessionId,  // 回传会话 ID 防止过时事件干扰
+          exitCode: code, output: debugOutput, errors, _sessionId: debugSessionId,
         });
       } catch (_) {}
     });
 
     proc.on('error', (err) => {
       debugProcess = null;
-      currentRunProcess = null;
-      const text = `\n[调试器错误] ${err.message}\n`;
-      debugOutput += text;
-      try { mainWin.webContents.send('debug-output', text); } catch (_) {}
+      if (debugSocket) { try { debugSocket.destroy(); } catch (_) {} debugSocket = null; }
       try {
         mainWin.webContents.send('debug-end', {
-          exitCode: 1,
-          output: debugOutput,
-          errors: [{ message: err.message, line: 0, column: 0 }],
-          _sessionId: sessionId,  // 回传会话 ID 防止过时事件干扰
+          exitCode: 1, output: debugOutput + `\n错误: ${err.message}`,
+          errors: [{ message: err.message, line: 0, column: 0 }], _sessionId: debugSessionId,
         });
       } catch (_) {}
     });
 
-    return { ok: true, message: '调试会话已启动' };
+    // 连接调试服务器（等待编译器启动）
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const tryConnect = () => {
+        attempts++;
+        if (attempts > 30) {
+          resolve({ ok: false, output: '❌ 调试服务器连接超时' });
+          return;
+        }
+        const sock = new net.Socket();
+        sock.connect(debugPort, '127.0.0.1', () => {
+          debugSocket = sock;
+          // 发送断点
+          if (breakpoints && breakpoints.length > 0) {
+            const lines = breakpoints.map(b => b.line).filter(l => l > 0);
+            const file = breakpoints[0].file || filePath;
+            sendDebugCommand({ cmd: 'setBreakpoints', file, lines });
+          }
+          // 启动事件监听
+          sock.on('data', (data) => {
+            const text = data.toString();
+            debugLineBuffer += text;
+            while (true) {
+              const nl = debugLineBuffer.indexOf('\n');
+              if (nl < 0) break;
+              const line = debugLineBuffer.slice(0, nl).trim();
+              debugLineBuffer = debugLineBuffer.slice(nl + 1);
+              if (!line) continue;
+              try {
+                const msg = JSON.parse(line);
+                if (msg.type === 'paused') {
+                  try { mainWin.webContents.send('debug-paused', msg); } catch (_) {}
+                } else if (msg.type === 'stack') {
+                  try { mainWin.webContents.send('debug-stack', msg); } catch (_) {}
+                } else if (msg.type === 'variables') {
+                  try { mainWin.webContents.send('debug-variables', msg); } catch (_) {}
+                } else if (msg.type === 'connected') {
+                  resolve({ ok: true, message: '调试会话已启动，已连接到 VM' });
+                }
+              } catch (_) {}
+            }
+          });
+          sock.on('close', () => { debugSocket = null; });
+          sock.on('error', () => { debugSocket = null; });
+        });
+        sock.on('error', () => {
+          setTimeout(tryConnect, 300);
+        });
+      };
+      setTimeout(tryConnect, 500); // 等待编译器启动
+    });
   } catch (err) {
     debugProcess = null;
-    currentRunProcess = null;
     return { ok: false, output: err.message };
   }
 });
 
 ipcMain.handle('debug-stop', async () => {
+  if (debugSocket) { sendDebugCommand({ cmd: 'continue' }); try { debugSocket.destroy(); } catch (_) {} debugSocket = null; }
   if (debugProcess) {
-    try {
-      debugProcess.kill('SIGTERM');
-      if (process.platform === 'win32') {
-        execSync(`taskkill /PID ${debugProcess.pid} /T /F`, { stdio: 'ignore' });
-      }
-    } catch (_) {}
-    debugProcess = null;
-    currentRunProcess = null;
+    try { debugProcess.kill('SIGTERM'); if (process.platform === 'win32') { execSync(`taskkill /PID ${debugProcess.pid} /T /F`, { stdio: 'ignore' }); } } catch (_) {}
+    debugProcess = null; currentRunProcess = null;
   }
   return { ok: true };
 });
 
-// 单步和继续操作（需要 VM 级支持，当前为模拟）
 ipcMain.handle('debug-continue', async () => {
-  // 如果进程在运行，则继续（默认就是运行的）
-  if (debugProcess) {
-    return { ok: true, message: '继续执行' };
-  }
+  if (debugSocket) { sendDebugCommand({ cmd: 'continue' }); return { ok: true }; }
   return { ok: false, message: '没有活动的调试会话' };
 });
 
 ipcMain.handle('debug-step-over', async () => {
-  if (debugProcess) {
-    return { ok: true, message: '单步跳过' };
-  }
+  if (debugSocket) { sendDebugCommand({ cmd: 'stepOver' }); return { ok: true }; }
   return { ok: false, message: '没有活动的调试会话' };
 });
 
 ipcMain.handle('debug-step-into', async () => {
-  if (debugProcess) {
-    return { ok: true, message: '单步进入' };
-  }
+  if (debugSocket) { sendDebugCommand({ cmd: 'stepInto' }); return { ok: true }; }
   return { ok: false, message: '没有活动的调试会话' };
 });
 
 ipcMain.handle('debug-step-out', async () => {
-  if (debugProcess) {
-    return { ok: true, message: '单步跳出' };
-  }
+  if (debugSocket) { sendDebugCommand({ cmd: 'stepOut' }); return { ok: true }; }
   return { ok: false, message: '没有活动的调试会话' };
+});
+
+ipcMain.handle('debug-get-stack', async () => {
+  if (debugSocket) { sendDebugCommand({ cmd: 'getStack' }); return { ok: true }; }
+  return { ok: false };
+});
+
+ipcMain.handle('debug-get-vars', async () => {
+  if (debugSocket) { sendDebugCommand({ cmd: 'getVars' }); return { ok: true }; }
+  return { ok: false };
 });
 
 // ── IPC: REPL 交互式执行（真·增量模式） ──

@@ -39,6 +39,7 @@ void printUsage(const char* program) {
     std::cout << "  --emit-llvm    输出 LLVM IR（无 -o 时输出到 output.ll）\n";
     std::cout << "  -v, --verbose  详细输出（优化统计等调试信息）\n";
     std::cout << "  -r, --repl     交互式编程环境（REPL）\n";
+    std::cout << "  --debug-server <port> 启动调试服务器（TCP），等待 IDE 连接\n";
     std::cout << "  -h, --help     显示帮助信息\n";
 }
 
@@ -89,7 +90,7 @@ bool runParser(const String& source) {
     return true;
 }
 
-bool runFullCompile(const String& source, const char* filepath, bool useJit, bool useHotspot = false, int hotspotThreshold = 100, OptLevel optLevel = OptLevel::O2, bool useBytecodeOpt = true) {
+bool runFullCompile(const String& source, const char* filepath, bool useJit, bool useHotspot = false, int hotspotThreshold = 100, OptLevel optLevel = OptLevel::O2, bool useBytecodeOpt = true, int debugPort = 0) {
     std::cout << "编译中...\n";
     
     Compiler compiler;
@@ -305,7 +306,34 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
         }
     }
     
+    // 调试服务器（TCP，供 IDE 连接）
+    Debugger* debugger = nullptr;
+    DebugServer* debugServer = nullptr;
+    if (debugPort > 0) {
+        debugger = new Debugger(vm);
+        debugServer = new DebugServer(debugger, vm);
+        if (debugServer->start(debugPort)) {
+            vm->setDebugServer(debugServer);
+            std::cout << "[调试] 服务器已启动，端口 " << debugPort
+                      << "，等待 IDE 连接..." << std::endl;
+        } else {
+            std::cerr << "[调试] 服务器启动失败" << std::endl;
+            delete debugServer; debugServer = nullptr;
+            delete debugger; debugger = nullptr;
+        }
+    }
+
     if (!vm->loadModule(func)) {
+        // 清理调试器
+        if (debugServer) { debugServer->stop(); delete debugServer; }
+        if (debugger) delete debugger;
+        std::cerr << "执行失败: " << vm->error() << "\n";
+        return false;
+    }
+
+    // 执行完成后清理调试器
+    if (debugServer) { debugServer->stop(); delete debugServer; }
+    if (debugger) delete debugger;
         std::cerr << "执行失败: " << vm->error() << "\n";
         return false;
     }
@@ -396,6 +424,7 @@ int main(int argc, char* argv[]) {
     const char* outputFile = nullptr;
     bool emitLLVM = false;
     bool pureMath = false;
+    int  debugPort = 0;  // 0 = 禁用调试服务器
     
     // 检查主模式
     if (mode == "-a" || mode == "--aot") {
@@ -424,6 +453,8 @@ int main(int argc, char* argv[]) {
             emitLLVM = true;
         } else if (strcmp(argv[i], "--pure-math") == 0) {
             pureMath = true;
+        } else if (strcmp(argv[i], "--debug-server") == 0 && i+1 < argc) {
+            debugPort = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
             cplang::setVerbose(true);
         } else if (!filename) {
@@ -444,9 +475,9 @@ int main(int argc, char* argv[]) {
     } else if (mode == "-p" || mode == "--parse") {
         success = runParser(source);
     } else if (mode == "-c" || mode == "--compile") {
-        success = runFullCompile(source, filename, false, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt);
+        success = runFullCompile(source, filename, false, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt, debugPort);
     } else if (mode == "-j" || mode == "--jit") {
-        success = runFullCompile(source, filename, true, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt);
+        success = runFullCompile(source, filename, true, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt, debugPort);
     } else if (mode == "-a" || mode == "--aot") {
         success = runAOTCompile(source, filename, outputFile, optLevel, emitLLVM, pureMath);
     } else if (mode == "--emit-llvm") {

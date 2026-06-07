@@ -1,6 +1,7 @@
 // CP语言 虚拟机实现 - 字节码执行
 #include "vm/vm.hpp"
 #include "jit/jit_dispatch.hpp"
+#include "debug/debugger.hpp"
 
 namespace cplang {
 
@@ -126,16 +127,28 @@ bool VM::run(ExecContext* ctx) {
         auto isNum = [](const Value& v) { return v.isDouble() || v.isInt() || v.isFloat32() || v.isInt64(); };
 
         // ── 调试器断点检查 ──
-        if (!breakpoints_.empty() || debugStepMode_) {
+        if (!breakpoints_.empty() || debugStepMode_ || debugServer_) {
             size_t instrIdx = (ctx->pc - 1) / 16;
             if (instrIdx < ctx->func->lineInfo.size()) {
                 debugCurrentLine_ = ctx->func->lineInfo[instrIdx];
                 if (debugStop_) { debugPaused_ = false; debugStop_ = false; return false; }
+
+                // TCP 调试服务器：检查外部断点
+                if (debugServer_ && !debugServer_->shouldPause(
+                        ctx->func->sourceFile, debugCurrentLine_)) {
+                    debugServer_->poll();  // 处理客户端消息
+                }
+
                 bool hitBp = breakpoints_.count(debugCurrentLine_) > 0;
                 bool stepHit = debugStepMode_ && callDepth_ <= debugStepDepth_;
                 if (hitBp || stepHit) {
                     if (debugStepMode_) { debugStepMode_ = false; }
                     if (!debugPaused_) { debugPaused_ = true; return true; }
+                }
+
+                // TCP 调试服务器：命中时等待客户端命令
+                if (debugServer_) {
+                    debugServer_->waitForCommand();
                 }
             }
         }

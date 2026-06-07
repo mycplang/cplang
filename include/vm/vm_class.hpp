@@ -50,6 +50,7 @@ public:
 
     void setJIT(HybridJIT* jit) { jit_ = jit; }
     HybridJIT* getJIT() const { return jit_; }
+    void setDebugServer(class DebugServer* ds) { debugServer_ = ds; }
 
     void setBreakpoint(int line) { breakpoints_.insert(line); }
     void removeBreakpoint(int line) { breakpoints_.erase(line); }
@@ -113,6 +114,7 @@ private:
     std::vector<HandlerFrame>       handlerStack_;
     ExecContext*                    currentCtx_ = nullptr;
     Int32                           callDepth_ = 0;
+    class DebugServer*              debugServer_ = nullptr;  // 调试服务器（TCP）
     static thread_local VM*         currentVM_;
 
     std::unordered_set<int>         breakpoints_;

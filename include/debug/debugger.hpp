@@ -150,19 +150,35 @@ private:
 
 class DebugServer {
 public:
-    DebugServer(Debugger* debugger);
-    
+    DebugServer(Debugger* debugger, VM* vm);
+    ~DebugServer();
+
     bool start(int port = 4711);
     void stop();
     bool isRunning() const { return running_; }
-    
-    void poll();  // 处理客户端请求
+
+    // 由 VM 调用：检查是否应在此指令处暂停
+    bool shouldPause(const String& file, int line);
+    // 暂停并等待客户端命令
+    void waitForCommand();
+    // 处理一个客户端请求（非阻塞）
+    void poll();
 
 private:
     Debugger* debugger_;
+    VM* vm_;
     bool running_ = false;
     int port_ = 4711;
-    // socket 相关成员...
+    int serverSocket_ = -1;
+    int clientSocket_ = -1;
+
+    // 待处理的命令
+    String pendingCommand_;
+    bool paused_ = false;
+
+    String readLine(int sock);
+    void sendResponse(const String& json);
+    void handleCommand(const String& json);
 };
 
 // ═══════════════════════════════════════════════════════════════════

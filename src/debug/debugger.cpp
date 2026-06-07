@@ -532,4 +532,274 @@ void CLIDebugger::showVariables() {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  DebugServer 实现 — TCP 调试协议
+// ═══════════════════════════════════════════════════════════════════
+
+#ifdef _WIN32
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+  #pragma comment(lib, "ws2_32.lib")
+  using socklen_t = int;
+  #define CLOSE_SOCKET closesocket
+  #define SOCKET_ERRNO WSAGetLastError()
+  static bool initWinsock() {
+      WSADATA wsa;
+      return WSAStartup(MAKEWORD(2,2), &wsa) == 0;
+  }
+#else
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
+  #include <unistd.h>
+  #include <fcntl.h>
+  #include <errno.h>
+  #define CLOSE_SOCKET close
+  #define SOCKET_ERRNO errno
+  static bool initWinsock() { return true; }
+#endif
+
+DebugServer::DebugServer(Debugger* debugger, VM* vm)
+    : debugger_(debugger), vm_(vm) {}
+
+DebugServer::~DebugServer() { stop(); }
+
+bool DebugServer::start(int port) {
+    if (running_) return true;
+    if (!initWinsock()) return false;
+
+    port_ = port;
+    serverSocket_ = (int)socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket_ < 0) return false;
+
+    int reuse = 1;
+    setsockopt(serverSocket_, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
+
+    struct sockaddr_in addr = {};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons((unsigned short)port);
+
+    if (bind(serverSocket_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        CLOSE_SOCKET(serverSocket_); serverSocket_ = -1; return false;
+    }
+    if (listen(serverSocket_, 1) < 0) {
+        CLOSE_SOCKET(serverSocket_); serverSocket_ = -1; return false;
+    }
+
+    // 设置为非阻塞
+#ifdef _WIN32
+    u_long mode = 1;
+    ioctlsocket(serverSocket_, FIONBIO, &mode);
+#else
+    fcntl(serverSocket_, F_SETFL, O_NONBLOCK);
+#endif
+
+    running_ = true;
+    std::cout << "[DebugServer] 监听端口 " << port << "，等待客户端连接..." << std::endl;
+    return true;
+}
+
+void DebugServer::stop() {
+    running_ = false;
+    paused_ = false;
+    if (clientSocket_ >= 0) { CLOSE_SOCKET(clientSocket_); clientSocket_ = -1; }
+    if (serverSocket_ >= 0) { CLOSE_SOCKET(serverSocket_); serverSocket_ = -1; }
+}
+
+void DebugServer::poll() {
+    if (!running_) return;
+
+    // 接受新连接
+    if (clientSocket_ < 0) {
+        struct sockaddr_in clientAddr;
+        socklen_t len = sizeof(clientAddr);
+        int client = (int)accept(serverSocket_, (struct sockaddr*)&clientAddr, &len);
+        if (client >= 0) {
+            clientSocket_ = client;
+            std::cout << "[DebugServer] 客户端已连接" << std::endl;
+            sendResponse("{\"type\":\"connected\"}");
+        }
+        return;
+    }
+
+    // 读取客户端命令
+    String line = readLine(clientSocket_);
+    if (!line.empty()) {
+        handleCommand(line);
+    }
+
+    // 检查客户端断开
+    if (line.empty() && clientSocket_ >= 0) {
+        // 用 peek 检查连接状态
+        char c;
+        int r = recv(clientSocket_, &c, 1, MSG_PEEK);
+        if (r == 0 || (r < 0 && SOCKET_ERRNO != EWOULDBLOCK && SOCKET_ERRNO != EAGAIN)) {
+            std::cout << "[DebugServer] 客户端已断开" << std::endl;
+            CLOSE_SOCKET(clientSocket_); clientSocket_ = -1;
+            paused_ = false;
+        }
+    }
+}
+
+bool DebugServer::shouldPause(const String& file, int line) {
+    if (!running_ || clientSocket_ < 0) return false;
+
+    // 检查是否有断点
+    if (debugger_) {
+        for (const auto& [id, bp] : debugger_->getBreakpoints()) {
+            if (bp.enabled && bp.file == file && bp.line == line) {
+                // 发送暂停事件
+                std::ostringstream oss;
+                oss << "{\"type\":\"paused\",\"reason\":\"breakpoint\",\"file\":\""
+                    << file << "\",\"line\":" << line << ",\"breakpointId\":" << id << "}";
+                sendResponse(oss.str());
+                paused_ = true;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void DebugServer::waitForCommand() {
+    if (!paused_ || clientSocket_ < 0) return;
+
+    // 阻塞等待命令
+    while (paused_ && running_) {
+        String line = readLine(clientSocket_);
+        if (line.empty()) {
+            // 检查连接
+            char c;
+            int r = recv(clientSocket_, &c, 1, MSG_PEEK);
+            if (r <= 0 && SOCKET_ERRNO != EWOULDBLOCK && SOCKET_ERRNO != EAGAIN) {
+                paused_ = false;
+                break;
+            }
+#ifdef _WIN32
+            Sleep(50);
+#else
+            usleep(50000);
+#endif
+            continue;
+        }
+        handleCommand(line);
+    }
+}
+
+String DebugServer::readLine(int sock) {
+    String result;
+    char c;
+    while (true) {
+        int n = recv(sock, &c, 1, 0);
+        if (n <= 0) return result; // 无数据或错误
+        if (c == '\n') break;
+        if (c != '\r') result += c;
+    }
+    return result;
+}
+
+void DebugServer::sendResponse(const String& json) {
+    if (clientSocket_ < 0) return;
+    String msg = json + "\n";
+    send(clientSocket_, msg.c_str(), (int)msg.size(), 0);
+}
+
+void DebugServer::handleCommand(const String& json) {
+    // 简单 JSON 解析（提取 cmd 字段）
+    auto extractStr = [](const String& s, const String& key) -> String {
+        size_t pos = s.find("\"" + key + "\"");
+        if (pos == String::npos) return "";
+        pos = s.find(":", pos);
+        if (pos == String::npos) return "";
+        pos = s.find("\"", pos);
+        if (pos == String::npos) return "";
+        size_t end = s.find("\"", pos + 1);
+        if (end == String::npos) return "";
+        return s.substr(pos + 1, end - pos - 1);
+    };
+
+    String cmd = extractStr(json, "cmd");
+
+    if (cmd == "continue") {
+        paused_ = false;
+        sendResponse("{\"type\":\"continued\"}");
+    }
+    else if (cmd == "stepOver") {
+        if (debugger_) debugger_->stepOver();
+        paused_ = false;
+        sendResponse("{\"type\":\"continued\"}");
+    }
+    else if (cmd == "stepInto") {
+        if (debugger_) debugger_->stepInto();
+        paused_ = false;
+        sendResponse("{\"type\":\"continued\"}");
+    }
+    else if (cmd == "stepOut") {
+        if (debugger_) debugger_->stepOut();
+        paused_ = false;
+        sendResponse("{\"type\":\"continued\"}");
+    }
+    else if (cmd == "getStack") {
+        auto stack = debugger_ ? debugger_->getCallStack() : std::vector<DebugFrame>{};
+        std::ostringstream oss;
+        oss << "{\"type\":\"stack\",\"frames\":[";
+        for (size_t i = 0; i < stack.size(); i++) {
+            if (i > 0) oss << ",";
+            oss << "{\"name\":\"" << stack[i].functionName << "\""
+                << ",\"file\":\"" << stack[i].file << "\""
+                << ",\"line\":" << stack[i].line << "}";
+        }
+        oss << "]}";
+        sendResponse(oss.str());
+    }
+    else if (cmd == "getVars") {
+        auto vars = debugger_ ? debugger_->getVariables(0) : std::unordered_map<String, Value>{};
+        std::ostringstream oss;
+        oss << "{\"type\":\"variables\",\"vars\":{";
+        bool first = true;
+        for (const auto& [name, val] : vars) {
+            if (!first) oss << ",";
+            first = false;
+            oss << "\"" << name << "\":\"" << val.toString() << "\"";
+        }
+        oss << "}}";
+        sendResponse(oss.str());
+    }
+    else if (cmd == "setBreakpoints") {
+        // 解析: {"cmd":"setBreakpoints","file":"...","lines":[1,2,3]}
+        String file = extractStr(json, "file");
+        if (debugger_ && !file.empty()) {
+            debugger_->clearBreakpoints();
+            // 简单解析 lines 数组
+            size_t arrStart = json.find("\"lines\"");
+            if (arrStart != String::npos) {
+                arrStart = json.find("[", arrStart);
+                if (arrStart != String::npos) {
+                    size_t arrEnd = json.find("]", arrStart);
+                    String arr = json.substr(arrStart + 1, arrEnd - arrStart - 1);
+                    std::istringstream iss(arr);
+                    String token;
+                    while (std::getline(iss, token, ',')) {
+                        // 去除空白
+                        token.erase(0, token.find_first_not_of(" \t"));
+                        if (!token.empty()) {
+                            debugger_->addBreakpoint(file, std::stoi(token));
+                        }
+                    }
+                }
+            }
+        }
+        sendResponse("{\"type\":\"breakpointsSet\"}");
+    }
+    else if (cmd == "evaluate") {
+        String expr = extractStr(json, "expr");
+        Value result = debugger_ ? debugger_->evaluateExpression(expr) : Value::nil();
+        sendResponse("{\"type\":\"evaluateResult\",\"value\":\"" + result.toString() + "\"}");
+    }
+    else {
+        sendResponse("{\"type\":\"error\",\"message\":\"unknown command: " + cmd + "\"}");
+    }
+}
+
 } // namespace cplang
