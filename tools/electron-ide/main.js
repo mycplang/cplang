@@ -897,7 +897,7 @@ ipcMain.handle('package-exe', async (e, filePath) => {
 
 // ── IPC: 调试器（TCP 调试服务器） ──
 
-const net = require('net');
+const tcpNet = require('net');  // 注意: 不与 Electron 的 net 冲突
 
 let debugProcess = null;
 let debugSocket = null;
@@ -976,7 +976,7 @@ ipcMain.handle('debug-start', async (e, filePath, breakpoints, sessionId) => {
           resolve({ ok: false, output: '❌ 调试服务器连接超时' });
           return;
         }
-        const sock = new net.Socket();
+        const sock = new tcpNet.Socket();
         sock.connect(debugPort, '127.0.0.1', () => {
           debugSocket = sock;
           // 发送断点
