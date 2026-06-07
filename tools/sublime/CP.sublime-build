@@ -31,7 +31,7 @@
     },
     {
       "name": "调试运行",
-      "cmd": ["python", "C:/cplang/tools/sublime/cp_debug.py", "$file"],
+      "cmd": ["powershell", "-ExecutionPolicy", "Bypass", "-File", "C:/cplang/tools/sublime/cp_debug.ps1", "$file"],
       "working_dir": "$file_path",
       "shell": true
     }
