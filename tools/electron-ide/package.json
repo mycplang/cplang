@@ -1,0 +1,76 @@
+{
+  "name": "cp-ide",
+  "version": "1.1.1-beta",
+  "description": "CP Language IDE - 中文编程集成开发环境",
+  "author": "CP Language <cplang.dev@gmail.com>",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist-win": "electron-builder --win --x64",
+    "dist-portable": "electron-builder --win --x64 --win.target portable",
+    "dist-installer": "electron-builder --win --x64 --win.target nsis",
+    "dist-portable-fast": "electron-builder --win --x64 --win.target portable -c.win.icon=cp_icon.ico"
+  },
+  "build": {
+    "appId": "com.cplang.ide",
+    "productName": "CP IDE",
+    "copyright": "Copyright © 2024-2026 CP Language",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "renderer_new.js",
+      "styles.css",
+      "node_modules/iconv-lite/**/*",
+      "node_modules/monaco-editor/min/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "cppack.exe",
+        "to": "cppack.exe"
+      },
+      {
+        "from": "cplang.exe",
+        "to": "cplang.exe"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/iconv-lite/**/*"
+    ],
+    "extraMetadata": {
+      "main": "main.js"
+    },
+    "win": {
+      "target": ["portable", "nsis"],
+      "artifactName": "CP-IDE-${version}-${arch}.${ext}",
+      "icon": "cp_icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "installerIcon": "cp_icon.ico",
+      "uninstallerIcon": "cp_icon.ico",
+      "installerHeaderIcon": "cp_icon.ico",
+      "shortcutName": "CP IDE",
+      "menuCategory": true
+    },
+    "portable": {
+      "artifactName": "CP-IDE-${version}-便携版.exe",
+      "requestExecutionLevel": "user"
+    }
+  },
+  "dependencies": {
+    "iconv-lite": "^0.7.2",
+    "monaco-editor": "^0.45.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^26.8.1"
+  }
+}
