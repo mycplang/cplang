@@ -1,40 +1,37 @@
 {
   "file_patterns": ["*.cp"],
   "selector": "source.cp",
-  "env": {
-    "CPLANG_HOME": "C:/cplang"
-  },
   "variants": [
     {
       "name": "编译运行 (VM)",
-      "cmd": ["${env:CPLANG_HOME}/build/cplang.exe", "-c", "$file"],
+      "cmd": ["C:/cplang/build/cplang.exe", "-c", "$file"],
       "working_dir": "$file_path",
       "file_regex": "第([0-9]+)行第([0-9]+)列: (.*)"
     },
     {
       "name": "语法检查",
-      "cmd": ["${env:CPLANG_HOME}/build/cplang.exe", "-p", "$file"],
+      "cmd": ["C:/cplang/build/cplang.exe", "-p", "$file"],
       "working_dir": "$file_path",
       "file_regex": "第([0-9]+)行第([0-9]+)列: (.*)"
     },
     {
       "name": "JIT 编译运行",
-      "cmd": ["${env:CPLANG_HOME}/build/cplang.exe", "-j", "$file"],
+      "cmd": ["C:/cplang/build/cplang.exe", "-j", "$file"],
       "working_dir": "$file_path"
     },
     {
       "name": "热点 JIT",
-      "cmd": ["${env:CPLANG_HOME}/build/cplang.exe", "-c", "--hotspot", "$file"],
+      "cmd": ["C:/cplang/build/cplang.exe", "-c", "--hotspot", "$file"],
       "working_dir": "$file_path"
     },
     {
       "name": "AOT 编译为 EXE",
-      "cmd": ["${env:CPLANG_HOME}/build/cplang.exe", "-a", "-o", "${file/\\.cp/\\.exe}", "$file"],
+      "cmd": ["C:/cplang/build/cplang.exe", "-a", "-o", "${file/\\.cp/\\.exe}", "$file"],
       "working_dir": "$file_path"
     },
     {
       "name": "调试运行",
-      "cmd": ["python", "${env:CPLANG_HOME}/tools/sublime/cp_debug.py", "$file"],
+      "cmd": ["python", "C:/cplang/tools/sublime/cp_debug.py", "$file"],
       "working_dir": "$file_path",
       "shell": true
     }

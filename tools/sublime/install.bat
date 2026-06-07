@@ -5,6 +5,8 @@ echo ========================================
 echo.
 
 set "FOUND=0"
+set "SUBLIME_PKG=C:\Sublime Text\Data\Packages\User"
+if exist "%SUBLIME_PKG%" set "FOUND=1" & goto :install
 set "SUBLIME_PKG=%APPDATA%\Sublime Text\Packages\User"
 if exist "%SUBLIME_PKG%" set "FOUND=1" & goto :install
 set "SUBLIME_PKG=%APPDATA%\Sublime Text 3\Packages\User"
