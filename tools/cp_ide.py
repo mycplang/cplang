@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""CP IDE v2.4.1 - VS Code 风格界面 + 活动栏 + 命令面板"""
+"""CP IDE v2.5.0 - VS Code 风格界面 + 活动栏 + 命令面板 + 智能补全 + 括号匹配增强"""
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -11,23 +11,39 @@ IDE_VERSION_URL = "https://raw.githubusercontent.com/cplang/cplang/main/tools/ve
 IDE_DOWNLOAD_BASE = "https://github.com/cplang/cplang/releases/download/latest"
 
 CP_KEYWORDS = sorted([
-    "函数","func","变量","var","常量","const",
-    "如果","if","否则","else","当","while","循环","for",
-    "遍历","foreach","返回","return","跳出","break","继续","continue",
+    # 函数/变量
+    "函数","function","fn","异步","async","变量","var","常量","const",
+    "设","let","可变","mutable",
+    # 控制流
+    "如果","if","否则","else","否则如果","当","while","循环","for",
+    "遍历","foreach","为","do","跳出","break","继续","continue",
+    "返回","return",
+    # 选择/匹配
     "选择","switch","情况","case","其他","default",
-    "类","class","结构","struct","枚举","enum","接口","interface",
-    "新建","new","公有","public","私有","private","保护","protected",
+    "匹配","match",
+    # 异常
+    "尝试","try","捕获","catch","抛出","throw","最终","finally",
+    # 推迟
+    "推迟","defer",
+    # OOP
+    "类","class","结构体","struct","枚举","enum","接口","interface",
+    "实现","extends","新建","new","这个","this","继承","super",
+    # 访问修饰符
+    "公有","public","私有","private","保护","protected",
+    "静态","static","虚拟","virtual","重写","override","抽象","abstract",
+    # 模块
+    "导入","import","包名","package",
+    # 等待
+    "等待","await",
+    # 布尔/空
     "真","true","假","false","空","nil","null",
-    "导入","import","类型","typedef",
-    "抛出","throw","尝试","try","捕获","catch",
-    "推迟","defer","信任","trust","为","as","删除","delete",
-    "是","is","不是","typeof",
-    "打印","print","println","长度","len","size","sizeof",
+    # 类型工具
+    "类型","typeof","是","is",
 ], key=len, reverse=True)
 
 CP_TYPES = sorted([
-    "整数","布尔","浮点","文本","变体","字节","数组","表",
-    "int","bool","float","string","var","auto","void",
+    "整数","int","布尔","bool","浮点","float","文本","string",
+    "变体","字节","数组","表","void","var","auto",
     "i8","i16","i32","i64","u8","u16","u32","u64",
     "f32","f64","char","byte",
 ], key=len, reverse=True)
@@ -55,22 +71,74 @@ THEMES = [
      "sb_bg":"#1a3a5a","sb_fg":"#c8d8e8"},
 ]
 
-# 所有内置函数名（用于补全）
+# 所有内置函数名（用于补全 — 同步自 VS Code 插件 v0.4.0）
 CP_BUILTINS = [
-    "打印","长度","push","pop","读取文件","写入文件","文件存在","目录列表",
-    "procSystem","strlen","substr","table","表设","表取","表有","表长",
-    "字符串包含","字符串替换","执行命令","获取环境变量","设置环境变量",
-    "初始化窗口","设置目标帧率","窗口应关闭","开始绘制","结束绘制","清除背景",
-    "界面初始化","界面开始绘制","界面结束绘制","窗口开始","窗口结束",
-    "按钮","文本","输入文本","多行输入文本","同行","分隔线","菜单项",
+    # 数学
+    "绝对值","平方根","幂","向下取整","向上取整","四舍五入",
+    "正弦","余弦","正切","反正弦","反余弦","反正切","圆周率","自然常数",
+    "随机值","阶乘","均值","中位数","标准差","abs","sqrt","pow",
+    "floor","ceil","round","sin","cos","tan","random","pi","e",
+    # IO
+    "打印","print","println","输入","input","读取文件","写入文件","文件存在",
+    "readFile","writeFile","fileExists",
+    # 字符串
+    "长度","len","子串","substr","连接","concat","查找","find","替换","replace",
+    "分割","split","修剪","trim","小写","lower","大写","upper",
+    "包含","contains","格式化","format","strlen",
+    # 转换
+    "转字符串","toString","转整数","parseInt","转浮点","parseFloat",
+    "JSON解析","jsonParse","转JSON","jsonStringify",
+    # 数组
+    "追加","push","弹出","pop","插入","insert","移除","remove","切片","slice",
+    "排序","sort","反转","reverse","映射","map","过滤","filter","累积","reduce",
+    "去重","unique","展平","flatten","打包","zip","头出","shift","头插","unshift",
+    # 表
+    "表创建","table","表设","tableSet","表取","tableGet","表有","has",
+    "表长","tblen","表键","keys","表值","values","表删","tableDel",
+    "表清空","tableClear","表合并","tableMerge","表转数组","tableToArray",
+    # 类型
+    "是空","isNil","是布尔","isBool","是整数","isInt","是浮点","isFloat",
+    "是字符串","isString","是数组","isArray","是函数","isFunction","取类型","typeOf",
+    # 时间/系统
+    "时间戳","now","延时","sleep","计时器","tick","平台","platform",
+    "程序退出","exit","环境变量","getEnv","当前目录","cwd","执行命令","exec",
+    "进程ID","pid","CPU核数","cpuCount",
+    # 容器
+    "栈创建","stackCreate","入栈","stackPush","出栈","stackPop",
+    "队列创建","queueCreate","入队","queuePush","出队","queuePop",
+    "集合新建","setNew","集合添加","setAdd","集合包含","setHas",
+    # 并发
+    "通道创建","channelCreate","通道发送","channelSend","通道接收","channelRecv",
+    "互斥创建","mutexCreate","互斥加锁","mutexLock","互斥解锁","mutexUnlock",
+    "线程创建","threadCreate","线程等待","threadJoin","异步执行","futureGo",
+    # 网络
+    "HTTP获取","httpGet","HTTP提交","httpPost","HTTP下载","httpDownload",
+    "TCP连接","tcpConnect","TCP发送","tcpSend","TCP接收","tcpRecv","TCP关闭","tcpClose",
+    "TCP监听","tcpListen",
+    # 加密
+    "MD5","md5","SHA256","sha256","Base64编码","base64Encode","Base64解码","base64Decode",
+    "UUID","uuid4","AES加密","aesEncrypt","AES解密","aesDecrypt",
+    # 数据库
+    "数据库打开","sqliteOpen","数据库查询","sqliteQuery","数据库执行","sqliteExec",
+    "数据库关闭","sqliteClose","数据库错误","sqliteErrMsg",
+    "MySQL连接","mysqlConnect","MySQL查询","mysqlQuery","MySQL关闭","mysqlClose",
+    "Redis连接","redisConnect","Redis获取","redisGet","Redis设置","redisSet",
+    # 图形
+    "初始化窗口","设置目标帧率","窗口应关闭","开始绘图","结束绘图","关闭窗口",
+    "清空背景","绘制文本","绘制矩形","绘制圆形","绘制帧率","键盘按下",
+    # ImGui
     "igInit","igBegin","igEnd","igButton","igText","igInputText","igSameLine",
     "igSeparator","igBeginMenuBar","igEndMenuBar","igBeginMenu","igEndMenu",
     "igMenuItem","igBeginChild","igEndChild","igBeginTabBar","igEndTabBar",
-    "igBeginTabItem","igEndTabItem","igSetNextWindowPos","igSetNextWindowSize",
-    "igInputTextMultiline","igTreeNode","igTreePop","igCollapsingHeader",
+    "igBeginTabItem","igEndTabItem","igInputTextMultiline",
+    "igTreeNode","igTreePop","igCollapsingHeader",
     "igIsItemClicked","igIsItemHovered","igIsKeyDown","igIsKeyPressed",
-    "igPushStyleColor","igPopStyleColor","igOpenPopup","igBeginPopup","igEndPopup",
-    "ysystem","yexec","ypipe","yfork","ywait","yexit",
+    "igPushStyleColor","igPopStyleColor",
+    # 算法
+    "稳定排序","二分查找","全排列","位与","bitAnd","位或","bitOr","位异或","bitXor",
+    # 正则
+    "正则匹配","regexMatch","正则搜索","regexSearch","正则替换","regexReplace",
+    "正则分割","regexSplit",
 ]
 
 class Tab:
@@ -585,7 +653,8 @@ class CPIDE:
         self.text.tag_configure("string", foreground="#ce9178")
         self.text.tag_configure("comment", foreground="#6a9955")
         self.text.tag_configure("number", foreground="#b5cea8")
-        self.text.tag_configure("bracket", foreground="#ffd700", underline=True)
+        self.text.tag_configure("bracket", foreground="#000000", background="#ffd700", font=("Consolas",self.font_size,"bold"))
+        self.text.tag_configure("bracket_bg", background="#3a3520")
         self.text.tag_configure("complete_highlight", background="#264f78", foreground="white")
         self.text.tag_configure("error_squiggle", foreground="#f44747", underline=True)
         self.text.tag_configure("curline", background="#2a2d2a")
@@ -981,11 +1050,16 @@ Python = {sys.version.split()[0]}
         # 刷新大纲
         if self.outline_visible:
             self.update_outline()
-        # 自动补全
+        # 自动补全（至少输入 2 个字符后自动弹出）
         if e and e.keysym not in ("Control_L","Control_R","Alt_L","Alt_R","Shift_L","Shift_R",
                                    "Up","Down","Left","Right","Home","End","Page_Up","Page_Down",
-                                   "Escape","Return","Tab","BackSpace","Delete","slash"):
-            self.show_completion()
+                                   "Escape","Return","Tab","BackSpace","Delete","slash",
+                                   "Caps_Lock","Num_Lock","Scroll_Lock","Print","Pause",
+                                   "F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"):
+            # 延迟显示补全（避免快速输入时闪烁）
+            if hasattr(self, '_comp_after_id'):
+                self.root.after_cancel(self._comp_after_id)
+            self._comp_after_id = self.root.after(150, self._debounced_completion)
         else:
             self.hide_completion()
         if self.text.edit_modified(): self.text.edit_modified(False)
@@ -1082,11 +1156,18 @@ Python = {sys.version.split()[0]}
     # ═══════════════════════════ 括号匹配 ═══════════════════════════
 
     def highlight_brackets(self):
-        """高亮匹配的括号"""
+        """高亮匹配的括号（含行号区标记和括号内文本背景高亮）"""
         self.text.tag_remove("bracket", "1.0", tk.END)
+        self.text.tag_remove("bracket_bg", "1.0", tk.END)
         try:
             pos = self.text.index(tk.INSERT)
             char = self.text.get(pos, f"{pos}+1c")
+            # 也检查光标前的字符
+            if char not in "()[]{}":
+                prev_pos = f"{pos}-1c"
+                char = self.text.get(prev_pos, pos)
+                if char in "()[]{}":
+                    pos = prev_pos
             pairs = {"(":")", "[":"]", "{":"}", ")":"(", "]":"[", "}":"{"}
             if char in pairs:
                 self.text.tag_add("bracket", pos, f"{pos}+1c")
@@ -1112,6 +1193,19 @@ Python = {sys.version.split()[0]}
                             if depth == 0:
                                 match_pos = start_c + i if direction > 0 else start_c - i - 1
                                 self.text.tag_add("bracket", f"{l}.{match_pos}", f"{l}.{match_pos}+1c")
+                                # 括号间背景高亮
+                                if direction > 0:
+                                    self.text.tag_add("bracket_bg", f"{pos}+1c", f"{l}.{match_pos}")
+                                else:
+                                    self.text.tag_add("bracket_bg", f"{l}.{match_pos}+1c", pos)
+                                # 在行号区画指示线
+                                self.ln.delete("bracket_line")
+                                start_line = int(pos.split(".")[0])
+                                end_line = l
+                                step = 1 if start_line <= end_line else -1
+                                for ln in range(start_line, end_line + step, step):
+                                    self.ln.create_line(0, ln*20-10, 3, ln*20-10,
+                                                       fill="#ffd700", width=2, tags="bracket_line")
                                 return
                         elif ch == char:
                             depth += 1
@@ -1267,13 +1361,21 @@ Python = {sys.version.split()[0]}
             return m.group(0) if m else ""
         except: return ""
 
+    def _debounced_completion(self):
+        """延迟触发补全（避免快速输入时闪烁）"""
+        prefix = self.get_word_before_cursor()
+        if len(prefix) >= 2:
+            self.show_completion()
+        elif len(prefix) < 1:
+            self.hide_completion()
+
     def completion_visible(self):
         return hasattr(self, 'comp_win') and self.comp_win and self.comp_win.winfo_exists()
 
     def show_completion(self):
-        """显示自动补全弹窗"""
+        """显示自动补全弹窗（至少 2 个字符触发）"""
         prefix = self.get_word_before_cursor()
-        if len(prefix) < 1:
+        if len(prefix) < 2:
             self.hide_completion(); return
 
         # 找出匹配的候选词
