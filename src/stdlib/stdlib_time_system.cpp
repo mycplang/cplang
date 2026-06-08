@@ -1,4 +1,8 @@
 #include "stdlib/stdlib.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #include <chrono>
 #include <thread>
 
@@ -46,18 +50,7 @@ void StdLib::registerSystem(VM* vm) {
     registerAlias(vm, "平台", "platform");
     registerFunction(vm, "cwd", system::cwd);
     registerAlias(vm, "当前目录", "cwd");
-    registerFunction(vm, "setEnv", system::setEnv);
-    registerAlias(vm, "设置环境变量", "setEnv");
-    registerFunction(vm, "exec", system::exec);
-    registerAlias(vm, "执行命令", "exec");
-    registerFunction(vm, "spawn", system::spawn);
-    registerAlias(vm, "启动进程", "spawn");
-    registerFunction(vm, "arch", system::arch);
-    registerAlias(vm, "架构", "arch");
-    registerFunction(vm, "pid", system::pid);
-    registerAlias(vm, "进程ID", "pid");
-    registerFunction(vm, "chdir", system::chdir);
-    registerAlias(vm, "切换目录", "chdir");
+// [待实现] system::setEnv, exec, spawn, arch, pid, chdir
 }
 
 Value system::exit(std::vector<Value>& args) {

@@ -10,8 +10,9 @@ namespace cplang {
 #include <cstring>
 #include <cstdlib>
 
-// raylib.h is already included by stdlib.cpp before this file.
-// The include here is guarded for standalone compilation.
+#ifndef RAYLIB_H
+#include <raylib.h>
+#endif // standalone guard
 
 // ═══════════════════════════════════════════════════════════════════
 //  Helper: diagnostic logging

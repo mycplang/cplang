@@ -167,6 +167,7 @@ add_library(cplang_codegen STATIC
     src/codegen/codegen.cpp
     src/codegen/codegen_opt.cpp
     src/codegen/codegen_stmt.cpp
+    src/codegen/codegen_match.cpp
     src/codegen/codegen_expr.cpp
     src/codegen/bytecode_optimizer.cpp
 )
@@ -299,6 +300,7 @@ add_library(cplang_stdlib STATIC
     src/stdlib/stdlib_time_system.cpp
     src/stdlib/stdlib_types_net.cpp
     src/stdlib/stdlib_variant_utils.cpp
+    src/stdlib/stdlib_more_utils_extra.cpp
     src/miniz.c
     src/miniz_tdef.c
     src/miniz_tinfl.c

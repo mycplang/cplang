@@ -142,7 +142,7 @@ static void sha1Transform(UInt32 state[5], const UInt8 block[64]) {
     state[0] += a; state[1] += b; state[2] += c; state[3] += d; state[4] += e;
 }
 
-static std::string sha1Hash(const std::string& input) {
+std::string sha1Hash(const std::string& input) {
     UInt32 state[5] = {0x67452301,0xefcdab89,0x98badcfe,0x10325476,0xc3d2e1f0};
     UInt64 bitLen = input.size() * 8;
     size_t padLen = ((input.size() + 8) / 64 + 1) * 64;

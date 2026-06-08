@@ -680,6 +680,8 @@ Type* SemanticAnalyzer::analyzeBlock(Shared<BlockStmt> block) {
     Type* lastType = Type::void_();
 
     for (auto& s : block->statements) {
+        // defer 已在 transformDeferInBlock 中处理，跳过
+        if (std::dynamic_pointer_cast<DeferStmt>(s)) continue;
         lastType = analyzeStmt(s);
     }
 

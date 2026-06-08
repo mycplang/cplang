@@ -8,6 +8,9 @@
 #define MINIZ_NO_ARCHIVE_APIS
 #endif
 #include "miniz.h"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <vector>
 #include <string>

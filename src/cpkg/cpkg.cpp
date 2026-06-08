@@ -1,4 +1,4 @@
-﻿// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // cpkg — CP语言 包管理器（C++ 原生实现，Windows WinHTTP）
 // ═══════════════════════════════════════════════════════════════════
 // 用法:
@@ -15,11 +15,19 @@
 //   CPKG_REGISTRY_URL    注册表地址（默认指向 mycpmlang/registry）
 // ═══════════════════════════════════════════════════════════════════
 
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <system_error>
+#include <filesystem>
 #include "cpkg/http.hpp"
-using cpkg::getEnv;
-using cpkg::getHomeDir;
-using cpkg::httpGet;
-using cpkg::httpDownload;
+//using cpkg::getEnv;
+//using cpkg::getHomeDir;
+//using cpkg::httpGet;
+//using cpkg::httpDownload;
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -94,6 +102,8 @@ static std::string getHomeDir() {
     }
     return "C:\\Users\\Default";
 }
+
+namespace fs = std::filesystem;
 
 static bool ensureDir(const std::string& path) {
     std::error_code ec;

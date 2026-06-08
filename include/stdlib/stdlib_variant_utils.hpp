@@ -62,6 +62,36 @@ namespace more_utils {
     Value strFormat(std::vector<Value>& args);
     Value globMatch(std::vector<Value>& args);
     Value strInterpolate(std::vector<Value>& args);
+    
+    // 移植自 stdlib_linux.cpp 的缺失函数声明
+    Value toSnakeCase(std::vector<Value>& args);
+    Value toCamelCase(std::vector<Value>& args);
+    Value uniq(std::vector<Value>& args);
+    Value enumerate(std::vector<Value>& args);
+    Value arrSum(std::vector<Value>& args);
+    Value arrAvg(std::vector<Value>& args);
+    Value arrTake(std::vector<Value>& args);
+    Value arrDrop(std::vector<Value>& args);
+    Value intPow(std::vector<Value>& args);
+    Value roundTo(std::vector<Value>& args);
+    Value merge(std::vector<Value>& args);
+    Value getOrDefault(std::vector<Value>& args);
+    Value swap(std::vector<Value>& args);
+    Value contains(std::vector<Value>& args);
+    Value intersection(std::vector<Value>& args);
+    Value difference(std::vector<Value>& args);
+    Value strCount(std::vector<Value>& args);
+    Value strCompareIC(std::vector<Value>& args);
+    Value strIsBlank(std::vector<Value>& args);
+    Value timestamp(std::vector<Value>& args);
+    Value clock(std::vector<Value>& args);
+    Value accumulate(std::vector<Value>& args);
+    Value product(std::vector<Value>& args);
+    Value anyOf(std::vector<Value>& args);
+    Value allOf(std::vector<Value>& args);
+    Value noneOf(std::vector<Value>& args);
+    Value erfFunc(std::vector<Value>& args);
+    Value tgammaFunc(std::vector<Value>& args);
 }
 
 } // namespace cplang

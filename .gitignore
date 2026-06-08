@@ -11,8 +11,10 @@
 # 第三方构建目录
 /third_party/raylib/build_release/
 /third_party/raylib/build/
+/third_party/raylib/build_vs/
 /build_cmake*/
 /build_clang/
+/build_msvc/
 /artifacts/
 /workspace_artifacts/
 *.exe

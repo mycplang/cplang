@@ -1,4 +1,8 @@
 #include "stdlib/stdlib.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 
 namespace cplang {
 
@@ -145,7 +149,7 @@ static void recWalk(const std::wstring& dir, VMArray* result, int maxDepth, int 
             recWalk(dir + L"\\" + fd.cFileName, result, maxDepth, depth + 1);
         } else {
             entry->set(makeStringVal(VMString::create("isDir")), Value::Bool(false));
-            U64 fs = ((U64)fd.nFileSizeHigh << 32) | fd.nFileSizeLow;
+            uint64_t fs = ((uint64_t)fd.nFileSizeHigh << 32) | fd.nFileSizeLow;
             entry->set(makeStringVal(VMString::create("size")), Value::Int(static_cast<Int64>(fs)));
             result->data.push_back(makeTableVal(entry));
         }

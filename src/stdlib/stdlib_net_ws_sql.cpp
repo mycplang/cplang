@@ -1,6 +1,21 @@
 #include "stdlib/stdlib.hpp"
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <crypto/md5_impl.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <winhttp.h>
+#include <sqlite/sqlite3.h>
+
+
+// 前向声明（定义在 stdlib_crypto_impl.cpp 中）
+// sha1Hash 实现在 stdlib_crypto_impl.cpp 中（通过文本包含获取）
 
 namespace cplang {
+namespace crypto { std::string sha1Hash(const std::string& input); }
 
 // Network, WebSocket, Sqlite functions
 // #include'd from stdlib.cpp, already inside namespace cplang

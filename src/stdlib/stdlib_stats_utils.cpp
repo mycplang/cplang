@@ -556,6 +556,35 @@ void StdLib::registerMoreUtils(VM* vm) {
     registerFunction(vm, "csvParse", more_utils::csvParse);
     registerFunction(vm, "strFormat", more_utils::strFormat);
     registerFunction(vm, "globMatch", more_utils::globMatch);
+    // 移植自 stdlib_linux.cpp 的缺失函数
+    registerFunction(vm, "toSnakeCase", more_utils::toSnakeCase);
+    registerFunction(vm, "toCamelCase", more_utils::toCamelCase);
+    registerFunction(vm, "uniq", more_utils::uniq);
+    registerFunction(vm, "enumerate", more_utils::enumerate);
+    registerFunction(vm, "arrSum", more_utils::arrSum);
+    registerFunction(vm, "arrAvg", more_utils::arrAvg);
+    registerFunction(vm, "arrTake", more_utils::arrTake);
+    registerFunction(vm, "arrDrop", more_utils::arrDrop);
+    registerFunction(vm, "intPow", more_utils::intPow);
+    registerFunction(vm, "roundTo", more_utils::roundTo);
+    registerFunction(vm, "merge", more_utils::merge);
+    registerFunction(vm, "getOrDefault", more_utils::getOrDefault);
+    registerFunction(vm, "swap", more_utils::swap);
+    registerFunction(vm, "contains", more_utils::contains);
+    registerFunction(vm, "intersection", more_utils::intersection);
+    registerFunction(vm, "difference", more_utils::difference);
+    registerFunction(vm, "strCount", more_utils::strCount);
+    registerFunction(vm, "strCompareIC", more_utils::strCompareIC);
+    registerFunction(vm, "strIsBlank", more_utils::strIsBlank);
+    registerFunction(vm, "timestamp", more_utils::timestamp);
+    registerFunction(vm, "clock", more_utils::clock);
+    registerFunction(vm, "accumulate", more_utils::accumulate);
+    registerFunction(vm, "product", more_utils::product);
+    registerFunction(vm, "anyOf", more_utils::anyOf);
+    registerFunction(vm, "allOf", more_utils::allOf);
+    registerFunction(vm, "noneOf", more_utils::noneOf);
+    registerFunction(vm, "erf", more_utils::erfFunc);
+    registerFunction(vm, "tgamma", more_utils::tgammaFunc);
 
     registerAlias(vm, "数组洗牌", "arrShuffle");
     registerAlias(vm, "重复", "strRepeat");
@@ -793,7 +822,29 @@ Value globMatch(std::vector<Value>& args) {
 } // namespace more_utils
 
 // ═══════════════════════════════════════════════════════════════════
-//  JSON 解析与序列化实现（自研，零外部依赖）
+//  移植自 stdlib_linux.cpp 的辅助函数实现
+// ═══════════════════════════════════════════════════════════════════
+
+static std::string mu_getStr(const Value& v) {
+    if (v.isString()) return std::string(v.asString()->data, v.asString()->length);
+    if (v.isInt()) return std::to_string(v.asInt());
+    if (v.isFloat()) return std::to_string(v.asFloat());
+    if (v.isBool()) return v.asBool() ? "true" : "false";
+    if (v.isNil()) return "nil";
+    return "";
+}
+
+static int mu_getInt(const Value& v) {
+    if (v.isInt()) return (int)v.asInt();
+    if (v.isFloat()) return (int)v.asFloat();
+    return 0;
+}
+
+static double mu_getNum(const Value& v) {
+    if (v.isInt()) return (double)v.asInt();
+    if (v.isFloat()) return v.asFloat();
+    return 0.0;
+}
 // ═══════════════════════════════════════════════════════════════════
 
 } // namespace cplang

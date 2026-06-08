@@ -1,4 +1,7 @@
 // CP语言编译器
+#define NOMINMAX
+#undef min
+#undef max
 #include <iostream>
 #include <fstream>
 #include "core/verbose.hpp"
@@ -24,7 +27,7 @@
 using namespace cplang;
 
 void printUsage(const char* program) {
-    std::cout << "CP语言编译器 v1.0.0\n\n";
+    std::cout << "CP语言编译器 v0.2.0-beta\n\n";
     std::cout << "用法: " << program << " [选项] <文件>\n\n";
     std::cout << "选项:\n";
     std::cout << "  -l, --lex      仅词法分析\n";

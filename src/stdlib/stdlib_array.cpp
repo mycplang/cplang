@@ -12,21 +12,51 @@ void StdLib::registerArray(VM* vm) {
     registerAlias(vm, "追加", "push");
     registerFunction(vm, "pop", array::pop);
     registerAlias(vm, "弹出", "pop");
+    registerFunction(vm, "shift", array::shift);
+    registerAlias(vm, "头出", "shift");
+    registerFunction(vm, "unshift", array::unshift);
+    registerAlias(vm, "头插", "unshift");
     registerFunction(vm, "insert", array::insert);
     registerAlias(vm, "插入", "insert");
     registerFunction(vm, "remove", array::remove);
+    registerAlias(vm, "删除", "remove");
     registerAlias(vm, "移除", "remove");
     registerFunction(vm, "slice", array::slice);
-    registerFunction(vm, "reverse", array::reverse);
-    registerFunction(vm, "sort", array::sort);
-    registerFunction(vm, "indexOf", array::indexOf);
-    
-    // 中文别名
-    registerAlias(vm, "追加", "push");
-    registerAlias(vm, "弹出", "pop");
-    registerAlias(vm, "插入", "insert");
-    registerAlias(vm, "删除", "remove");
     registerAlias(vm, "切片", "slice");
+    registerFunction(vm, "splice", array::splice);
+    registerAlias(vm, "数组拼接", "splice");
+    registerFunction(vm, "reverse", array::reverse);
+    registerAlias(vm, "反转", "reverse");
+    registerFunction(vm, "sort", array::sort);
+    registerAlias(vm, "排序", "sort");
+    registerFunction(vm, "indexOf", array::indexOf);
+    registerAlias(vm, "取索引", "indexOf");
+    registerFunction(vm, "lastIndexOf", array::lastIndexOf);
+    registerAlias(vm, "取最后索引", "lastIndexOf");
+    registerFunction(vm, "map", array::map);
+    registerAlias(vm, "映射", "map");
+    registerFunction(vm, "filter", array::filter);
+    registerAlias(vm, "过滤", "filter");
+    registerFunction(vm, "reduce", array::reduce);
+    registerAlias(vm, "累积", "reduce");
+    registerFunction(vm, "includes", array::includes);
+    registerAlias(vm, "包含元素", "includes");
+    registerFunction(vm, "find", array::find);
+    registerAlias(vm, "查找元素", "find");
+    registerFunction(vm, "findIndex", array::findIndex);
+    registerAlias(vm, "查找索引", "findIndex");
+    registerFunction(vm, "fill", array::fill);
+    registerAlias(vm, "填充数组", "fill");
+    registerFunction(vm, "copy", array::copy);
+    registerAlias(vm, "拷贝数组", "copy");
+    registerFunction(vm, "flatten", array::flatten);
+    registerAlias(vm, "展平", "flatten");
+    registerFunction(vm, "unique", array::unique);
+    registerAlias(vm, "去重", "unique");
+    registerFunction(vm, "zip", array::zip);
+    registerAlias(vm, "打包", "zip");
+    registerFunction(vm, "unzip", array::unzip);
+    registerAlias(vm, "解包", "unzip");
 }
 
 Value array::len(std::vector<Value>& args) {
@@ -386,61 +416,6 @@ Value array::zip(std::vector<Value>& args) {
         result->set(static_cast<Int64>(i), makeArrayVal(pair));
     }
     return makeArrayVal(result);
-}
-
-// 注册新增函数
-void StdLib::registerArray(VM* vm) {
-    registerFunction(vm, "arrlen", array::len);
-    registerAlias(vm, "数组长", "arrlen");
-    registerFunction(vm, "push", array::push);
-    registerAlias(vm, "追加", "push");
-    registerFunction(vm, "pop", array::pop);
-    registerAlias(vm, "弹出", "pop");
-    registerFunction(vm, "shift", array::shift);
-    registerAlias(vm, "头出", "shift");
-    registerFunction(vm, "unshift", array::unshift);
-    registerAlias(vm, "头插", "unshift");
-    registerFunction(vm, "insert", array::insert);
-    registerAlias(vm, "插入", "insert");
-    registerFunction(vm, "remove", array::remove);
-    registerAlias(vm, "删除", "remove");
-    registerAlias(vm, "移除", "remove");
-    registerFunction(vm, "slice", array::slice);
-    registerAlias(vm, "切片", "slice");
-    registerFunction(vm, "splice", array::splice);
-    registerAlias(vm, "数组拼接", "splice");
-    registerFunction(vm, "reverse", array::reverse);
-    registerAlias(vm, "反转", "reverse");
-    registerFunction(vm, "sort", array::sort);
-    registerAlias(vm, "排序", "sort");
-    registerFunction(vm, "indexOf", array::indexOf);
-    registerAlias(vm, "取索引", "indexOf");
-    registerFunction(vm, "lastIndexOf", array::lastIndexOf);
-    registerAlias(vm, "取最后索引", "lastIndexOf");
-    registerFunction(vm, "map", array::map);
-    registerAlias(vm, "映射", "map");
-    registerFunction(vm, "filter", array::filter);
-    registerAlias(vm, "过滤", "filter");
-    registerFunction(vm, "reduce", array::reduce);
-    registerAlias(vm, "累积", "reduce");
-    registerFunction(vm, "includes", array::includes);
-    registerAlias(vm, "包含元素", "includes");
-    registerFunction(vm, "find", array::find);
-    registerAlias(vm, "查找元素", "find");
-    registerFunction(vm, "findIndex", array::findIndex);
-    registerAlias(vm, "查找索引", "findIndex");
-    registerFunction(vm, "fill", array::fill);
-    registerAlias(vm, "填充数组", "fill");
-    registerFunction(vm, "copy", array::copy);
-    registerAlias(vm, "拷贝数组", "copy");
-    registerFunction(vm, "flatten", array::flatten);
-    registerAlias(vm, "展平", "flatten");
-    registerFunction(vm, "unique", array::unique);
-    registerAlias(vm, "去重", "unique");
-    registerFunction(vm, "zip", array::zip);
-    registerAlias(vm, "打包", "zip");
-    registerFunction(vm, "unzip", array::unzip);
-    registerAlias(vm, "解包", "unzip");
 }
 
 } // namespace cplang

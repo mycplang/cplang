@@ -1,4 +1,9 @@
 #include "stdlib/stdlib.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <winhttp.h>
 
 namespace cplang {
 

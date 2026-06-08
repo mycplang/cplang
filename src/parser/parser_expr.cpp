@@ -485,7 +485,7 @@ Shared<Expr> Parser::parsePrimary() {
             // (标识符 ...) => 模式
             // 需要扫描到匹配的 )，然后检查后面是否是 =>
             // 简化：检查 peek_ 是否为标识符，且后面有 : 或 , 或 )
-            if (peek2_.type == TokenType::OP_COLON || peek2_.type == TokenType::COMMA || peek2_.type == TokenType::RPAREN) {
+            if (peek2_.type == TokenType::OP_COLON || peek2_.type == TokenType::COMMA) {
                 // 可能为 lambda，扫描到 ) 后检查 =>
                 int parenDepth = 1;
                 size_t lookaheadIdx = 1; // 已跳过 '(' 和 peek_[0]

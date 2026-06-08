@@ -22,6 +22,9 @@ namespace cplang {
 //  #include'd from stdlib.cpp, already inside namespace cplang
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 
