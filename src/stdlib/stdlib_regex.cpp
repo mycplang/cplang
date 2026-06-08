@@ -1,4 +1,5 @@
 #include "stdlib/stdlib.hpp"
+#include <regex>
 
 namespace cplang {
 

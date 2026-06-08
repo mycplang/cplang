@@ -14,6 +14,7 @@
 #include "jit/hybrid_jit.hpp"
 #include "codegen/llvm_codegen.hpp"
 #include "codegen/aot_compiler.hpp"
+#include "debug/debugger.hpp"
 #include "repl/repl.hpp"
 
 #ifdef _WIN32
@@ -334,10 +335,7 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
     // 执行完成后清理调试器
     if (debugServer) { debugServer->stop(); delete debugServer; }
     if (debugger) delete debugger;
-        std::cerr << "执行失败: " << vm->error() << "\n";
-        return false;
-    }
-    
+
     std::cout << "\n执行完成，总指令数: " << vm->totalInstructions() << "\n";
     
     // 如果有热点检测，输出统计（仅 verbose 模式）

@@ -2,6 +2,8 @@
 // 在 Windows 上使用 conio + Console API，在 Linux/macOS 上使用 termios + ANSI
 #pragma once
 
+#include <cstdlib>
+
 #ifdef _WIN32
   #ifndef WIN32_LEAN_AND_MEAN
   #define WIN32_LEAN_AND_MEAN
@@ -116,9 +118,9 @@ inline void console_restore(ConsoleState& state) {
 
 inline void console_clear() {
 #ifdef _WIN32
-    system("cls");
+    std::system("cls");
 #else
-    system("clear");
+    std::system("clear");
 #endif
 }
 

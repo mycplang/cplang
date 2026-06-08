@@ -1,4 +1,6 @@
 #include "stdlib/stdlib.hpp"
+#include <chrono>
+#include <thread>
 
 namespace cplang {
 

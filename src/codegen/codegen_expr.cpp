@@ -34,19 +34,14 @@ int Codegen::compileExpr(Shared<Expr> expr) {
 
     // super / 继承 — 调用父类方法
     if (auto superExpr = std::dynamic_pointer_cast<SuperExpr>(expr)) {
-        // 为参数分配寄存器
         int baseReg = allocReg();
         for (size_t i = 0; i < superExpr->arguments.size(); i++) {
             int argReg = compileExpr(superExpr->arguments[i]);
             emit(OP_MOVE, (UInt8)(baseReg + 1 + (int)i), (UInt8)argReg, 0);
-            freeReg(argReg);
         }
-        // 将 self 作为第一个参数传入
-        emit(OP_MOVE, (UInt8)(baseReg + 1), 0, 0);  // self 在局部变量槽位 0
-        // 通过父类方法名查找函数并调用
-        emit(OP_CALL, (UInt8)baseReg, (UInt8)(baseReg + 1), (UInt8)superExpr->arguments.size());
-        // OP_CALL 后 baseReg 位置会存放返回值
-        freeReg(baseReg + 1);  // 释放参数寄存器
+        // self 在局部变量槽位 0，作为第一个参数
+        emit(OP_MOVE, (UInt8)(baseReg + 1), 0, 0);
+        emit(OP_CALL, (UInt8)baseReg, (UInt8)(baseReg + 1), (UInt8)(superExpr->arguments.size() + 1));
         return baseReg;
     }
 

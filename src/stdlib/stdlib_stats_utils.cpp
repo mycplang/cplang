@@ -1,4 +1,6 @@
 #include "stdlib/stdlib.hpp"
+#include <random>
+#include <algorithm>
 
 namespace cplang {
 

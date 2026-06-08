@@ -850,7 +850,7 @@ Type* SemanticAnalyzer::analyzeExpr(Shared<Expr> expr) {
                     break;
                 }
             }
-            if (!result || result->kind == TypeKind::UNKNOWN) {
+            if (!result || result->kind == BuiltinType::UNKNOWN) {
                 result = Type::unknown();
             }
         }
