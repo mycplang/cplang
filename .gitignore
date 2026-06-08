@@ -8,6 +8,9 @@
 # --- 构建产物 ---
 /build/
 /build_llvm/
+# 第三方构建目录
+/third_party/raylib/build_release/
+/third_party/raylib/build/
 /build_cmake*/
 /build_clang/
 /artifacts/

@@ -12,7 +12,6 @@ namespace cplang {
 
 static inline bool isDigit(char c) { return c >= '0' && c <= '9'; }
 static inline bool isAsciiAlpha(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$'; }
-[[maybe_unused]] static inline bool isAlphaNum(char c) { return isAsciiAlpha(c) || isDigit(c); }
 static inline bool isSpace(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
 
 // UTF-8: check if byte starts a multi-byte sequence (Chinese CJK etc.)
@@ -24,26 +23,6 @@ static inline bool isUtf8Lead(char c) {
 // Is this an identifier-start character? (ASCII letter / _ / $ / UTF-8 lead)
 static inline bool isIdentStart(char c) {
     return isAsciiAlpha(c) || isUtf8Lead(c);
-}
-
-// Is this an identifier-continuation character?
-[[maybe_unused]] static inline bool isIdentCont(char c) {
-    return isAsciiAlpha(c) || isDigit(c) || isUtf8Lead(c);
-}
-
-// Read one full UTF-8 codepoint from src[pos] and append to out; advance pos by byte count.
-// Returns number of bytes consumed (0 if invalid).
-[[maybe_unused]] static int readUtf8Char(const String& src, size_t pos, String& out) {
-    if (pos >= src.size()) return 0;
-    unsigned char b0 = static_cast<unsigned char>(src[pos]);
-    int len = 1;
-    if      (b0 >= 0xF0) len = 4;  // 4-byte
-    else if (b0 >= 0xE0) len = 3;  // 3-byte (Chinese)
-    else if (b0 >= 0xC0) len = 2;  // 2-byte
-    else return 0;                  // ASCII or invalid — not a UTF-8 lead
-    if (pos + len > src.size()) return 0;
-    for (int i = 0; i < len; i++) out += src[pos + i];
-    return len;
 }
 
 // ═══════════════════════════════════════════════════════════════
