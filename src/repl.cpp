@@ -1071,10 +1071,17 @@ std::string ReplEngine::valueDisplay(const Value& v) {
 void ReplEngine::printBanner() {
     std::cout << ANSI_CYAN;
     std::cout << "╔══════════════════════════════════════╗\n";
-    std::cout << "║   CP 语言交互式解释器 v1.0.0        ║\n";
+    std::cout << "║   CP 语言交互式解释器 v0.2.0-beta    ║\n";
     std::cout << "║   输入 %help 查看帮助，%exit 退出   ║\n";
     std::cout << "╚══════════════════════════════════════╝\n\n";
     std::cout << ANSI_RESET;
 }
 
 } // namespace cplang
+
+// standalone REPL 入口
+int main() {
+    cplang::ReplEngine repl(true);
+    repl.run();
+    return 0;
+}
