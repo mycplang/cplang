@@ -4,6 +4,10 @@
 #undef max
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <vector>
+#include <cstdint>
+#include <cstring>
 #include "core/verbose.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
@@ -15,16 +19,100 @@
 #include "jit/jit_compiler.hpp"
 #include "jit/orc_jit.hpp"
 #include "jit/hybrid_jit.hpp"
-#include "codegen/llvm_codegen.hpp"
-#include "codegen/aot_compiler.hpp"
 #include "debug/debugger.hpp"
 #include "repl/repl.hpp"
+#include "platform/platform.hpp"
 
 #ifdef _WIN32
+#include <windows.h>
 #include <urlmon.h>
 #endif
-
 using namespace cplang;
+
+// ═══════════════════════════════════════════════════════════════════
+//  SFX 自解压嵌入 — 将 CP 源码打包进 .exe
+//  格式: [exe内容][源码][魔数16字节][源码长度4字节小端序]
+// ═══════════════════════════════════════════════════════════════════
+
+static const char  EMBED_MAGIC[]   = "\n---CPEMBED---\n";
+static const int   EMBED_MAGIC_LEN = 16;
+
+static std::string getOwnExePath() {
+    return cplang::platform::proc_exe_path();
+}
+
+// 检测自身 .exe 末尾是否包含嵌入的 CP 源码，有则返回源码内容
+static std::string checkEmbeddedSource() {
+    std::string exePath = getOwnExePath();
+    if (exePath.empty()) return "";
+    std::ifstream file(exePath, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) return "";
+    std::streamsize fs = file.tellg();
+    if (fs < EMBED_MAGIC_LEN + 4) return "";
+
+    // 读末尾4字节 → 源码长度 (uint32_t LE)
+    file.seekg(-4, std::ios::end);
+    uint8_t lb[4]; file.read((char*)lb, 4);
+    uint32_t srclen = lb[0] | ((uint32_t)lb[1]<<8) | ((uint32_t)lb[2]<<16) | ((uint32_t)lb[3]<<24);
+    if (srclen == 0 || srclen > 100*1024*1024) return "";
+    size_t hdr = EMBED_MAGIC_LEN + 4;
+    if ((std::streamoff)(hdr + srclen) > fs) return "";
+
+    // 验证魔数
+    file.seekg(-((std::streamoff)hdr), std::ios::end);
+    std::vector<char> mb(EMBED_MAGIC_LEN);
+    file.read(mb.data(), EMBED_MAGIC_LEN);
+    if (std::memcmp(mb.data(), EMBED_MAGIC, EMBED_MAGIC_LEN) != 0) return "";
+
+    // 读源码
+    file.seekg(-((std::streamoff)(hdr + srclen)), std::ios::end);
+    std::vector<char> sb(srclen);
+    file.read(sb.data(), srclen);
+    return std::string(sb.data(), srclen);
+}
+
+// 将 CP 源码打包到独立 .exe
+static bool packSource(const char* srcFile, const char* outFile) {
+    // 读取源码
+    std::ifstream ifs(srcFile, std::ios::binary);
+    if (!ifs.is_open()) {
+        std::cerr << "打包错误: 无法打开源文件 '" << srcFile << "'\n";
+        return false;
+    }
+    std::stringstream ss; ss << ifs.rdbuf();
+    std::string src = ss.str();
+    ifs.close();
+    if (src.empty()) { std::cerr << "打包错误: 源文件为空\n"; return false; }
+    // 去 BOM
+    if (src.size()>=3 && (uint8_t)src[0]==0xEF && (uint8_t)src[1]==0xBB && (uint8_t)src[2]==0xBF)
+        src.erase(0, 3);
+
+    std::cout << "打包: " << srcFile << " -> " << outFile << "\n";
+    std::cout << "  源码: " << src.size() << " 字节\n";
+
+    // 复制自身到目标
+    std::string self = getOwnExePath();
+    if (self.empty()) { std::cerr << "打包错误: 无法获取自身路径\n"; return false; }
+    std::ifstream sself(self, std::ios::binary);
+    std::ofstream out(outFile, std::ios::binary | std::ios::trunc);
+    if (!sself.is_open() || !out.is_open()) {
+        std::cerr << "打包错误: 文件读写失败\n"; return false;
+    }
+    out << sself.rdbuf(); sself.close();
+
+    // 追加：源码 + 魔数 + 长度
+    out.write(src.data(), src.size());
+    out.write(EMBED_MAGIC, EMBED_MAGIC_LEN);
+    uint32_t sl = (uint32_t)src.size();
+    uint8_t lb2[4] = {(uint8_t)sl, (uint8_t)(sl>>8), (uint8_t)(sl>>16), (uint8_t)(sl>>24)};
+    out.write((const char*)lb2, 4);
+    out.close();
+
+    std::cout << "  输出: " << (std::ifstream(outFile,std::ios::binary|std::ios::ate).tellg()/1024) << " KB\n";
+    std::cout << "打包成功!\n";
+    return true;
+}
+
 
 void printUsage(const char* program) {
     std::cout << "CP语言编译器 v0.2.0-beta\n\n";
@@ -36,15 +124,17 @@ void printUsage(const char* program) {
     std::cout << "  -c --hotspot   字节码 VM + 热点 JIT\n";
     std::cout << "       --hotspot-threshold=N  热点阈值 (默认 100)\n";
     std::cout << "  -j, --jit      完整编译并执行（JIT 模式）\n";
-    std::cout << "  -a, --aot      AOT 编译为原生可执行文件\n";
-    std::cout << "  -o <file>      指定输出文件（配合 --aot/--emit-llvm 使用）\n";
+    std::cout << "  -k, --pack     打包 CP 源码为独立 .exe（嵌入 VM）\n";
+    std::cout << "  -o <file>      指定输出文件（配合 --pack 使用）\n";
     std::cout << "  -O0/-O1/-O2/-O3 优化级别\n";
     std::cout << "  --no-bytecode-opt 禁用字节码优化\n";
-    std::cout << "  --emit-llvm    输出 LLVM IR（无 -o 时输出到 output.ll）\n";
     std::cout << "  -v, --verbose  详细输出（优化统计等调试信息）\n";
     std::cout << "  -r, --repl     交互式编程环境（REPL）\n";
     std::cout << "  --debug-server <port> 启动调试服务器（TCP），等待 IDE 连接\n";
     std::cout << "  -h, --help     显示帮助信息\n";
+    std::cout << "\n打包示例:\n";
+    std::cout << "  cplang -k 图书管理.cp -o 图书管理.exe\n";
+    std::cout << "  图书管理.exe          # 直接运行，无需安装 cplang\n";
 }
 
 bool readFile(const char* filename, String& content) {
@@ -195,8 +285,8 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
                 }
             }
             if (valid) {
-                std::string importPath = std::string(std::getenv("TEMP") ? std::getenv("TEMP") : "C:/Temp")
-                    + "/_cp_import_" + std::to_string(GetCurrentProcessId()) + ".cp";
+                std::string importPath = cplang::platform::file_temp_dir()
+                    + "/_cp_import_" + std::to_string(cplang::platform::proc_getpid()) + ".cp";
 #ifdef _WIN32
                 // 使用 URLDownloadToFileA（urlmon.dll 无需额外链接，由 Windows 提供）
                 HRESULT hr = URLDownloadToFileA(NULL, moduleName.c_str(), importPath.c_str(), 0, NULL);
@@ -349,44 +439,18 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
     return true;
 }
 
-bool runAOTCompile(const String& source, const char* filepath, const char* outputFile, 
-                   OptLevel optLevel, bool emitLLVM, bool pureMath = false) {
-    std::cout << "AOT 编译中...\n";
-    
-    AOTCompiler compiler;
-    AOTConfig config;
-    config.optLevel = optLevel;
-    config.emitLLVM = emitLLVM;
-    config.pureMath = pureMath;
-    if (outputFile) {
-        config.outputFile = outputFile;
-    } else if (emitLLVM) {
-        config.outputFile.clear(); // --emit-llvm 无 -o 时使用默认文件名
-    }
-    
-    AOTResult result;
-    if (filepath) {
-        result = compiler.compileFile(filepath, config);
-    } else {
-        result = compiler.compileSource(source, config);
-    }
-    
-    if (!result.success) {
-        std::cerr << "AOT 编译失败: " << result.errorMessage << "\n";
-        return false;
-    }
-    
-    if (emitLLVM) {
-        std::cout << "LLVM IR 已输出到: " << result.outputFile << "\n";
-    } else {
-        std::cout << "AOT 编译完成！可执行文件: " << result.outputFile << "\n";
-    }
-    
-    return true;
-}
-
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
+    cplang::platform::console_set_utf8();
+    // ── SFX 检测：无参数时检查自身是否包含嵌入的 CP 源码 ──
+    if (argc <= 1) {
+        std::string embedded = checkEmbeddedSource();
+        if (!embedded.empty()) {
+            std::cout << "[SFX] 检测到嵌入源码 (" << embedded.size() << " 字节)\n\n";
+            // 将自身 exe 路径作为文件路径传递，用于模块导入解析
+            std::string exePath = getOwnExePath();
+            const char* path = exePath.empty() ? "embedded.cp" : exePath.c_str();
+            return runFullCompile(String(embedded), path, false, false, 100, OptLevel::O2, true, 0) ? 0 : 1;
+        }
         printUsage(argv[0]);
         return 1;
     }
@@ -418,20 +482,33 @@ int main(int argc, char* argv[]) {
     String source;
     const char* filename = nullptr;
     bool useHotspot = false;
-    bool useAOT = false;
     bool useBytecodeOpt = true;
     int  hotspotThreshold = 100;
     OptLevel optLevel = OptLevel::O2;
     const char* outputFile = nullptr;
-    bool emitLLVM = false;
-    bool pureMath = false;
     int  debugPort = 0;  // 0 = 禁用调试服务器
     
     // 检查主模式
-    if (mode == "-a" || mode == "--aot") {
-        useAOT = true;
+    // ── 打包模式 ──
+    if (mode == "-k" || mode == "--pack") {
+        const char* pf = nullptr;
+        const char* po = nullptr;
+        for (int i = 2; i < argc; i++) {
+            if (strcmp(argv[i], "-o")==0 && i+1<argc) po = argv[++i];
+            else if (!pf) pf = argv[i];
+        }
+        if (!pf) { std::cerr << "错误: --pack 需要指定源文件\n"; return 1; }
+        if (!po) {
+            static std::string defout;
+            defout = std::string(pf);
+            size_t dot = defout.rfind('.');
+            if (dot != std::string::npos) defout = defout.substr(0, dot);
+            defout += ".exe";
+            po = defout.c_str();
+        }
+        return packSource(pf, po) ? 0 : 1;
     }
-    
+
     // 扫描参数（从第2个开始，跳过模式）
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--hotspot") == 0) {
@@ -450,10 +527,6 @@ int main(int argc, char* argv[]) {
             optLevel = OptLevel::O3;
         } else if (strcmp(argv[i], "-o") == 0 && i+1 < argc) {
             outputFile = argv[++i];
-        } else if (strcmp(argv[i], "--emit-llvm") == 0) {
-            emitLLVM = true;
-        } else if (strcmp(argv[i], "--pure-math") == 0) {
-            pureMath = true;
         } else if (strcmp(argv[i], "--debug-server") == 0 && i+1 < argc) {
             debugPort = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
@@ -479,10 +552,6 @@ int main(int argc, char* argv[]) {
         success = runFullCompile(source, filename, false, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt, debugPort);
     } else if (mode == "-j" || mode == "--jit") {
         success = runFullCompile(source, filename, true, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt, debugPort);
-    } else if (mode == "-a" || mode == "--aot") {
-        success = runAOTCompile(source, filename, outputFile, optLevel, emitLLVM, pureMath);
-    } else if (mode == "--emit-llvm") {
-        success = runAOTCompile(source, filename, outputFile, optLevel, true, pureMath);
     } else {
         std::cerr << "错误: 未知选项 '" << mode << "'\n";
         printUsage(argv[0]);

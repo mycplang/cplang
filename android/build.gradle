@@ -1,0 +1,58 @@
+// CP语言 Android APK — Gradle 构建脚本
+// 用法：将 CP 项目根目录的 android/ 文件夹放入 Android Studio 项目中
+// 或配合 build_apk.sh 脚本自动构建
+
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.cplang.game'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.cplang.game"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_shared",
+                          "-DCPLANG_BUILD_TESTS=OFF",
+                          "-DCPLANG_BUILD_EXAMPLES=OFF"
+                abiFilters "arm64-v8a"
+            }
+        }
+
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+    }
+
+    sourceSets {
+        main {
+            // 将 .cp 源码放入 assets
+            assets.srcDirs = ['../../../examples', '../../../games']
+            manifest.srcFile 'AndroidManifest.xml'
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            // 指向 CP 项目根目录的 CMakeLists.txt
+            path "../../../CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+        debug {
+            debuggable true
+        }
+    }
+}

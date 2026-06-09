@@ -54,6 +54,13 @@ static void* tracked_malloc(size_t sz) {
 // Table magic — 位于 TableData 首字段，用于在 len() 中区分表与字符串
 #define TABLE_MAGIC 0x43504C5441424C45ULL  // "CPLTABLE"
 
+// 归一化 key：NaN-boxed Int32（0xFFFFD0...）转为纯 i64，确保与纯 i64 key 可比较
+static uint64_t normalizeKey(uint64_t key) {
+    if ((key >> 48) == 0xFFFF && (key & 0x0000C00000000000ULL) == 0x0000C00000000000ULL)
+        return (uint64_t)(int64_t)(int32_t)(key & 0xFFFFFFFF);
+    return key;
+}
+
 // 判断是否为 NaN-boxed 非整数（高 16 位 = 0xFFFF，bit 47 = 0 表示指针）
 static int isNanBoxedPtr(uint64_t v) {
     return (v >> 48) == 0xFFFF && (v & BIT47_MASK) == 0;
@@ -82,16 +89,43 @@ static int isTable(uint64_t v) {
     return *(const uint64_t*)ptr == TABLE_MAGIC;
 }
 
+// 判断 NaN-boxed 值是否指向 VMArray（ObjectHeader.typeTag offset 1 = TAG_ARRAY = 1）
+static int isVMArray(uint64_t v) {
+    if (!isNanBoxedPtr(v)) return 0;
+    const uint8_t* bytes = (const uint8_t*)(uintptr_t)(v & PTR_MASK);
+    if (!bytes) return 0;
+    return bytes[1] == 1;  // ObjectHeader.typeTag, TAG_ARRAY = 1
+}
+
+// VMArray 桥接适配函数（在 aot_vm_bridge.cpp 中实现）
+extern "C" {
+    uint64_t aot_vm_array_len(uint64_t raw);
+    uint64_t aot_vm_array_push(uint64_t arr_raw, uint64_t val_raw);
+    uint64_t aot_vm_array_get(uint64_t arr_raw, uint64_t idx_raw);
+    uint64_t aot_vm_array_pop(uint64_t arr_raw);
+    uint64_t aot_vm_array_insert(uint64_t arr_raw, uint64_t idx_raw, uint64_t val_raw);
+}
+
+// 判断是否为 NaN-boxed Int32（bits 48-63=0xFFFF, bit 47=1 立即数, bit 46=1 Int32标签）
+static int isNanBoxedInt32(uint64_t v) {
+    return (v >> 48) == 0xFFFF && (v & 0x0000C00000000000ULL) == 0x0000C00000000000ULL;
+}
+
 // 将 NaN-boxed 值转换为字符串（返回静态缓冲区，不可重入；buf 必须 >= 24 字节）
 static const char* valueToString(uint64_t v, char* buf, size_t bufSize) {
     if (isNanBoxedPtr(v)) {
         const void* ptr = getNanBoxedPtr(v);
         if (ptr && *(const uint64_t*)ptr == TABLE_MAGIC) {
-            // 表/数组：无法直接显示，返回 <table>
             snprintf(buf, bufSize, "<table>");
             return buf;
         }
         return (const char*)ptr;
+    }
+    // NaN-boxed Int32：提取低 32 位作为真实整数
+    if (isNanBoxedInt32(v)) {
+        int32_t val = (int32_t)(v & 0xFFFFFFFF);
+        snprintf(buf, bufSize, "%d", val);
+        return buf;
     }
     snprintf(buf, bufSize, "%lld", (long long)(int64_t)v);
     return buf;
@@ -231,7 +265,8 @@ uint64_t jit_table_get(uint64_t tableVal, uint64_t key) {
     if (tableVal == 0 || key == TABLE_EMPTY) return 0;
     const void* ptr = getNanBoxedPtr(tableVal);
     if (!ptr) return 0;
-    // 安全：先检查 magic 再转型
+    // 归一化 key（NaN-boxed Int32 → 纯 i64）
+    key = normalizeKey(key);
     if (*(const uint64_t*)ptr != TABLE_MAGIC) return 0;
     TableData* tbl = (TableData*)ptr;
     if (!tbl->entries) return 0;
@@ -249,6 +284,8 @@ uint64_t jit_table_set(uint64_t tableVal, uint64_t key, uint64_t value) {
     if (tableVal == 0) return 0;
     if (key == TABLE_EMPTY) return value;
     const void* ptr = getNanBoxedPtr(tableVal);
+    // 归一化 key
+    key = normalizeKey(key);
     if (!ptr || *(const uint64_t*)ptr != TABLE_MAGIC) return 0;
     TableData* tbl = (TableData*)ptr;
     if (!tbl->entries) return 0;
@@ -277,6 +314,7 @@ uint64_t jit_table_set(uint64_t tableVal, uint64_t key, uint64_t value) {
 // len(v)：字符串 → strlen；表/数组 → count；整数 → v 本身
 uint64_t len(uint64_t v) {
     if (!isNanBoxedPtr(v)) return v;                          // 整数
+    if (isVMArray(v)) return aot_vm_array_len(v);             // VMArray
     const void* ptr = getNanBoxedPtr(v);
     if (!ptr) return 0;
     if (*(const uint64_t*)ptr == TABLE_MAGIC)                 // 表
@@ -286,6 +324,7 @@ uint64_t len(uint64_t v) {
 
 uint64_t arrlen(uint64_t v) {
     if (!isNanBoxedPtr(v)) return 0;
+    if (isVMArray(v)) return aot_vm_array_len(v);             // VMArray
     const void* ptr = getNanBoxedPtr(v);
     if (!ptr || *(const uint64_t*)ptr != TABLE_MAGIC) return 0;
     return (uint64_t)((const TableData*)ptr)->count;
@@ -295,7 +334,9 @@ uint64_t arrlen(uint64_t v) {
 
 // push(arr, val) — 追加到末尾
 uint64_t push(uint64_t arr, uint64_t val) {
-    if (!arr || !isTable(arr)) return arr;
+    if (!arr) return arr;
+    if (isVMArray(arr)) return aot_vm_array_push(arr, val);   // VMArray
+    if (!isTable(arr)) return arr;
     TableData* tbl = (TableData*)getNanBoxedPtr(arr);
     jit_table_set(arr, (uint64_t)(int64_t)tbl->count, val);
     return arr;
@@ -303,7 +344,9 @@ uint64_t push(uint64_t arr, uint64_t val) {
 
 // pop(arr) — 移除并返回末尾元素
 uint64_t pop(uint64_t arr) {
-    if (!arr || !isTable(arr)) return 0;
+    if (!arr) return 0;
+    if (isVMArray(arr)) return aot_vm_array_pop(arr);         // VMArray
+    if (!isTable(arr)) return 0;
     TableData* tbl = (TableData*)getNanBoxedPtr(arr);
     if (tbl->count <= 0) return 0;
     int32_t lastKey = tbl->count - 1;
@@ -326,7 +369,9 @@ uint64_t pop(uint64_t arr) {
 
 // insert(arr, idx, val) — 在 idx 处插入，后续元素右移
 uint64_t insert(uint64_t arr, uint64_t idxVal, uint64_t val) {
-    if (!arr || !isTable(arr)) return arr;
+    if (!arr) return arr;
+    if (isVMArray(arr)) return aot_vm_array_insert(arr, idxVal, val);  // VMArray
+    if (!isTable(arr)) return arr;
     TableData* tbl = (TableData*)getNanBoxedPtr(arr);
     int32_t idx = (int32_t)(int64_t)idxVal;
     if (idx < 0) idx = 0;
@@ -688,4 +733,19 @@ uint64_t writef(uint64_t* args, int32_t count) {
     return 1;
 }
 
+// jitTryCallDispatch 桩 — AOT 模式不使用 JIT dispatch，返回 false
+// VM 执行循环（vm_exec.cpp）在 CPLANG_HAS_LLVM 下引用此符号
+// 需要 C++ 链接以匹配 vm_exec.cpp 的 mangled name 引用
+int jitTryCallDispatch(void* vm, void* func, int argc, void* argv, void* result) {
+    (void)vm; (void)func; (void)argc; (void)argv; (void)result;
+    return 0;  // false: 不通过 JIT 执行
+}
+
 } // extern "C"
+
+// C++ 名称空间版本 — 匹配 cplang::jitTryCallDispatch 的 mangled name
+namespace cplang {
+bool jitTryCallDispatch(class VM*, struct VMFunction*, int, class Value*, class Value&) {
+    return false;
+}
+}

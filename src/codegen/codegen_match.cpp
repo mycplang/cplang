@@ -1,29 +1,28 @@
-// 模式匹配编译（独立编译单元）
+﻿// 妯″紡鍖归厤缂栬瘧锛堢嫭绔嬬紪璇戝崟鍏冿級
 #include "codegen/codegen.hpp"
 
 namespace cplang {
 
 void Codegen::compileMatch(Shared<MatchStmt> s) {
-    printf("DEBUG: compileMatch called, cases=%zu\n", s->cases.size());
-    // 编译匹配表达式
+    // 缂栬瘧鍖归厤琛ㄨ揪寮?
     int matchReg = compileExpr(s->expr);
 
     std::vector<int> allEndJumps;
 
-    // 为每个分支生成代码（值比较，与 compileSwitch 相同的策略）
+    // 涓烘瘡涓垎鏀敓鎴愪唬鐮侊紙鍊兼瘮杈冿紝涓?compileSwitch 鐩稿悓鐨勭瓥鐣ワ級
     for (auto& mc : s->cases) {
         int caseValReg;
 
-        // 从语义分析器获取变体信息
+        // 浠庤涔夊垎鏋愬櫒鑾峰彇鍙樹綋淇℃伅
         if (analyzer_) {
             Symbol* sym = analyzer_->lookup(mc.variantName);
             if (sym && sym->kind == Symbol::ENUM_VARIANT) {
-                // 枚举变体：加载其 tag 值作为整数
+                // 鏋氫妇鍙樹綋锛氬姞杞藉叾 tag 鍊间綔涓烘暣鏁?
                 Int64 tag = sym->enumValue;
                 caseValReg = allocReg();
                 emitInt(OP_LOADINT, static_cast<UInt8>(caseValReg), static_cast<Int32>(tag));
             } else {
-                // 非枚举标识符：编译为常规表达式
+                // 闈炴灇涓炬爣璇嗙锛氱紪璇戜负甯歌琛ㄨ揪寮?
                 auto idExpr = Shared<IdentifierExpr>(new IdentifierExpr());
                 idExpr->name = mc.variantName;
                 caseValReg = compileExpr(idExpr);
@@ -34,18 +33,18 @@ void Codegen::compileMatch(Shared<MatchStmt> s) {
             caseValReg = compileExpr(idExpr);
         }
 
-        // 比较 matchReg == caseValReg
+        // 姣旇緝 matchReg == caseValReg
         int cmpReg = allocReg();
         emit(OP_CMPEQ, static_cast<UInt8>(cmpReg),
              static_cast<UInt8>(matchReg), static_cast<UInt8>(caseValReg));
 
-        // 如果不等，跳过此分支体
+        // 濡傛灉涓嶇瓑锛岃烦杩囨鍒嗘敮浣?
         int skipJump = emitJumpPlaceholder(OP_JUMPNIF, static_cast<UInt8>(cmpReg));
 
-        // 推送绑定作用域
+        // 鎺ㄩ€佺粦瀹氫綔鐢ㄥ煙
         pushScope();
 
-        // 绑定变体字段到局部变量
+        // 缁戝畾鍙樹綋瀛楁鍒板眬閮ㄥ彉閲?
         for (size_t i = 0; i < mc.bindings.size(); i++) {
             int fieldReg = allocReg();
             emit(OP_GETVARIANTFIELD, static_cast<UInt8>(fieldReg),
@@ -54,34 +53,32 @@ void Codegen::compileMatch(Shared<MatchStmt> s) {
             localScopes_.back()[mc.bindings[i]] = lv;
         }
 
-        // 编译分支体
+        // 缂栬瘧鍒嗘敮浣?
         if (mc.body) {
             compileStmt(mc.body);
         }
 
-        // 弹出绑定作用域
+        // 寮瑰嚭缁戝畾浣滅敤鍩?
         popScope();
 
-        // 跳转到匹配结束
+        // 璺宠浆鍒板尮閰嶇粨鏉?
         int endJump = emitJumpPlaceholder(OP_JUMP);
         allEndJumps.push_back(endJump);
 
-        // 修补跳过跳转
+        // 淇ˉ璺宠繃璺宠浆
         patchJump(skipJump, static_cast<int>(code_->size()));
     }
 
-    // 默认分支
+    // 榛樿鍒嗘敮
     if (s->defaultCase) {
         compileStmt(s->defaultCase);
     }
 
-    printf("DEBUG: compileMatch: patching end jumps\n"); fflush(stdout);
-    // 修补所有结束跳转
+    // 淇ˉ鎵€鏈夌粨鏉熻烦杞?
     int endTarget = static_cast<int>(code_->size());
     for (int jmp : allEndJumps) {
         patchJump(jmp, endTarget);
     }
-    printf("DEBUG: compileMatch: done\n"); fflush(stdout);
 }
 
 } // namespace cplang

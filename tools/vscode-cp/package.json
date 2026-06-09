@@ -1,7 +1,7 @@
 {
   "name": "cp-language",
   "displayName": "CP Language Support",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "cplang",
   "description": "CP语言 — 中文编程语言：语法高亮、代码补全、跳转定义、引用查找、重命名、格式化、悬停提示、语义诊断、调试运行",
   "license": "MIT",
@@ -11,7 +11,7 @@
   },
   "engines": {"vscode": "^1.80.0"},
   "categories": ["Programming Languages", "Linters"],
-  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.info"],
+  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.aot", "onCommand:cp.info"],
   "main": "./extension.js",
   "contributes": {
     "languages": [{
@@ -46,6 +46,11 @@
         "description": "编译检查当前 .cp 文件（不运行）"
       },
       {
+        "command": "cp.aot",
+        "title": "CP: AOT 编译为 .exe",
+        "description": "将当前 .cp 文件编译为原生可执行文件"
+      },
+      {
         "command": "cp.info",
         "title": "CP: 查看环境信息",
         "description": "显示 CPLANG_HOME 和编译器路径"
@@ -60,6 +65,11 @@
       {
         "command": "cp.build",
         "key": "ctrl+f7",
+        "when": "editorLangId == cp && editorTextFocus"
+      },
+      {
+        "command": "cp.aot",
+        "key": "ctrl+shift+b",
         "when": "editorLangId == cp && editorTextFocus"
       }
     ],
@@ -80,6 +90,11 @@
         {
           "command": "cp.build",
           "group": "cp@2",
+          "when": "editorLangId == cp"
+        },
+        {
+          "command": "cp.aot",
+          "group": "cp@3",
           "when": "editorLangId == cp"
         }
       ]

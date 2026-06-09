@@ -84,7 +84,7 @@ if ($hasLLVM) {
 # ─── 编译器选项 ──────────────────────────────────────────────────
 $clOpts = "/utf-8 /std:c++17 /EHsc /W3 /O1 /MD /wd4244"
 $clInc = '/I"include" /I"third_party\raylib\src" /I"third_party\raylib\src\external\glfw\include" /I"third_party\imgui"'
-$clDef = '/D_CRT_SECURE_NO_WARNINGS /DNDEBUG /DMINIZ_NO_ARCHIVE_APIS /DGRAPHICS_API_OPENGL_33 /DPLATFORM_DESKTOP /DNO_FONT_AWESOME'
+$clDef = '/D_CRT_SECURE_NO_WARNINGS /DNDEBUG /DMINIZ_NO_ARCHIVE_APIS /DGRAPHICS_API_OPENGL_21 /DPLATFORM_DESKTOP /DNO_FONT_AWESOME'
 
 if ($hasLLVM) {
     $clInc += ' /I"', $llvmInc, '"' -join ''
@@ -121,7 +121,7 @@ $srcs += "third_party\imgui\imgui.cpp", "third_party\imgui\imgui_draw.cpp", "thi
 
 # ─── 链接选项 ──────────────────────────────────────────────────
 $sysLibs = "Shell32.lib Winhttp.lib Ws2_32.lib Cabinet.lib opengl32.lib gdi32.lib winmm.lib ole32.lib comctl32.lib user32.lib urlmon.lib"
-$raylibLib = "third_party\raylib\build_release\raylib\Release\raylib.lib"
+$raylibLib = "third_party\raylib\build_release\raylib\raylib.lib"
 $linkFlags = "/FORCE:MULTIPLE /ignore:4006 /ignore:4088"
 if ($hasLLVM) {
     $linkFlags += " /LIBPATH:`"$llvmLibDir`""
@@ -154,17 +154,41 @@ if ($hasLLVM) {
 # ─── 构建 JIT 运行时（用于 AOT 链接器） ──────────────────────────
 if ($hasLLVM) {
     Write-Host "[Building jit_runtime standalone for AOT linker...]" -ForegroundColor Cyan
-    $jitCmd = "cl /c /EHsc /std:c++17 /O2 /nologo /utf-8 /I`"include`" `"src\jit\jit_runtime_standalone.cpp`" /Fo:build\jit_runtime_standalone.obj"
+    $aotClOpts = "/c /EHsc /std:c++17 /O2 /nologo /utf-8 /MT /I`"include`""
+    $jitCmd = "cl $aotClOpts `"src\jit\jit_runtime_standalone.cpp`" /Fo:build\jit_runtime_standalone.obj"
     Invoke-Expression $jitCmd 2>$null
     if (Test-Path "build\jit_runtime_standalone.obj") {
         & lib /OUT:build\jit_runtime.lib build\jit_runtime_standalone.obj 2>$null
         Write-Host "[Created build\jit_runtime.lib]" -ForegroundColor Green
     }
+
+    Write-Host "[Building aot_vm_bridge for AOT linker...]" -ForegroundColor Cyan
+    $bridgeCmd = "cl $aotClOpts `"src\aot\aot_vm_bridge.cpp`" /Fo:build\aot_vm_bridge.obj"
+    Invoke-Expression $bridgeCmd 2>$null
+    if (Test-Path "build\aot_vm_bridge.obj") {
+        Write-Host "[Created build\aot_vm_bridge.obj]" -ForegroundColor Green
+    }
+}
+
+# ─── 部署 AOT 支持文件到 exe 同目录 ────────────────────────────────
+if ($hasLLVM) {
+    Write-Host "[Deploying AOT support files...]" -ForegroundColor Cyan
+    # 从 build_msvc\bin\ 复制预编译的 stdlib 静态库
+    foreach ($lib in @("cplang_aot.lib", "cplang_graphics.lib", "raylib.lib")) {
+        $src = "build_msvc\bin\$lib"
+        if (Test-Path $src) {
+            Copy-Item $src build\ -Force
+            Write-Host "  Copied $lib" -ForegroundColor Gray
+        }
+    }
+    # jit_runtime.lib 和 aot_vm_bridge.obj 已在本脚本中编译到 build\
 }
 
 # ─── 清理中间文件 ────────────────────────────────────────────────
 Write-Host "[Cleaning intermediates...]" -ForegroundColor Yellow
-Remove-Item -Path "build\*.obj", "build\*.exp" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "build\*.exp" -Force -ErrorAction SilentlyContinue
+# 保留 AOT 链接所需的 obj 文件
+Get-ChildItem "build\*.obj" -Exclude "aot_vm_bridge.obj" -ErrorAction SilentlyContinue | Remove-Item -Force
 
 Write-Host "[Done]" -ForegroundColor Green
 exit 0

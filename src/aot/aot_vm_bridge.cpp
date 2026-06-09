@@ -12,8 +12,22 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstdarg>
 #include <vector>
 #include <string>
+
+// raylib Color 结构体前向声明（避免包含完整 raylib.h 头文件）
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct AOTColor { unsigned char r, g, b, a; } AOTColor;
+void DrawRectangle(int x, int y, int w, int h, AOTColor color);
+void ClearBackground(AOTColor color);
+void DrawText(const char* text, int x, int y, int fontSize, AOTColor color);
+void jit_cleanup(void);
+#ifdef __cplusplus
+}
+#endif
 
 namespace cplang {
     static VM* g_aot_vm = nullptr;
@@ -23,15 +37,74 @@ namespace cplang {
     //   字符串 → 指向 char[] 的 NaN-boxed 指针
     //   表    → 指向 TableData 的 NaN-boxed 指针
     // 通过检查 TABLE_MAGIC 区分表和字符串
+        // TableData 结构（与 jit_runtime_standalone.cpp 保持一致）
+    static constexpr uint64_t kTableMagic = 0x43504C5441424C45ULL; // "CPLTABLE"
+    static constexpr uint64_t kTableEmpty = 0x8000000000000001ULL;
+    struct TableEntry { uint64_t key; uint64_t value; };
+    struct TableData { uint64_t magic; TableEntry* entries; int32_t count; int32_t capacity; };
+
+    static Value aot_table_to_vmtable(VM* vm, const TableData* td);
+
+    // 将 AOT 侧的 uint64_t 值转为 VM Value
+    static Value toVMValue(VM* vm, uint64_t raw) {
+        if ((raw >> 48) == 0xFFFF && !(raw & 0x0000800000000000ULL)) {
+            const void* p = reinterpret_cast<const void*>(raw & 0x0000FFFFFFFFFFFFULL);
+            if (!p) return Value::nil();
+
+            // 通过 ObjectHeader.typeTag 判断指针指向的是哪种对象
+            // VMObject: typeTag 在 0..30 范围内 (TAG_STRING=0, TAG_ARRAY=1, ...)
+            // AOT TableData: 首 8 字节 = kTableMagic (0x43504C5441424C45)
+            // C 字符串: 前几个字节是可打印 ASCII
+            const uint8_t* bytes = static_cast<const uint8_t*>(p);
+            uint8_t typeTag = bytes[1];  // ObjectHeader.typeTag 偏移量
+
+            if (typeTag <= 30) {
+                // 已经是有效的 VM 对象指针，直接透传
+                return Value(raw);
+            }
+            if (*(const uint64_t*)p == kTableMagic) {
+                // AOT 侧分配的 TableData → 转换为 VMTable
+                return aot_table_to_vmtable(vm, static_cast<const TableData*>(p));
+            }
+            // C 字符串 → 通过 VM intern 创建 VMString
+            const char* s = static_cast<const char*>(p);
+            VMString* vs = vm->internString(s, (uint32_t)std::strlen(s));
+            return Value::Ptr(reinterpret_cast<VMObject*>(vs));
+        }
+        // 整数 / 非指针值：从 int32 内联读取
+        return Value::fromInt32((int32_t)(int64_t)raw);
+    }
+
+    // 将 TableData 转换为 VMTable
+    static Value aot_table_to_vmtable(VM* vm, const TableData* td) {
+        VMTable* tbl = VMTable::create();
+        vm->trackGC(reinterpret_cast<VMObject*>(tbl));  // GC 跟踪
+        for (int32_t i = 0; i < td->capacity; i++) {
+            if (td->entries[i].key == kTableEmpty) continue;
+            Value keyVal = toVMValue(vm, td->entries[i].key);
+            Value valVal = toVMValue(vm, td->entries[i].value);
+            tbl->set(keyVal, valVal);
+        }
+        return Value::Ptr(static_cast<VMObject*>(tbl));
+    }
+
     static Value aot_ptr_to_value(VM* vm, uint64_t v) {
         const void* ptr = reinterpret_cast<const void*>(v & 0x0000FFFFFFFFFFFFULL);
         if (!ptr) return Value::nil();
-        // 检查是否是表（TableData 首字段为 TABLE_MAGIC）
-        if (*(const uint64_t*)ptr == 0x43504C5441424C45ULL) {  // "CPLTABLE"
-            // 表指针：直接返回 NaN-boxed 指针值（VM 可识别）
+
+        // 通过 ObjectHeader.typeTag 判断指针类型
+        const uint8_t* bytes = static_cast<const uint8_t*>(ptr);
+        uint8_t typeTag = bytes[1];  // ObjectHeader.typeTag 偏移量
+
+        if (typeTag <= 30) {
+            // 已经是有效的 VM 对象指针（VMArray/VMString/VMTable 等），直接透传
             return Value(v);
         }
-        // 字符串：通过 VM intern 创建 VMString
+        // 检查是否是 AOT TableData（首 8 字节为 TABLE_MAGIC）
+        if (*(const uint64_t*)ptr == 0x43504C5441424C45ULL) {  // "CPLTABLE"
+            return aot_table_to_vmtable(vm, static_cast<const TableData*>(ptr));
+        }
+        // C 字符串：通过 VM intern 创建 VMString
         const char* s = static_cast<const char*>(ptr);
         uint32_t len = static_cast<uint32_t>(std::strlen(s));
         VMString* str = vm->internString(s, len);
@@ -51,19 +124,42 @@ namespace cplang {
 
 using namespace cplang;
 
+// ═══ AOT 调试日志 ═══
+static void aot_log(const char* msg) {
+    FILE* f = fopen("aot_debug.log", "a");
+    if (f) { fprintf(f, "[AOT] %s\n", msg); fflush(f); fclose(f); }
+}
+static void aot_logf(const char* fmt, ...) {
+    char buf[4096];
+    va_list ap; va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    aot_log(buf);
+}
+
+static int64_t g_frame_count = 0;
+
 void aot_init_runtime(void) {
-    if (g_aot_vm) return;
+    if (g_aot_vm) { aot_log("init: already initialized"); return; }
+    aot_log("init: creating VM...");
     g_aot_vm = new VM();
-    if (!g_aot_vm) { std::fprintf(stderr, "[AOT] 无法创建 VM\n"); std::abort(); }
+    if (!g_aot_vm) {
+        aot_log("init: FATAL - failed to create VM");
+        std::fprintf(stderr, "[AOT] 无法创建 VM\n");
+        std::abort();
+    }
+    aot_log("init: VM created, registering stdlib...");
     StdLib::registerAll(g_aot_vm);
+    aot_log("init: stdlib registration complete");
 }
 
 uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
-    if (!g_aot_vm) aot_init_runtime();
+    aot_logf("call_native: %s argc=%d", name, argc);
+    if (!g_aot_vm) { aot_log("call_native: VM null, reinitializing..."); aot_init_runtime(); }
 
     // 1. 按名称查找全局 slot
     Int32 slot = g_aot_vm->getGlobalSlot(name);
-    if (slot < 0) return 0;
+    if (slot < 0) { aot_logf("call_native: slot not found for '%s'", name); return 0; }
 
     // 2. 获取全局值 → 验证是原生函数
     Value* gv = g_aot_vm->getGlobalBySlot(static_cast<UInt16>(slot));
@@ -72,16 +168,73 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
     if (!obj || obj->typeTag != ObjectHeader::TAG_NATIVE) return 0;
     VMNativeFunc* nf = static_cast<VMNativeFunc*>(obj);
 
+    // ═══ 直接 raylib 调用绕过（在 stdlib 调用之前，避免 stdlib 崩溃） ═══
+    {
+        bool isRect = (strcmp(name, "drawRectangle") == 0) || (strcmp(name, "\xe7\xbb\x98\xe5\x88\xb6\xe7\x9f\xa9\xe5\xbd\xa2") == 0);
+        bool isBg   = (strcmp(name, "clearBackground") == 0) || (strcmp(name, "\xe6\xb8\x85\xe7\xa9\xba\xe8\x83\x8c\xe6\x99\xaf") == 0);
+        bool isText = (strcmp(name, "drawText") == 0) || (strcmp(name, "\xe7\xbb\x98\xe5\x88\xb6\xe6\x96\x87\xe6\x9c\xac") == 0);
+        if (isRect || isBg || isText) {
+            int colorArgIdx = isBg ? 0 : 4;
+            // 提取颜色表 RGBA
+            if (argc > colorArgIdx && (args[colorArgIdx] >> 48) == 0xFFFF && !(args[colorArgIdx] & 0x0000800000000000ULL)) {
+                const void* colPtr = reinterpret_cast<const void*>(args[colorArgIdx] & 0x0000FFFFFFFFFFFFULL);
+                if (colPtr && *(const uint64_t*)colPtr == kTableMagic) {
+                    auto* td = static_cast<const TableData*>(colPtr);
+                    int r = -1, g = -1, b = -1, a = -1;
+                    for (int32_t ei = 0; ei < td->capacity; ei++) {
+                        if (td->entries[ei].key == kTableEmpty) continue;
+                        uint64_t ek = td->entries[ei].key;
+                        if ((ek >> 48) == 0xFFFF && !(ek & 0x0000800000000000ULL)) {
+                            const char* fname = reinterpret_cast<const char*>(ek & 0x0000FFFFFFFFFFFFULL);
+                            if (fname) {
+                                int64_t fv = static_cast<int64_t>(td->entries[ei].value);
+                                if      (fname[0] == 'r' && fname[1] == '\0') r = (int)fv;
+                                else if (fname[0] == 'g' && fname[1] == '\0') g = (int)fv;
+                                else if (fname[0] == 'b' && fname[1] == '\0') b = (int)fv;
+                                else if (fname[0] == 'a' && fname[1] == '\0') a = (int)fv;
+                            }
+                        }
+                    }
+                    if (r >= 0 && g >= 0 && b >= 0 && a < 0) a = 255;
+                    if (r >= 0 && g >= 0 && b >= 0) {
+                        AOTColor col = {(unsigned char)r, (unsigned char)g, (unsigned char)b, (unsigned char)(a >= 0 ? a : 255)};
+                        if (isRect) {
+                            int x = (int)(int32_t)(int64_t)args[0];
+                            int y = (int)(int32_t)(int64_t)args[1];
+                            int w = (int)(int32_t)(int64_t)args[2];
+                            int h = (int)(int32_t)(int64_t)args[3];
+                            aot_logf("drawRect: DIRECT rgba=(%d,%d,%d,%d) xywh=(%d,%d,%d,%d)", r, g, b, a, x, y, w, h);
+                            DrawRectangle(x, y, w, h, col);
+                        } else if (isBg) {
+                            aot_logf("clearBg: DIRECT rgba=(%d,%d,%d,%d)", r, g, b, a);
+                            ClearBackground(col);
+                        } else if (isText) {
+                            const char* text = "";
+                            if ((args[0] >> 48) == 0xFFFF && !(args[0] & 0x0000800000000000ULL)) {
+                                text = reinterpret_cast<const char*>(args[0] & 0x0000FFFFFFFFFFFFULL);
+                            }
+                            int x = (int)(int32_t)(int64_t)args[1];
+                            int y = (int)(int32_t)(int64_t)args[2];
+                            int fontSize = (int)(int32_t)(int64_t)args[3];
+                            aot_logf("drawText: DIRECT rgba=(%d,%d,%d,%d) text='%s' xy=(%d,%d) size=%d", r, g, b, a, text ? text : "", x, y, fontSize);
+                            DrawText(text ? text : "", x, y, fontSize, col);
+                        }
+                        // 跳过 stdlib 调用
+                        return 0xFFFFD00000000000ULL;
+                    }
+                }
+            }
+            // fallback: 颜色不是 TableData，走 stdlib
+            aot_logf("WARN: %s color not TableData, falling back to stdlib", name);
+        }
+    }
+
     // 3. 构造参数数组
-    //    LLVM codegen 用裸 i64 存整数，VM 用 NaN-boxing 标记值
-    //    非指针值（bits 48-63 ≠ 0xFFFF）→ 创建整数 Value
-    //    指针值（bits 48-63 = 0xFFFF, bit 47 = 0）→ 字符串/表
     std::vector<Value> vm_args(argc);
     for (int32_t i = 0; i < argc; i++) {
         if ((args[i] >> 48) == 0xFFFF && !(args[i] & 0x0000800000000000ULL)) {
             vm_args[i] = aot_ptr_to_value(g_aot_vm, args[i]);
         } else {
-            // LLVM 整数 → VM Int32 Value（NaN-boxing Int32 编码）
             vm_args[i] = Value::fromInt32(static_cast<Int32>(static_cast<int64_t>(args[i])));
         }
     }
@@ -94,6 +247,20 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
 
     // 5. 结果转换
     uint64_t raw = result.raw();
+    if (strcmp(name, "windowShouldClose") == 0 || strcmp(name, "keyPressed") == 0) {
+        aot_logf("retval: %s = %llu  frame:%lld", name, raw, g_frame_count);
+    }
+    if (strcmp(name, "endDrawing") == 0) {
+        g_frame_count++;
+        aot_logf("frame: %lld", g_frame_count);
+        // 注意：此处不调用 jit_cleanup()，因为它会释放格子表等持久数据
+    }
+    // NaN-boxing 的 bool 值（0xFFFF800000000001/2）对 LLVM 是非零=真，必须归一化为 0/1
+    // 注意：此处不依赖 Value::isBool()，直接检查 raw 避免跨编译单元的方法调用问题
+    if (raw == 0xFFFF800000000001ULL || raw == 0xFFFF800000000002ULL) {
+        raw = (raw == 0xFFFF800000000002ULL) ? 1 : 0;
+        aot_logf("converted bool %s -> %llu", name, raw);
+    }
     // 如果结果是字符串指针，返回 AOT 可用的 NaN-boxed 字符串
     if (result.isString()) {
         return value_to_aot_str(result);
@@ -102,8 +269,9 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
 }
 
 int32_t aot_import_module(const char* name) {
-    if (!g_aot_vm) aot_init_runtime();
-    return importModule(g_aot_vm, std::string(name)) ? 0 : 1;
+    // AOT 模式下 import 暂不支持——返回成功但无操作
+    (void)name;
+    return 0;
 }
 
 uint64_t aot_get_global(const char* name) {
@@ -114,6 +282,92 @@ uint64_t aot_get_global(const char* name) {
     if (!val) return 0;
     return val->raw();
 }
+
+// ═══ VMArray 桥接适配（供 jit_runtime_standalone 调用）════
+// jit_runtime_standalone 的 len/push/arrlen 等函数只识别 TableData
+// （首 8 字节 = TABLE_MAGIC），但 LLVM codegen 通过 VM 桥接创建的
+// 数组是 VMArray 对象（ObjectHeader.typeTag = TAG_ARRAY = 1）。
+// 以下函数提供 VMArray 操作的 C 接口，供 standalone 函数路由使用。
+
+static bool aot_is_vm_array(uint64_t raw) {
+    if ((raw >> 48) != 0xFFFF || (raw & 0x0000800000000000ULL)) return false;
+    const void* p = reinterpret_cast<const void*>(raw & 0x0000FFFFFFFFFFFFULL);
+    if (!p) return false;
+    const uint8_t* bytes = static_cast<const uint8_t*>(p);
+    return bytes[1] == 1;  // ObjectHeader.typeTag offset 1, TAG_ARRAY = 1
+}
+
+extern "C" {
+
+uint64_t aot_vm_array_len(uint64_t raw) {
+    if (!g_aot_vm) aot_init_runtime();
+    Value v(raw);
+    if (v.isArray()) {
+        VMArray* arr = v.asArray();
+        if (arr) return static_cast<uint64_t>(arr->length());
+    }
+    return 0;
+}
+
+uint64_t aot_vm_array_push(uint64_t arr_raw, uint64_t val_raw) {
+    if (!g_aot_vm) aot_init_runtime();
+    Value arr(arr_raw);
+    Value val = toVMValue(g_aot_vm, val_raw);
+    if (arr.isArray()) {
+        VMArray* a = arr.asArray();
+        if (a) {
+            a->data.push_back(val);
+            g_aot_vm->trackGC(reinterpret_cast<VMObject*>(a));  // GC 跟踪
+            return arr_raw;
+        }
+    }
+    return arr_raw;
+}
+
+uint64_t aot_vm_array_get(uint64_t arr_raw, uint64_t idx_raw) {
+    if (!g_aot_vm) aot_init_runtime();
+    Value arr(arr_raw);
+    if (arr.isArray()) {
+        VMArray* a = arr.asArray();
+        int64_t idx = static_cast<int64_t>(idx_raw);
+        if (a && idx >= 0 && idx < a->length()) {
+            return a->data[static_cast<size_t>(idx)].raw();
+        }
+    }
+    return 0xFFFF800000000000ULL;  // nil
+}
+
+uint64_t aot_vm_array_pop(uint64_t arr_raw) {
+    if (!g_aot_vm) aot_init_runtime();
+    Value arr(arr_raw);
+    if (arr.isArray()) {
+        VMArray* a = arr.asArray();
+        if (a && !a->data.empty()) {
+            Value v = a->data.back();
+            a->data.pop_back();
+            return v.raw();
+        }
+    }
+    return 0xFFFF800000000000ULL;  // nil
+}
+
+uint64_t aot_vm_array_insert(uint64_t arr_raw, uint64_t idx_raw, uint64_t val_raw) {
+    if (!g_aot_vm) aot_init_runtime();
+    Value arr(arr_raw);
+    Value val = toVMValue(g_aot_vm, val_raw);
+    if (arr.isArray()) {
+        VMArray* a = arr.asArray();
+        int64_t idx = static_cast<int64_t>(idx_raw);
+        if (a && idx >= 0 && idx <= a->length()) {
+            a->data.insert(a->data.begin() + static_cast<size_t>(idx), val);
+            g_aot_vm->trackGC(reinterpret_cast<VMObject*>(a));
+            return arr_raw;
+        }
+    }
+    return arr_raw;
+}
+
+}  // extern "C"
 
 // ═══ JIT 运行时函数桩 (AOT 模式下使用) ═══
 // 这些函数在 JIT 模式中由 jit_runtime.cpp 提供，但 AOT 链接时
@@ -133,6 +387,10 @@ uint64_t jit_len(uint64_t raw) {
         VMTable* t = v.asTable();
         if (t) return static_cast<uint64_t>(t->size());
     }
+    if (v.isArray()) {
+        VMArray* a = v.asArray();
+        if (a) return static_cast<uint64_t>(a->length());
+    }
     if ((raw >> 48) == 0xFFFF && !(raw & 0x0000800000000000ULL)) {
         const char* str = reinterpret_cast<const char*>(raw & 0x0000FFFFFFFFFFFFULL);
         if (str) return static_cast<uint64_t>(std::strlen(str));
@@ -144,9 +402,17 @@ uint64_t jit_toString(uint64_t raw) {
     using namespace cplang;
     if (!g_aot_vm) aot_init_runtime();
     if ((raw >> 48) == 0xFFFF && !(raw & 0x0000800000000000ULL)) return raw;
-    std::string s = std::to_string(static_cast<int64_t>(raw));
-    VMString* str = g_aot_vm->internString(s.c_str(), static_cast<uint32_t>(s.size()));
-    return 0xFFFF000000000000ULL | (reinterpret_cast<uint64_t>(str->data) & 0x0000FFFFFFFFFFFFULL);
+    uint64_t s_val = raw;
+    if ((raw >> 48) == 0xFFFF && (raw & 0x0000C00000000000ULL) == 0x0000C00000000000ULL) {
+        s_val = static_cast<uint64_t>(static_cast<int64_t>(static_cast<int32_t>(raw & 0xFFFFFFFF)));
+    }
+    // 静态循环缓冲区（零内存分配，无 GC 风险）
+    static char buf[16][24];
+    static int slot = 0;
+    slot = (slot + 1) % 16;
+    std::snprintf(buf[slot], 24, "%lld", static_cast<long long>(static_cast<int64_t>(s_val)));
+    buf[slot][23] = '\0';
+    return 0xFFFF000000000000ULL | (reinterpret_cast<uint64_t>(buf[slot]) & 0x0000FFFFFFFFFFFFULL);
 }
 
 void jit_setVM(void*) { /* AOT: no-op */ }

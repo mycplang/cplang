@@ -21,15 +21,21 @@
 # 搜索路径列表
 # ============================================================
 set(LLVM_SEARCH_PATHS
-    "C:/Program Files/LLVM"
-    "C:/Program Files (x86)/LLVM"
-    "C:/LLVM"
-    "D:/LLVM"
     "$ENV{USERPROFILE}/LLVM"
     "$ENV{HOME}/llvm-dev"
     "C:/CPLANG/llvm-dev"
     "C:/cplang/llvm-dev"
 )
+
+if(WIN32)
+    list(APPEND LLVM_SEARCH_PATHS
+        "C:/Program Files/LLVM"
+        "C:/Program Files (x86)/LLVM"
+        "C:/LLVM"
+    )
+else()
+    list(APPEND LLVM_SEARCH_PATHS /usr/lib/llvm-18 /usr/lib/llvm-17 /usr/lib/llvm)
+endif()
 
 if(DEFINED ENV{LLVM_DIR})
     list(INSERT LLVM_SEARCH_PATHS 0 "$ENV{LLVM_DIR}")
@@ -95,8 +101,14 @@ if(LLVM_CONFIG_EXECUTABLE)
             # 检查是否已有 .lib 后缀（Windows MSVC 会带）
             if(lib MATCHES "\\.lib$")
                 list(APPEND LLVM_LIBRARIES "${LLVM_LIB_DIRS}/${lib}")
+            elseif(lib MATCHES "\\.a$" OR lib MATCHES "\\.so$")
+                list(APPEND LLVM_LIBRARIES "${LLVM_LIB_DIRS}/${lib}")
             else()
-                list(APPEND LLVM_LIBRARIES "${LLVM_LIB_DIRS}/${lib}.lib")
+                if(WIN32)
+                    list(APPEND LLVM_LIBRARIES "${LLVM_LIB_DIRS}/${lib}.lib")
+                else()
+                    list(APPEND LLVM_LIBRARIES "${LLVM_LIB_DIRS}/lib${lib}.a")
+                endif()
             endif()
         endforeach()
     endif()
@@ -147,12 +159,22 @@ if(NOT LLVM_CONFIG_EXECUTABLE)
                     if(LLVM_LIB_DIRS)
                         list(APPEND _converted_libs "${LLVM_LIB_DIRS}/${_target_name}.lib")
                     endif()
+                elseif(_lib MATCHES "\\.a$" OR _lib MATCHES "\\.so$")
+                    list(APPEND _converted_libs "${_lib}")
                 elseif(_lib MATCHES "\\.lib$")
                     list(APPEND _converted_libs "${_lib}")
                 elseif(LLVM_LIB_DIRS)
-                    list(APPEND _converted_libs "${LLVM_LIB_DIRS}/${_lib}.lib")
+                    if(WIN32)
+                        list(APPEND _converted_libs "${LLVM_LIB_DIRS}/${_lib}.lib")
+                    else()
+                        list(APPEND _converted_libs "${LLVM_LIB_DIRS}/lib${_lib}.a")
+                    endif()
                 else()
-                    list(APPEND _converted_libs "${_lib}.lib")
+                    if(WIN32)
+                        list(APPEND _converted_libs "${_lib}.lib")
+                    else()
+                        list(APPEND _converted_libs "lib${_lib}.a")
+                    endif()
                 endif()
             endforeach()
             if(_converted_libs)

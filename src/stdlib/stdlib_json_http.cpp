@@ -1,9 +1,5 @@
 #include "stdlib/stdlib.hpp"
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <winhttp.h>
+#include "platform/platform.hpp"
 
 namespace cplang {
 
@@ -247,6 +243,7 @@ Value jsonValidate(std::vector<Value>& args) {
 // ═══════════════════════════════════════════════════════════════════
 
 void StdLib::registerHTTP(VM* vm) {
+#ifdef _WIN32
     registerFunction(vm, "httpGet", http::httpGet);
     registerFunction(vm, "httpPost", http::httpPost);
     registerFunction(vm, "httpDownload", http::httpDownload);
@@ -254,8 +251,12 @@ void StdLib::registerHTTP(VM* vm) {
     registerAlias(vm, "HTTP获取", "httpGet");
     registerAlias(vm, "HTTP提交", "httpPost");
     registerAlias(vm, "HTTP下载", "httpDownload");
+#else
+    (void)vm;
+#endif
 }
 
+#ifdef _WIN32
 namespace http {
 
 static std::string getStr(const Value& v) {
@@ -353,6 +354,7 @@ Value httpDownload(std::vector<Value>& args) {
     return Value::Bool(file.good());
 }
 } // namespace http
+#endif // _WIN32
 
 // ═══════════════════════════════════════════════════════════════════
 //  矩阵/向量运算实现（基于数组约定）

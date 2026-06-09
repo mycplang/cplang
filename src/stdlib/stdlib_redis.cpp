@@ -6,12 +6,16 @@ namespace cplang {
 //  Redis 客户端（纯 WinSock RESP 协议实现，零外部依赖）
 // ═══════════════════════════════════════════════════════════════════
 
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#endif
+
 #include <string>
 #include <vector>
 #include <cstring>
 
+#ifdef _WIN32
 namespace redis_ns {
 
 // ─── RESP 编码器 ────────────────────────────────────────────────
@@ -276,12 +280,14 @@ Value pipeline_(std::vector<Value>& args) {
 }
 
 } // namespace redis_ns
+#endif // _WIN32
 
 // ═══════════════════════════════════════════════════════════════════
 //  注册函数
 // ═══════════════════════════════════════════════════════════════════
 
 void StdLib::registerRedis(VM* vm) {
+#ifdef _WIN32
     registerFunction(vm, "redisConnect",      redis_ns::connect_);
     registerFunction(vm, "redisCommand",      redis_ns::command_);
     registerFunction(vm, "redisPipeline",     redis_ns::pipeline_);
@@ -294,6 +300,9 @@ void StdLib::registerRedis(VM* vm) {
     registerAlias(vm, "Redis关闭",            "redisClose");
     registerAlias(vm, "Redis是否打开",        "redisIsOpen");
     registerAlias(vm, "Redis错误",            "redisErrMsg");
+#else
+    (void)vm;
+#endif
 }
 
 } // namespace cplang

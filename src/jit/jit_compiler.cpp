@@ -38,12 +38,20 @@ using namespace std::chrono;
 static std::string execCmd(const char* cmd) {
     char buffer[128];
     std::string result;
+#ifdef _WIN32
     FILE* pipe = _popen(cmd, "r");
+#else
+    FILE* pipe = popen(cmd, "r");
+#endif
     if (!pipe) return "";
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
         result += buffer;
     }
+#ifdef _WIN32
     _pclose(pipe);
+#else
+    pclose(pipe);
+#endif
     return result;
 }
 
@@ -259,19 +267,31 @@ void* JITCompiler::compile(VMFunction* func) {
         return nullptr;
     }
 
-    // 加载 DLL
+    // 加载动态库
+#ifdef _WIN32
     void* dll = LoadLibraryA(dllFile.c_str());
+#else
+    void* dll = dlopen(dllFile.c_str(), RTLD_LAZY);
+#endif
     if (!dll) {
-        std::cout << "[JIT] 错误: 无法加载 DLL: " << dllFile << "\n";
+        std::cout << "[JIT] 错误: 无法加载库: " << dllFile << "\n";
         stats_.failedCompiles++;
         return nullptr;
     }
 
     // 获取函数指针
+#ifdef _WIN32
     void* funcPtr = (void*)GetProcAddress((HMODULE)dll, funcName.c_str());
+#else
+    void* funcPtr = dlsym(dll, funcName.c_str());
+#endif
     if (!funcPtr) {
         std::cout << "[JIT] 错误: 无法获取函数地址\n";
+#ifdef _WIN32
         FreeLibrary((HMODULE)dll);
+#else
+        dlclose(dll);
+#endif
         stats_.failedCompiles++;
         return nullptr;
     }
@@ -407,9 +427,14 @@ void* JITCompiler::compileFromAST(Shared<Program> program, const String& funcNam
         return nullptr;
     }
 
-    // 编译到 DLL (使用 lld-link)
+    // 编译到 DLL/so (使用 lld)
+#ifdef _WIN32
     std::string linkCmd = "\"" + llvmDir_ + "/bin/lld-link.exe\" \"" + objFile + "\""
         + " /DLL /OUT:\"" + dllFile + "\" /SUBSYSTEM:WINDOWS /NOENTRY";
+#else
+    std::string linkCmd = "\"" + llvmDir_ + "/bin/ld.lld\" \"" + objFile + "\""
+        + " -shared -o \"" + dllFile + "\"";
+#endif
     execCmd(linkCmd.c_str());
 
     if (!fileExists(dllFile)) {
@@ -418,19 +443,31 @@ void* JITCompiler::compileFromAST(Shared<Program> program, const String& funcNam
         return nullptr;
     }
 
-    // 加载 DLL
+    // 加载动态库
+#ifdef _WIN32
     void* dll = LoadLibraryA(dllFile.c_str());
+#else
+    void* dll = dlopen(dllFile.c_str(), RTLD_LAZY);
+#endif
     if (!dll) {
-        std::cout << "[JIT] 错误: 无法加载 DLL\n";
+        std::cout << "[JIT] 错误: 无法加载库\n";
         stats_.failedCompiles++;
         return nullptr;
     }
 
     // 获取函数指针
+#ifdef _WIN32
     void* funcPtr = (void*)GetProcAddress((HMODULE)dll, funcName.c_str());
+#else
+    void* funcPtr = dlsym(dll, funcName.c_str());
+#endif
     if (!funcPtr) {
         std::cout << "[JIT] 错误: 无法获取函数地址\n";
+#ifdef _WIN32
         FreeLibrary((HMODULE)dll);
+#else
+        dlclose(dll);
+#endif
         stats_.failedCompiles++;
         return nullptr;
     }

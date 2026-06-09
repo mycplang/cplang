@@ -117,6 +117,12 @@ uint64_t jit_len(uint64_t raw) {
         const void* ptr = reinterpret_cast<const void*>(raw & 0x0000FFFFFFFFFFFFULL);
         if (!ptr) return 0;
         uint64_t first8 = *(const uint64_t*)ptr;
+        // AOT TableData (LLVM codegen 用 jit_table_create 创建的空数组)
+        if (first8 == 0x43504C5441424C45ULL) {  // TABLE_MAGIC "CPLTABLE"
+            struct { uint64_t magic; void* entries; int32_t count; int32_t capacity; } td;
+            std::memcpy(&td, ptr, sizeof(td));
+            return static_cast<uint64_t>(td.count);
+        }
         if ((first8 >> 40) == 0x7F) { // vtable → VM 对象
             auto* obj = reinterpret_cast<const VMObject*>(ptr);
             if (obj->typeTag == ObjectHeader::TAG_STRING) {
@@ -124,6 +130,9 @@ uint64_t jit_len(uint64_t raw) {
             }
             if (obj->typeTag == ObjectHeader::TAG_TABLE) {
                 return static_cast<uint64_t>(((VMTable*)obj)->size());
+            }
+            if (obj->typeTag == ObjectHeader::TAG_ARRAY) {
+                return static_cast<uint64_t>(((VMArray*)obj)->length());
             }
         }
     }

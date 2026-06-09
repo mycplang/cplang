@@ -146,7 +146,10 @@ AOTResult AOTCompiler::compileAST(Shared<Program> ast, const AOTConfig& config) 
 bool AOTCompiler::generateLLVMIR(Shared<Program> ast, String& ir, const AOTConfig& config) {
     try {
         LLVMCodegen codegen;
-        codegen.setOptLevel(config.optLevel);
+        // AOT 模式不允许 LLVM 优化器折叠 NaN-boxing 编码中的算术
+        // 由于 NaN-boxed 值使用 trunc→op→zext→box 序列，
+        // LLVM 可能将 trunc(zext(x)) 优化回原始 NaN-boxed 值，使算术直接作用在带标签的 i64 上
+        codegen.setOptLevel(OptLevel::None);
         codegen.setSkipNativeCallRemoval(true);
         if (config.pureMath) {
             codegen.setPureMath(true);
@@ -232,6 +235,12 @@ static String findLLVMTool(const String& tool, const AOTConfig& config) {
     // 检查 ..\llvm-dev\bin\ 
     String candidate = ownDir + "\\..\\llvm-dev\\bin\\" + tool;
     std::ifstream test(candidate.c_str());
+    if (test.good()) { test.close(); return candidate; }
+    test.close();
+    
+    // 检查 exe 同级目录（集中部署方式：所有工具放一起）
+    candidate = ownDir + "\\" + tool;
+    test.open(candidate.c_str());
     if (test.good()) { test.close(); return candidate; }
     test.close();
     
@@ -408,12 +417,14 @@ bool AOTCompiler::compileIRToObject(const String& ir, const String& objFile, con
     
     // 步骤 3：构建并执行 llc 命令
     std::string cmd = "\"" + llcExe + "\" -filetype=obj";
-    switch (config.optLevel) {
-        case OptLevel::None: cmd += " -O0"; break;
-        case OptLevel::O1: cmd += " -O1"; break;
-        case OptLevel::O2: cmd += " -O2"; break;
-        case OptLevel::O3: cmd += " -O3"; break;
-    }
+    // AOT 模式强制 -O0（防止 NaN-boxing 算术被优化器破坏）
+    cmd += " -O0";
+    // switch (config.optLevel) {
+    //     case OptLevel::None: cmd += " -O0"; break;
+    //     case OptLevel::O1: cmd += " -O1"; break;
+    //     case OptLevel::O2: cmd += " -O2"; break;
+    //     case OptLevel::O3: cmd += " -O3"; break;
+    // }
     cmd += " \"" + irFile + "\" -o \"" + objFile + "\"";
     
     if (!runTool(cmd)) {
@@ -504,12 +515,12 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
         }
         
         // 3a. 自动选择运行时库（检测是否需要图形支持）
-        String cplangLib = ownDir + (graphicsNeeded_ ? "\\cplang_graphics.lib" : "\\cplang_full.lib");
+        String cplangLib = ownDir + (graphicsNeeded_ ? "\\cplang_graphics.lib" : "\\cplang_aot.lib");
         std::ifstream testCplang(cplangLib);
         if (testCplang.good()) {
             testCplang.close();
+            // 裸路径 + 带内层引号的 /WHOLEARCHIVE（循环中统一加外层引号，/WHOLEARCHIVE 自身已含引号）
             allObjs.push_back(cplangLib);
-            // /WHOLEARCHIVE 强制提取全部 .obj 解决循环引用
             allObjs.push_back(String("/WHOLEARCHIVE:\"") + cplangLib + String("\""));
         } else {
             std::cerr << "[AOT] 警告: 未找到 " << cplangLib << "，stdlib 桥接将不可用\n";
@@ -518,10 +529,10 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
         
         // 3c. 链接所有 LLVM lib（自动扫描目录）
         {
-            String llvmDir = ownDir + "\\..\\llvm-dev\\lib";
+            String llvmDir = ownDir + "\\..\\..\\llvm-dev\\lib";
             String testFile = llvmDir + "\\LLVMCore.lib";
             std::ifstream tf(testFile.c_str());
-            if (tf.good()) {
+            if (tf.good()) { /* AOT: scan LLVM libs for codegen symbols */
                 tf.close();
 #ifdef _WIN32
                 // 扫描 LLVM lib 目录，添加所有 .lib 文件
@@ -550,6 +561,8 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
         }
     }
     
+
+    
     // 4. 选择链接器
     // 纯数学模式：无需 CRT → 用 lld-link（轻量，仅链接 LLVM .obj）
     // 非纯数学模式：需要 MSVC CRT → 用 link.exe（处理 MSVC 运行时内部符号）
@@ -573,15 +586,40 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
     // 5. 构建链接命令
     std::string cmd = "\"" + linker + "\" ";
     for (auto& obj : allObjs) {
-        cmd += "\"" + obj + "\" ";
+        // /WHOLEARCHIVE: 自身已含内层引号，不加外层；其余路径统一加引号应对空格
+        if (obj.compare(0, 14, "/WHOLEARCHIVE:") == 0) {
+            cmd += obj + " ";
+        } else {
+            cmd += "\"" + obj + "\" ";
+        }
     }
     cmd += "/subsystem:console /nologo /out:\"" + exeFile + "\"";
-    // 允许 CRT 不匹配（LLVM lib 与本地 MSVC 版本不同）
-    cmd += " /ignore:4098 /ignore:4099 /WX:NO /FORCE:MULTIPLE";
+    // 允许不同 MSVC 版本间的 PDB 不匹配（预编译 lib 使用不同工具链版本）
+    cmd += " /ignore:4098 /ignore:4099";
     cmd += " /merge:.CRT=.rdata";
-    cmd += " msvcrt.lib";
+    // 统一 /MD 动态 CRT：排除 debug CRT，显式指定 release CRT 组件
+    cmd += " /NODEFAULTLIB:msvcrtd.lib /NODEFAULTLIB:libcmtd.lib /NODEFAULTLIB:libcmt.lib";
+    cmd += " msvcrt.lib libvcruntime.lib libucrt.lib";
+    cmd += " /FORCE:MULTIPLE";  // 兜底：忽略残余重复符号
     // 添加系统库（Shell32 / WinHTTP / Winsock / OpenGL 等）
     cmd += " Shell32.lib Winhttp.lib Ws2_32.lib Cabinet.lib opengl32.lib";
+    // raylib.lib（图形支持，来自第三方目录）
+    {
+        char _own[MAX_PATH]; GetModuleFileNameA(NULL, _own, MAX_PATH);
+        String _dir(_own); size_t _p = _dir.find_last_of("\\/");
+        if (_p != String::npos) _dir = _dir.substr(0, _p);
+        // 优先在 exe 同级目录找 raylib.lib（所有 AOT 配套文件集中部署的方式）
+        String rlLib = _dir + "\\raylib.lib";
+        std::ifstream testRl(rlLib);
+        if (!testRl.good()) {
+            testRl.close();
+            // 回退到 build_vs 下的预编译版（旧项目布局兼容）
+            rlLib = _dir + "\\..\\third_party\\raylib\\build_vs\\raylib\\raylib.lib";
+        } else {
+            testRl.close();
+        }
+        cmd += " \"" + rlLib + "\"";
+    }
     cmd += " gdi32.lib winmm.lib ole32.lib comctl32.lib user32.lib urlmon.lib";
     
     // 非纯数学模式：需要 entry:mainCRTStartup 以初始化 C++ 运行时

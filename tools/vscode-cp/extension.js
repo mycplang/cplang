@@ -8,7 +8,32 @@ function getCplangHome() {
 function getCplangCompiler() {
     const home = getCplangHome();
     const exe = process.platform === 'win32' ? 'cplang.exe' : 'cplang';
-    return path.join(home, 'build', exe);
+    // 依次搜索：CPLANG_HOME/bin、CPLANG_HOME/build_msvc/bin、CPLANG_HOME/build、PATH
+    const candidates = [
+        path.join(home, 'bin', exe),                    // NSIS 安装标准路径
+        path.join(home, 'build_msvc', 'bin', exe),      // 开发构建路径
+        path.join(home, 'build', exe),                  // Linux 构建路径
+    ];
+    for (const p of candidates) {
+        try { if (require('fs').statSync(p).isFile()) return p; } catch (_) {}
+    }
+    // 最后尝试 PATH
+    return exe;
+}
+
+function findCompilerNearFile(filePath) {
+    const exe = process.platform === 'win32' ? 'cplang.exe' : 'cplang';
+    // 从文件所在目录向上搜索 build_msvc/bin/cplang.exe
+    let dir = path.dirname(filePath);
+    while (true) {
+        const p = path.join(dir, 'build_msvc', 'bin', exe);
+        try { if (require('fs').statSync(p).isFile()) return p; } catch (_) {}
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+    }
+    // 兜底：旧的查找逻辑
+    return getCplangCompiler();
 }
 
 function activate(context) {
@@ -40,17 +65,22 @@ function activate(context) {
         console.log(`[cplsp] exit: code=${code} signal=${signal}`);
     });
 
-    const { LanguageClient } = require('vscode-languageclient/node');
-    const client = new LanguageClient(
-        'cplsp',
-        'CP Language Server',
-        () => Promise.resolve({ writer: server.stdin, reader: server.stdout }),
-        {
-            documentSelector: [{ scheme: 'file', language: 'cp' }],
-            synchronize: { configurationSection: 'cp' }
-        }
-    );
-    client.start();
+    // LSP 客户端（可选依赖，不阻塞插件启动）
+    try {
+        const { LanguageClient } = require('vscode-languageclient/node');
+        const client = new LanguageClient(
+            'cplsp',
+            'CP Language Server',
+            () => Promise.resolve({ writer: server.stdin, reader: server.stdout }),
+            {
+                documentSelector: [{ scheme: 'file', language: 'cp' }],
+                synchronize: { configurationSection: 'cp' }
+            }
+        );
+        client.start();
+    } catch (e) {
+        console.log('[cp] LSP 客户端未加载（不影响 cp.run 命令）');
+    }
 
     // ---- Helper: get current .cp file ----
     function getActiveCpFile() {
@@ -66,10 +96,10 @@ function activate(context) {
     const runCommand = vscode.commands.registerCommand('cp.run', () => {
         const filePath = getActiveCpFile();
         if (!filePath) return;
-        const compiler = getCplangCompiler();
+        const compiler = findCompilerNearFile(filePath);
         const terminal = vscode.window.createTerminal({ name: 'CP Run', hideFromUser: false });
         terminal.show();
-        terminal.sendText(`"${compiler}" -c "${filePath}"`);
+        terminal.sendText(`& "${compiler}" -c "${filePath}"`);
     });
 
     // ---- Command: compile .cp file (check only) ----
@@ -82,17 +112,35 @@ function activate(context) {
         terminal.sendText(`"${compiler}" -p "${filePath}"`);
     });
 
+    // ---- Command: AOT compile to .exe ----
+    const aotCommand = vscode.commands.registerCommand('cp.aot', () => {
+        const filePath = getActiveCpFile();
+        if (!filePath) return;
+        const compiler = getCplangCompiler();
+        const outPath = filePath.replace(/\.cp$/i, '.exe');
+        const terminal = vscode.window.createTerminal({ name: 'CP AOT', hideFromUser: false });
+        terminal.show();
+        terminal.sendText(`& "${compiler}" -a -o "${outPath}" "${filePath}"`);
+    });
+
     // ---- Command: show environment info ----
     const infoCommand = vscode.commands.registerCommand('cp.info', () => {
         const home = getCplangHome();
         const compiler = getCplangCompiler();
         const exists = require('fs').existsSync(compiler);
+        const dir = __dirname;
+        const exe = process.platform === 'win32' ? 'cplang.exe' : 'cplang';
+        const candidates = [
+            path.join(home, 'bin', exe),
+            path.join(home, 'build_msvc', 'bin', exe),
+            path.join(home, 'build', exe),
+        ];
         vscode.window.showInformationMessage(
-            `CPLANG_HOME = ${home}\ncompiler = ${compiler}\n${exists ? 'OK: compiler found' : 'ERROR: compiler not found'}`
+            `CPLANG_HOME = ${home}\n__dirname = ${dir}\ncompiler = ${compiler}\nexists = ${exists}\n\n候选路径:\n${candidates.join('\n')}`
         );
     });
 
-    context.subscriptions.push(runCommand, buildCommand, infoCommand);
+    context.subscriptions.push(runCommand, buildCommand, aotCommand, infoCommand);
 
     // ---- Cleanup ----
     context.subscriptions.push({

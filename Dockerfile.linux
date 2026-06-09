@@ -1,0 +1,59 @@
+# CP 语言 — Linux 开发容器
+# 用法:
+#   podman build -t cplang-dev -f Dockerfile.linux .
+#   podman run --rm -it -v ${PWD}:/workspace -w /workspace cplang-dev bash
+#   cd /workspace && ./build_linux.sh
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 基础开发工具
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    ninja-build \
+    g++-14 \
+    git \
+    curl \
+    ca-certificates \
+    pkg-config \
+    # LLVM 18 (JIT 支持)
+    llvm-18-dev \
+    clang-18 \
+    libclang-18-dev \
+    lld-18 \
+    # Raylib 图形依赖
+    libglfw3-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    libx11-dev \
+    libxrandr-dev \
+    libxi-dev \
+    libxcursor-dev \
+    libxinerama-dev \
+    libasound2-dev \
+    # POSIX 线程 / DL
+    libpthread-stubs0-dev \
+    # 其他工具
+    vim \
+    gdb \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置默认编译器为 g++-14
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100 \
+    && update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100 \
+    && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+
+# 设置 LLVM_DIR 环境变量
+ENV LLVM_DIR=/usr/lib/llvm-18
+ENV CC=gcc
+ENV CXX=g++
+
+# 创建非 root 用户（可选）
+RUN useradd -m -s /bin/bash cplang || true
+USER cplang
+WORKDIR /home/cplang
+
+CMD ["/bin/bash"]

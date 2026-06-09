@@ -1267,6 +1267,15 @@ llvm::Value* LLVMCodegen::generateExpression(llvm::Function* func, Shared<Expr> 
             bool useFloat = left->getType()->isDoubleTy() || right->getType()->isDoubleTy();
             if (useFloat) {
                 arithRes = builder_->CreateFAdd(toDouble(left), toDouble(right), "fadd");
+            } else if (!pureMath_) {
+                // NaN-boxed Int32: trunc → i32 add → zext → 贴标签
+                auto* i32Ty = llvm::Type::getInt32Ty(*context_);
+                llvm::Value* tag = llvm::ConstantInt::get(*context_, llvm::APInt(64, 0xFFFFD00000000000ULL));
+                llvm::Value* l32 = builder_->CreateTrunc(left, i32Ty, "l32");
+                llvm::Value* r32 = builder_->CreateTrunc(right, i32Ty, "r32");
+                llvm::Value* sum32 = builder_->CreateAdd(l32, r32, "add32");
+                llvm::Value* sum64 = builder_->CreateZExt(sum32, llvm::Type::getInt64Ty(*context_), "zext32");
+                arithRes = builder_->CreateOr(sum64, tag, "box32");
             } else {
                 arithRes = builder_->CreateAdd(left, right, "add");
             }
@@ -1295,32 +1304,103 @@ llvm::Value* LLVMCodegen::generateExpression(llvm::Function* func, Shared<Expr> 
             }
         } else {
             switch (binary->op) {
-                case TokenType::OP_PLUS:  return builder_->CreateAdd(left, right, "add");
-                case TokenType::OP_MINUS: return builder_->CreateSub(left, right, "sub");
-                case TokenType::OP_MUL:   return builder_->CreateMul(left, right, "mul");
-                case TokenType::OP_DIV:   return builder_->CreateSDiv(left, right, "div");
-                case TokenType::OP_MOD:   return builder_->CreateSRem(left, right, "rem");
+                case TokenType::OP_PLUS:
+                case TokenType::OP_MINUS:
+                case TokenType::OP_MUL:
+                case TokenType::OP_DIV:
+                case TokenType::OP_MOD: {
+                    if (!pureMath_) {
+                        // NaN-boxed Int32: trunc → i32 运算 → zext → 贴上 Int32 标签
+                        auto* i32Ty = llvm::Type::getInt32Ty(*context_);
+                        llvm::Value* tag = llvm::ConstantInt::get(*context_, llvm::APInt(64, 0xFFFFD00000000000ULL));
+                        llvm::Value* L = builder_->CreateTrunc(left, i32Ty, "L32");
+                        llvm::Value* R = builder_->CreateTrunc(right, i32Ty, "R32");
+                        llvm::Value* R32 = nullptr;
+                        switch (binary->op) {
+                            case TokenType::OP_PLUS:  R32 = builder_->CreateAdd(L, R, "add32"); break;
+                            case TokenType::OP_MINUS: R32 = builder_->CreateSub(L, R, "sub32"); break;
+                            case TokenType::OP_MUL:   R32 = builder_->CreateMul(L, R, "mul32"); break;
+                            case TokenType::OP_DIV:   R32 = builder_->CreateSDiv(L, R, "div32"); break;
+                            case TokenType::OP_MOD:   R32 = builder_->CreateSRem(L, R, "rem32"); break;
+                            default: return left;
+                        }
+                        llvm::Value* R64 = builder_->CreateZExt(R32, llvm::Type::getInt64Ty(*context_), "Z64");
+                        return builder_->CreateOr(R64, tag, "box32");
+                    }
+                    // pureMath：直接 i64 运算
+                    switch (binary->op) {
+                        case TokenType::OP_PLUS:  return builder_->CreateAdd(left, right, "add");
+                        case TokenType::OP_MINUS: return builder_->CreateSub(left, right, "sub");
+                        case TokenType::OP_MUL:   return builder_->CreateMul(left, right, "mul");
+                        case TokenType::OP_DIV:   return builder_->CreateSDiv(left, right, "div");
+                        case TokenType::OP_MOD:   return builder_->CreateSRem(left, right, "rem");
+                        default: break;
+                    }
+                    break;
+                }
                 case TokenType::OP_EQ: {
+                    if (!pureMath_) {
+                        auto* i32Ty = llvm::Type::getInt32Ty(*context_);
+                        llvm::Value* L = builder_->CreateTrunc(left, i32Ty, "L32");
+                        llvm::Value* R = builder_->CreateTrunc(right, i32Ty, "R32");
+                        llvm::Value* cmp = builder_->CreateICmpEQ(L, R, "cmpeq32");
+                        return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
+                    }
                     llvm::Value* cmp = builder_->CreateICmpEQ(left, right, "cmpeq");
                     return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
                 }
                 case TokenType::OP_NE: {
+                    if (!pureMath_) {
+                        auto* i32Ty = llvm::Type::getInt32Ty(*context_);
+                        llvm::Value* L = builder_->CreateTrunc(left, i32Ty, "L32");
+                        llvm::Value* R = builder_->CreateTrunc(right, i32Ty, "R32");
+                        llvm::Value* cmp = builder_->CreateICmpNE(L, R, "cmpne32");
+                        return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
+                    }
                     llvm::Value* cmp = builder_->CreateICmpNE(left, right, "cmpne");
                     return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
                 }
                 case TokenType::OP_LT: {
+                    if (!pureMath_) {
+                        auto* i32Ty = llvm::Type::getInt32Ty(*context_);
+                        llvm::Value* L = builder_->CreateTrunc(left, i32Ty, "L32");
+                        llvm::Value* R = builder_->CreateTrunc(right, i32Ty, "R32");
+                        llvm::Value* cmp = builder_->CreateICmpSLT(L, R, "cmplt32");
+                        return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
+                    }
                     llvm::Value* cmp = builder_->CreateICmpSLT(left, right, "cmplt");
                     return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
                 }
                 case TokenType::OP_GT: {
+                    if (!pureMath_) {
+                        auto* i32Ty = llvm::Type::getInt32Ty(*context_);
+                        llvm::Value* L = builder_->CreateTrunc(left, i32Ty, "L32");
+                        llvm::Value* R = builder_->CreateTrunc(right, i32Ty, "R32");
+                        llvm::Value* cmp = builder_->CreateICmpSGT(L, R, "cmpgt32");
+                        return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
+                    }
                     llvm::Value* cmp = builder_->CreateICmpSGT(left, right, "cmpgt");
                     return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
                 }
                 case TokenType::OP_LE: {
+                    if (!pureMath_) {
+                        auto* i32Ty = llvm::Type::getInt32Ty(*context_);
+                        llvm::Value* L = builder_->CreateTrunc(left, i32Ty, "L32");
+                        llvm::Value* R = builder_->CreateTrunc(right, i32Ty, "R32");
+                        llvm::Value* cmp = builder_->CreateICmpSLE(L, R, "cmple32");
+                        return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
+                    }
                     llvm::Value* cmp = builder_->CreateICmpSLE(left, right, "cmple");
                     return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
                 }
                 case TokenType::OP_GE: {
+                    if (!pureMath_) {
+                        auto* i32Ty = llvm::Type::getInt32Ty(*context_);
+                        llvm::Value* L = builder_->CreateTrunc(left, i32Ty, "L32");
+                        llvm::Value* R = builder_->CreateTrunc(right, i32Ty, "R32");
+                        llvm::Value* cmp = builder_->CreateICmpSGE(L, R, "cmpge32");
+                        return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
+                    }
                     llvm::Value* cmp = builder_->CreateICmpSGE(left, right, "cmpge");
                     return builder_->CreateZExt(cmp, llvm::Type::getInt64Ty(*context_), "zext");
                 }
@@ -1453,6 +1533,12 @@ llvm::Value* LLVMCodegen::generateExpression(llvm::Function* func, Shared<Expr> 
                     isStandalone = true; safeFuncName = "jit_len";
                 } else if (safeFuncName == "__u8F6C____u5B57____u7B26____u4E32__") { // 转字符串 → jit_toString
                     isStandalone = true; safeFuncName = "jit_toString";
+                } else if (safeFuncName == "__u8FFD____u52A0__") { // 追加 → push
+                    isStandalone = true; safeFuncName = "push";
+                } else if (safeFuncName == "__u5F39____u51FA__") { // 弹出 → pop
+                    isStandalone = true; safeFuncName = "pop";
+                } else if (safeFuncName == "__u63D2____u5165__") { // 插入 → insert
+                    isStandalone = true; safeFuncName = "insert";
                 }
             }
         }

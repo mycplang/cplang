@@ -1,8 +1,6 @@
 #include "stdlib/stdlib.hpp"
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
+#include "platform/platform.hpp"
+#include <sys/stat.h>
 #include <cmath>
 #include <algorithm>
 #include <cctype>
@@ -290,32 +288,23 @@ Value io::fileExistsFunc(std::vector<Value>& args) {
 Value io::isDirFunc(std::vector<Value>& args) {
     if (args.empty() || !args[0].isString()) return Value::Bool(false);
     std::string path(args[0].asString()->data, args[0].asString()->length);
-    auto attrs = GetFileAttributesA(path.c_str());
-    return Value::Bool(attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY));
+    return Value::Bool(platform::file_is_dir(path.c_str()));
 }
 
 Value io::fileSizeBytesFunc(std::vector<Value>& args) {
     if (args.empty() || !args[0].isString()) return Value::Int(0);
     std::string path(args[0].asString()->data, args[0].asString()->length);
-    WIN32_FILE_ATTRIBUTE_DATA info;
-    if (!GetFileAttributesExA(path.c_str(), GetFileExInfoStandard, &info))
-        return Value::Int(0);
-    LARGE_INTEGER sz;
-    sz.LowPart = info.nFileSizeLow;
-    sz.HighPart = info.nFileSizeHigh;
-    return Value::Int((Int64)sz.QuadPart);
+    struct stat st;
+    if (stat(path.c_str(), &st) != 0) return Value::Int(0);
+    return Value::Int((Int64)st.st_size);
 }
 
 Value io::fileModifiedFunc(std::vector<Value>& args) {
     if (args.empty() || !args[0].isString()) return Value::Int(0);
     std::string path(args[0].asString()->data, args[0].asString()->length);
-    WIN32_FILE_ATTRIBUTE_DATA info;
-    if (!GetFileAttributesExA(path.c_str(), GetFileExInfoStandard, &info))
-        return Value::Int(0);
-    LARGE_INTEGER t;
-    t.LowPart = info.ftLastWriteTime.dwLowDateTime;
-    t.HighPart = info.ftLastWriteTime.dwHighDateTime;
-    return Value::Int((Int64)((t.QuadPart - 116444736000000000LL) / 10000000LL));
+    struct stat st;
+    if (stat(path.c_str(), &st) != 0) return Value::Int(0);
+    return Value::Int((Int64)st.st_mtime);
 }
 
 Value io::rleCompressFunc(std::vector<Value>& args) {

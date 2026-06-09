@@ -6,9 +6,43 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-function getCompiler() {
+// 调试辅助：启动时写标记文件，确认适配器是否启动
+try { fs.writeFileSync(path.join(require('os').tmpdir(), 'cp_debug_started.txt'), 'started ' + Date.now()); } catch(e) {}
+
+// 全局异常捕获
+process.on('uncaughtException', function(err) {
+    try { fs.writeFileSync(path.join(require('os').tmpdir(), 'cp_debug_error.txt'), err.stack || err.message); } catch(e) {}
+});
+process.on('unhandledRejection', function(reason) {
+    try { fs.writeFileSync(path.join(require('os').tmpdir(), 'cp_debug_rejection.txt'), String(reason)); } catch(e) {}
+});
+
+function getCompiler(programPath) {
+    const exe = process.platform === 'win32' ? 'cplang.exe' : 'cplang';
+    // 1. 从源文件目录向上层查找（适配直接打开文件场景）
+    if (programPath) {
+        let dir = path.dirname(programPath);
+        while (true) {
+            const p = path.join(dir, 'build_msvc', 'bin', exe);
+            try { if (fs.statSync(p).isFile()) return p; } catch (_) {}
+            const parent = path.dirname(dir);
+            if (parent === dir) break; // 到根目录了
+            dir = parent;
+        }
+    }
+    // 2. CPLANG_HOME 环境变量
     const home = process.env.CPLANG_HOME || path.join(require('os').homedir(), 'cplang');
-    return path.join(home, 'build', process.platform === 'win32' ? 'cplang.exe' : 'cplang');
+    const candidates = [
+        path.join(home, 'bin', exe),                    // NSIS 安装标准路径
+        path.join(home, 'build_msvc', 'bin', exe),
+        path.join(home, 'build', exe),
+        path.resolve(__dirname, '../..', 'build_msvc', 'bin', exe),
+        exe,
+    ];
+    for (const p of candidates) {
+        try { if (fs.statSync(p).isFile()) return p; } catch (_) {}
+    }
+    return candidates[0];
 }
 
 class CPDebugAdapter {
@@ -201,7 +235,7 @@ class CPDebugAdapter {
             this.sendErrorResponse(msg, '未指定程序文件');
             return;
         }
-        const compiler = getCompiler();
+        const compiler = getCompiler(program);
         if (!fs.existsSync(compiler)) {
             this.sendErrorResponse(msg, `编译器未找到: ${compiler}\n请设置 CPLANG_HOME 环境变量`);
             return;
@@ -223,7 +257,10 @@ class CPDebugAdapter {
     }
 
     startProcess(config) {
-        this.sendEvent('output', { category: 'console', output: '[CP] 编译运行中...\n' });
+        this.sendEvent('output', { category: 'console', output: '[CP] 编译运行中...\n', group: 'start' });
+        this.sendEvent('output', { category: 'console', output: '编译命令: ' + config.compiler + ' -c ' + config.program + '\n' });
+        try { fs.writeFileSync(path.join(require('os').tmpdir(), 'cp_debug_launch.txt'),
+            'compiler=' + config.compiler + '\nprogram=' + config.program + '\ncwd=' + path.dirname(config.program)); } catch(e) {}
         this.process = spawn(config.compiler, ['-c', config.program], {
             cwd: path.dirname(config.program),
             env: Object.assign({}, process.env)
@@ -231,7 +268,8 @@ class CPDebugAdapter {
 
         this.process.stdout.on('data', (data) => {
             const text = data.toString();
-            this.sendEvent('output', { category: 'stdout', output: text });
+            try { fs.appendFileSync(path.join(require('os').tmpdir(), 'cp_debug_stdout.txt'), text); } catch(e) {}
+            this.sendEvent('output', { category: 'console', output: text });
             // 尝试从输出中提取调用栈/变量信息
             this.parseDebugOutput(text);
         });
@@ -241,7 +279,7 @@ class CPDebugAdapter {
         });
 
         this.process.on('exit', (code) => {
-            this.sendEvent('output', { category: 'console', output: `\n═══════════════════════════════════\n  CP 进程退出，码: ${code} ${code === 0 ? '✓' : '✗'}\n═══════════════════════════════════\n` });
+            this.sendEvent('output', { category: 'console', output: `\n═══════════════════════════════════\n  CP 进程退出，码: ${code} ${code === 0 ? '✓' : '✗'}\n═══════════════════════════════════\n`, group: 'end' });
             this.process = null;
             this.sendEvent('terminated', { restart: false });
         });
@@ -270,7 +308,10 @@ class CPDebugAdapter {
             if (this.readBuffer.length < bodyStart + length) break;
             const body = this.readBuffer.substring(bodyStart, bodyStart + length);
             this.readBuffer = this.readBuffer.substring(bodyStart + length);
-            try { this.handleMessage(JSON.parse(body)); } catch (e) {}
+            try { this.handleMessage(JSON.parse(body)); } catch (e) { 
+        // 未捕获异常时尝试通知 VSCode
+        try { process.stdout.write('Content-Length: ' + JSON.stringify({type:'event',event:'output',body:{category:'console',output:'\n[CP] 调试适配器错误: ' + e.message + '\n'}}).length + '\r\n\r\n' + JSON.stringify({type:'event',event:'output',body:{category:'console',output:'\n[CP] 调试适配器错误: ' + e.message + '\n'}})); } catch(_) {}
+    }
         }
     }
 }

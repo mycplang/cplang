@@ -88,4 +88,7 @@ private:
     static void scanGraphicsUsage(Shared<Program> ast, bool& found);
 };
 
+// 进程内 LLVM IR → 目标文件编译（替代外部 llc.exe）
+bool llvmIRToObject(const std::string& irContent, const std::string& objPath, int optLevel);
+
 } // namespace cplang

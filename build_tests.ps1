@@ -54,7 +54,7 @@ if ($hasLLVM) {
 # ─── 编译器选项 ──────────────────────────────────────────────────
 $clOpts = "/utf-8 /std:c++17 /EHsc /W3 /O1 /MD /wd4244 /wd4018 /wd4996 /wd4267"
 $clInc = '/I"include" /I"third_party\raylib\src" /I"third_party\raylib\src\external\glfw\include" /I"third_party\imgui" /I"tests"'
-$clDef = '/D_CRT_SECURE_NO_WARNINGS /DNDEBUG /DMINIZ_NO_ARCHIVE_APIS /DGRAPHICS_API_OPENGL_33 /DPLATFORM_DESKTOP /DNO_FONT_AWESOME /DCPLANG_TEST_BUILD'
+$clDef = '/D_CRT_SECURE_NO_WARNINGS /DNDEBUG /DMINIZ_NO_ARCHIVE_APIS /DGRAPHICS_API_OPENGL_21 /DPLATFORM_DESKTOP /DNO_FONT_AWESOME /DCPLANG_TEST_BUILD'
 
 if ($hasLLVM) {
     $clInc += ' /I"', $llvmInc, '"' -join ''
@@ -87,7 +87,7 @@ $testSrcs = @("tests\run_all_tests.cpp")
 
 # ─── 链接选项 ──────────────────────────────────────────────────
 $sysLibs = "Shell32.lib Winhttp.lib Ws2_32.lib Cabinet.lib opengl32.lib gdi32.lib winmm.lib ole32.lib comctl32.lib user32.lib urlmon.lib"
-$raylibLib = "third_party\raylib\build_release\raylib\Release\raylib.lib"
+$raylibLib = "third_party\raylib\build_release\raylib\raylib.lib"
 $linkFlags = "/FORCE:MULTIPLE /ignore:4006 /ignore:4088"
 if ($hasLLVM) {
     $linkFlags += " /LIBPATH:`"$llvmLibDir`""

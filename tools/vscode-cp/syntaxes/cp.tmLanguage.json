@@ -41,7 +41,7 @@
     "keywords": {
       "patterns": [
         { "match": "\\b否则\\s+如果\\b", "name": "keyword.control.cp" },
-        { "match": "\\b(函数|function|变量|var|常量|const|返回|return|如果|if|否则|else|当|while|循环|for|遍历|foreach|跳出|break|继续|continue|选择|switch|情况|case|其他|default|类|class|接口|interface|枚举|enum|结构体|struct|新建|new|公有|public|私有|private|保护|protected|真|true|假|false|空|null|nil|导入|import|包名|package|类型|typedef|抛出|throw|尝试|try|捕获|catch|推迟|defer|信任|trust|为|as|删除|delete|是|is|不是|!is|typeof|打印|print|println|长度|len|size)\\b",
+        { "match": "\\b(函数|function|变量|var|常量|const|返回|return|如果|if|否则|else|当|while|循环|for|遍历|foreach|跳出|break|继续|continue|选择|switch|情况|case|其他|default|匹配|match|类|class|接口|interface|枚举|enum|结构体|struct|新建|new|公有|public|私有|private|保护|protected|真|true|假|false|空|null|nil|导入|import|包名|package|类型|typedef|抛出|throw|尝试|try|捕获|catch|推迟|defer|信任|trust|为|as|删除|delete|是|is|不是|!is|typeof|异步|async|打印|print|println|长度|len|size)\\b",
         "name": "keyword.control.cp"
       }]
     },

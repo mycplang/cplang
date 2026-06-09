@@ -22,8 +22,19 @@ const { spawn } = require('child_process');
 // ─── 配置 ───────────────────────────────────────────────
 const CPLANG_HOME = process.env.CPLANG_HOME ||
     path.join(require('os').homedir(), 'cplang');
-const COMPILER = path.join(CPLANG_HOME, 'build',
-    process.platform === 'win32' ? 'cplang.exe' : 'cplang');
+const COMPILER = (() => {
+    const exe = process.platform === 'win32' ? 'cplang.exe' : 'cplang';
+    const candidates = [
+        path.join(CPLANG_HOME, 'bin', exe),             // NSIS 安装标准路径
+        path.resolve(__dirname, '../..', 'build_msvc', 'bin', exe),
+        path.join(CPLANG_HOME, 'build_msvc', 'bin', exe),
+        path.join(CPLANG_HOME, 'build', exe),
+    ];
+    for (const p of candidates) {
+        try { if (require('fs').statSync(p).isFile()) return p; } catch (_) {}
+    }
+    return candidates[0];
+})();
 const FORMATTER = path.join(__dirname, '..', 'cpfmt.py');
 
 const docs = new Map();

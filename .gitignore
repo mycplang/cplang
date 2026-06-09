@@ -142,3 +142,22 @@ third_party/raylib/src/*.a
 /libpq.dll
 
 # --- å†å²å­˜æ¡£ï¼ˆå·²çº³å…¥ç‰ˆæœ¬æ§åˆ¶ï¼‰ ---
+# ¹¹½¨²úÎï
+build_aot/
+build_msvc/
+build/
+build_linux/
+build_android/
+*.exe
+*.lib
+*.exp
+*.obj
+*.pdb
+*.ilk
+*.zip
+
+# ²âÊÔÎÄ¼ş
+_test_*.c
+_test_*.cp
+imgui.ini
+aot_debug.log

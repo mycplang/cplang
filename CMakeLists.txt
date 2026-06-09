@@ -15,8 +15,32 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ============================================================================
 # Clang 18 < MSVC 2022 STL (requires Clang 19+), suppress version check
 # ============================================================================
-add_compile_definitions(_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH=1)
-add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+# MSVC 特定：允许编译器/STL 版本不匹配
+if(MSVC)
+    add_compile_definitions(_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH=1)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
+
+# Linux 特定配置
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    find_package(Threads REQUIRED)
+    # Raylib Linux 依赖
+    find_package(OpenGL REQUIRED)
+    find_package(X11 REQUIRED)
+endif()
+
+# Android 特定配置（使用 NDK 交叉编译时自动检测）
+if(ANDROID)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CPLANG_USE_LLVM OFF)  # Android 上 JIT 需要额外工作
+    # 使用 OpenGL ES 替代 OpenGL
+    add_compile_definitions(GRAPHICS_API_OPENGL_ES2 PLATFORM_ANDROID)
+    # 关闭测试和示例（Android 上通常不需要）
+    set(CPLANG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(CPLANG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    message(STATUS "🔧 Android 构建模式: ABI=${ANDROID_ABI}, API=${ANDROID_PLATFORM}")
+endif()
 
 # ============================================================================
 # 选项
@@ -50,6 +74,22 @@ endif()
 if(CPLANG_ENABLE_SANITIZERS)
     include(Sanitizers)
 endif()
+
+# ============================================================================
+# 0. cplang_platform — 平台抽象层（跨平台 API）
+# ============================================================================
+add_library(cplang_platform STATIC
+)
+if(WIN32)
+    target_sources(cplang_platform PRIVATE src/platform/platform_win.cpp)
+else()
+    target_sources(cplang_platform PRIVATE src/platform/platform_linux.cpp)
+endif()
+target_include_directories(cplang_platform PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(cplang_platform PUBLIC cplang_common)
+set_target_warnings(cplang_platform)
 
 # ============================================================================
 # 0. cplang_core — 运行时配置（verbose 状态）
@@ -141,7 +181,7 @@ add_library(cplang_vm STATIC
 )
 
 # vm_opt.cpp 使用 computed goto（GNU 扩展），MSVC 不支持
-# MSVC 下使用 vm_opt_stub.cpp 提供所需符号
+# MSVC 下使用 vm_opt_stub.cpp 提供所需符号；GCC/Clang 下直接使用 vm_opt.cpp
 if(NOT MSVC)
     target_sources(cplang_vm PRIVATE src/vm/vm_opt.cpp)
 else()
@@ -172,10 +212,9 @@ add_library(cplang_codegen STATIC
     src/codegen/bytecode_optimizer.cpp
 )
 
-# aot_compiler.cpp 和 llvm_codegen.cpp 依赖 LLVM
+# AOT 已移除 (aot_compiler.cpp / aot_compile_ir.cpp)。llvm_codegen.cpp 保留供 JIT 使用。
 if(CPLANG_USE_LLVM AND LLVM_FOUND)
     target_sources(cplang_codegen PRIVATE
-        src/codegen/aot_compiler.cpp
         src/codegen/llvm_codegen.cpp
     )
     target_compile_definitions(cplang_codegen PRIVATE CPLANG_HAS_LLVM=1)
@@ -330,9 +369,9 @@ target_include_directories(cplang_stdlib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
 )
 target_compile_definitions(cplang_stdlib PRIVATE 
-    GRAPHICS_API_OPENGL_33 PLATFORM_DESKTOP NO_FONT_AWESOME
+    GRAPHICS_API_OPENGL_21 PLATFORM_DESKTOP NO_FONT_AWESOME
 )
-target_link_libraries(cplang_stdlib PUBLIC cplang_vm)
+target_link_libraries(cplang_stdlib PUBLIC cplang_vm cplang_platform)
 set_target_warnings(cplang_stdlib)
 
 # ============================================================================
@@ -362,15 +401,28 @@ set_target_warnings(cplang_exception)
 # ============================================================================
 # 共享库路径配置
 # ============================================================================
-set(RAYLIB_LIB "${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/build_release/raylib/Release/raylib.lib")
+# Raylib 库路径（分平台）
+if(WIN32)
+    set(RAYLIB_LIB "${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/build_release/raylib/raylib.lib")
+else()
+    set(RAYLIB_LIB "${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/build_release/raylib/libraylib.a")
+endif()
+
 # LLVM 库路径（由 FindLLVM.cmake 提供，通过 llvm-config --libfiles 获取）
 if(CPLANG_USE_LLVM AND LLVM_FOUND)
     set(LLVM_LIB_FILES ${LLVM_LIBRARIES})
     list(LENGTH LLVM_LIB_FILES _LLVM_COUNT)
     message(STATUS "LLVM 库数量: ${_LLVM_COUNT}")
 endif()
-# 系统库（两个可执行目标共享）
-set(SYSTEM_LIBS ws2_32 winhttp urlmon opengl32 gdi32 winmm ole32 comctl32 user32 shell32)
+
+# 系统库（分平台）
+if(WIN32)
+    set(SYSTEM_LIBS ws2_32 winhttp urlmon opengl32 gdi32 winmm ole32 comctl32 user32 shell32)
+elseif(ANDROID)
+    set(SYSTEM_LIBS android log EGL GLESv3)
+else()
+    set(SYSTEM_LIBS pthread dl GL X11 asound)
+endif()
 
 # ============================================================================
 # 15. cplang_cli — 命令行入口（可执行文件，main.cpp）
@@ -383,6 +435,7 @@ target_include_directories(cplang_cli PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(cplang_cli PRIVATE
+    cplang_platform
     cplang_core
     cplang_lexer
     cplang_parser
@@ -403,9 +456,10 @@ set_target_warnings(cplang_cli)
 set_target_properties(cplang_cli PROPERTIES
     OUTPUT_NAME cplang
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-    LINK_FLAGS "/FORCE:MULTIPLE"
-    LINK_FLAGS "/FORCE:MULTIPLE"
 )
+if(WIN32)
+    set_target_properties(cplang_cli PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
+endif()
 
 # ============================================================================
 # 15b. cplang_cpkg — 包管理器（独立 exe）
@@ -423,9 +477,10 @@ set_target_warnings(cplang_cpkg)
 set_target_properties(cplang_cpkg PROPERTIES
     OUTPUT_NAME cpkg
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-    LINK_FLAGS "/FORCE:MULTIPLE"
-    LINK_FLAGS "/FORCE:MULTIPLE"
 )
+if(WIN32)
+    set_target_properties(cplang_cpkg PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
+endif()
 
 # ============================================================================
 # 15c. cplang_repl — 交互式 REPL（repl.cpp，独立入口）
@@ -457,9 +512,35 @@ set_target_warnings(cplang_repl)
 set_target_properties(cplang_repl PROPERTIES
     OUTPUT_NAME cplang_repl
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-    LINK_FLAGS "/FORCE:MULTIPLE"
-    LINK_FLAGS "/FORCE:MULTIPLE"
 )
+if(WIN32)
+    set_target_properties(cplang_repl PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
+endif()
+
+# ============================================================================
+# 16. cplang_android — Android NativeActivity 共享库（仅 Android）
+# ============================================================================
+if(ANDROID)
+    add_library(cplang_android SHARED
+        src/android/android_main.cpp
+    )
+    target_include_directories(cplang_android PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cplang_android PRIVATE
+        cplang_platform
+        cplang_core
+        cplang_lexer
+        cplang_parser
+        cplang_semantic
+        cplang_codegen
+        cplang_vm
+        cplang_stdlib
+        cplang_module
+        ${SYSTEM_LIBS}
+    )
+    set_target_warnings(cplang_android)
+endif()
 
 # ============================================================================
 # 16. cplang_single — 单文件整合入口（可选）

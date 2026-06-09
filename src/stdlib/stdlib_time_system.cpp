@@ -1,8 +1,5 @@
 #include "stdlib/stdlib.hpp"
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
+#include "platform/platform.hpp"
 #include <chrono>
 #include <thread>
 

@@ -1,4 +1,4 @@
-// CP语言 代码生成器实现
+﻿// CP璇█ 浠ｇ爜鐢熸垚鍣ㄥ疄鐜?
 #include "codegen/codegen.hpp"
 #include <cstdio>
 #include "parser/parser.hpp"
@@ -10,26 +10,26 @@
 
 namespace cplang {
 
-// ═══════════════════════════════════════════════════════════════════
-//  构造函数
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  鏋勯€犲嚱鏁?
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 Codegen::Codegen(VM* vm, SemanticAnalyzer* analyzer) : vm_(vm), analyzer_(analyzer) {
-    pushScope(); // 全局作用域
+    pushScope(); // 鍏ㄥ眬浣滅敤鍩?
 }
 
 Codegen::~Codegen() {
     while (!localScopes_.empty()) popScope();
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  主编译入口
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  涓荤紪璇戝叆鍙?
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 VMFunction* Codegen::compile(Shared<Program> program) {
-    // 创建主函数（先创建，这样 compileFuncDecl 在注册函数时能正确发射代码）
+    // 鍒涘缓涓诲嚱鏁帮紙鍏堝垱寤猴紝杩欐牱 compileFuncDecl 鍦ㄦ敞鍐屽嚱鏁版椂鑳芥纭彂灏勪唬鐮侊級
     func_ = new VMFunction();
-    func_->name = nullptr; // 主模块
+    func_->name = nullptr; // 涓绘ā鍧?
     func_->maxStack = 256;
     func_->numParams = 0;
     func_->numLocals = 0;
@@ -42,23 +42,23 @@ VMFunction* Codegen::compile(Shared<Program> program) {
     maxReg_ = 0;
     maxStack_ = 256;
 
-    // === 预编译所有泛型实例化函数 ===
-    // 这些函数在语义分析阶段由 monomorphization 创建。
-    // 必须在编译主程序体之前编译它们，确保被调用时已注册为全局变量。
+    // === 棰勭紪璇戞墍鏈夋硾鍨嬪疄渚嬪寲鍑芥暟 ===
+    // 杩欎簺鍑芥暟鍦ㄨ涔夊垎鏋愰樁娈电敱 monomorphization 鍒涘缓銆?
+    // 蹇呴』鍦ㄧ紪璇戜富绋嬪簭浣撲箣鍓嶇紪璇戝畠浠紝纭繚琚皟鐢ㄦ椂宸叉敞鍐屼负鍏ㄥ眬鍙橀噺銆?
     if (analyzer_) {
         for (auto& funcDecl : analyzer_->getMonomorphizedFunctions()) {
             if (hasError_) break;
-            // 保存主函数编译状态
+            // 淇濆瓨涓诲嚱鏁扮紪璇戠姸鎬?
             VMFunction* oldMain = func_;
             std::vector<UInt8>* oldMainCode = code_;
             std::vector<Value> oldMainConstants = constants_;
             int oldMainNextReg = nextReg_;
             bool oldMainAllTyped = allTyped_;
 
-            // 编译泛型实例化函数（这会创建 VMFunction 并注册为全局）
+            // 缂栬瘧娉涘瀷瀹炰緥鍖栧嚱鏁帮紙杩欎細鍒涘缓 VMFunction 骞舵敞鍐屼负鍏ㄥ眬锛?
             compileFuncDecl(funcDecl);
 
-            // 恢复主函数编译状态
+            // 鎭㈠涓诲嚱鏁扮紪璇戠姸鎬?
             func_ = oldMain;
             code_ = oldMainCode;
             constants_ = oldMainConstants;
@@ -67,45 +67,37 @@ VMFunction* Codegen::compile(Shared<Program> program) {
         }
     }
 
-    // 编译每个语句
+    // 缂栬瘧姣忎釜璇彞
     for (size_t si = 0; si < program->statements.size(); si++) {
         if (hasError_) break;
-        printf("DEBUG: compiling stmt %zu\n", si); fflush(stdout);
         compileStmt(program->statements[si]);
         releaseTempRegs();
     }
 
-    printf("DEBUG: all statements compiled, adding default return\n"); fflush(stdout);
-    printf("DEBUG: code size = %zu, empty = %d\n", func_->code.size(), func_->code.empty()); fflush(stdout);
-    // 默认返回nil
+    // 榛樿杩斿洖nil
     if (!hasError_ && (func_->code.empty() || func_->code.back() != OP_RETURN)) {
-        printf("DEBUG: emitting default return\n"); fflush(stdout);
         emit(OP_LOADNIL, 0, 0, 0);
         emit(OP_RETURN, 0, 0, 0);
     }
-    printf("DEBUG: setting maxStack\n"); fflush(stdout);
 
-    // 设置最大栈深度
-    printf("DEBUG: func_=%p maxReg_=%d\n", (void*)func_, maxReg_); fflush(stdout);
+    // 璁剧疆鏈€澶ф爤娣卞害
     func_->maxStack = maxReg_ + 32;
-    printf("DEBUG: setting constants, size=%zu\n", constants_.size()); fflush(stdout);
     func_->constants = constants_;
-    printf("DEBUG: compile done, returning\n"); fflush(stdout);
 
     return hasError_ ? nullptr : func_;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  指令发射
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  鎸囦护鍙戝皠
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 void Codegen::emit(UInt8 op, UInt8 a, UInt8 b, UInt8 c) {
-    // 渐进类型追踪：检查是否 untyped 指令
+    // 娓愯繘绫诲瀷杩借釜锛氭鏌ユ槸鍚?untyped 鎸囦护
     if (allTyped_ && op < 0x90) {
         // OP_LOADNIL/LOADINT/LOADBOOL/RETURN/JUMP/CALL etc are structural, not untyped
         if (op >= 0x20 && op < 0x40) allTyped_ = false;  // untyped arithmetic/cmp
     }
-    // 记录源文件行号
+    // 璁板綍婧愭枃浠惰鍙?
     func_->lineInfo.push_back(currentLine_);
     
     // 16-byte format: [op][a][b][c][padding12]
@@ -121,7 +113,7 @@ void Codegen::emit(UInt8 op, UInt8 a, UInt8 b, UInt8 c) {
 }
 
 void Codegen::emitInt(UInt8 op, UInt8 a, Int32 imm) {
-    // 记录源文件行号
+    // 璁板綍婧愭枃浠惰鍙?
     func_->lineInfo.push_back(currentLine_);
     
     // 16-byte format: [op][a][b][c][imm32]
@@ -172,12 +164,12 @@ int Codegen::allocReg() {
     return nextReg_++;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  常量池
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  甯搁噺姹?
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 Int32 Codegen::addConstant(const Value& v) {
-    // 查找是否已存在
+    // 鏌ユ壘鏄惁宸插瓨鍦?
     for (Int32 i = 0; i < static_cast<Int32>(constants_.size()); i++) {
         if (constants_[i].equals(v)) return i;
     }
@@ -186,9 +178,9 @@ Int32 Codegen::addConstant(const Value& v) {
     return idx;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  局部变量
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  灞€閮ㄥ彉閲?
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 Codegen::LocalVar* Codegen::findLocal(const String& name) {
     for (int i = static_cast<int>(localScopes_.size()) - 1; i >= 0; i--) {
@@ -206,12 +198,12 @@ int Codegen::getLocalReg(const String& name) {
     return -1;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  作用域
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  浣滅敤鍩?
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 void Codegen::freeRegs(int n) {
-    // 释放 n 个寄存器(简化实现:仅调整 nextReg_)
+    // 閲婃斁 n 涓瘎瀛樺櫒(绠€鍖栧疄鐜?浠呰皟鏁?nextReg_)
     if (nextReg_ >= n) {
         nextReg_ -= n;
     } else {
@@ -244,13 +236,13 @@ void Codegen::releaseTempRegs() {
 }
 
 void Codegen::emitConversion(const Value& from, const Value& to) {
-    // 类型转换(简化实现,暂不支持)
+    // 绫诲瀷杞崲(绠€鍖栧疄鐜?鏆備笉鏀寔)
     (void)from;
     (void)to;
 }
 
 void Codegen::compileComparison(TokenType op, int ra, int rb, int rc) {
-    // 比较操作编译(使用 compileBinaryOp 中的逻辑)
+    // 姣旇緝鎿嶄綔缂栬瘧(浣跨敤 compileBinaryOp 涓殑閫昏緫)
     switch (op) {
         case TokenType::OP_EQ:  emit(OP_CMPEQ, ra, rb, rc); break;
         case TokenType::OP_NE:  emit(OP_CMPNE, ra, rb, rc); break;
@@ -262,14 +254,14 @@ void Codegen::compileComparison(TokenType op, int ra, int rb, int rc) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  语句编译
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  璇彞缂栬瘧
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 Compiler::Compiler(bool useSlotOpt) : useSlotOpt_(useSlotOpt) {
     if (useSlotOpt_) {
         vm_ = std::make_unique<VM>();
-        // 必须在codegen前注册stdlib,确保global slot编号一致
+        // 蹇呴』鍦╟odegen鍓嶆敞鍐宻tdlib,纭繚global slot缂栧彿涓€鑷?
         StdLib::registerAll(vm_.get());
         vm_->importCallback = [this](const std::string& filename) -> bool {
             VMFunction* f = compileFile(filename);
@@ -281,10 +273,10 @@ Compiler::Compiler(bool useSlotOpt) : useSlotOpt_(useSlotOpt) {
 }
 
 void Codegen::compileTry(Shared<TryStmt> s) {
-    // 分配异常值寄存器
+    // 鍒嗛厤寮傚父鍊煎瘎瀛樺櫒
     UInt8 excReg = (UInt8)allocReg();
 
-    // OP_TRY 占位: [op][a][0][0][catchPC_imm32][padding8]
+    // OP_TRY 鍗犱綅: [op][a][0][0][catchPC_imm32][padding8]
     int tryPos = static_cast<int>(code_->size());
     code_->push_back(OP_TRY);
     code_->push_back(excReg);
@@ -292,23 +284,23 @@ void Codegen::compileTry(Shared<TryStmt> s) {
     for (int i = 0; i < 4; i++) code_->push_back(0);  // imm32 placeholder
     for (int i = 0; i < 8; i++) code_->push_back(0);  // padding to 16
 
-    // 编译 try 体
+    // 缂栬瘧 try 浣?
     compileStmt(s->tryBlock);
 
-    // OP_ENDTRY: 正常路径弹出handler
+    // OP_ENDTRY: 姝ｅ父璺緞寮瑰嚭handler
     emit(OP_ENDTRY);
 
-    // 跳过catch块（正常完成路径）
+    // 璺宠繃catch鍧楋紙姝ｅ父瀹屾垚璺緞锛?
     int skipJump = emitJumpPlaceholder(OP_JUMP);
 
-    // 记录catch位置，回填OP_TRY中的catchPC
+    // 璁板綍catch浣嶇疆锛屽洖濉玂P_TRY涓殑catchPC
     int catchPos = static_cast<int>(code_->size());
     (*code_)[tryPos + 4] = (catchPos >> 0) & 0xFF;
     (*code_)[tryPos + 5] = (catchPos >> 8) & 0xFF;
     (*code_)[tryPos + 6] = (catchPos >> 16) & 0xFF;
     (*code_)[tryPos + 7] = (catchPos >> 24) & 0xFF;
 
-    // 编译所有 catch 块（暂不区分异常类型，依次执行所有处理块）
+    // 缂栬瘧鎵€鏈?catch 鍧楋紙鏆備笉鍖哄垎寮傚父绫诲瀷锛屼緷娆℃墽琛屾墍鏈夊鐞嗗潡锛?
     for (size_t i = 0; i < s->catchBlocks.size(); i++) {
         pushScope();
         String exName = s->catchBlocks[i].first;
@@ -319,7 +311,7 @@ void Codegen::compileTry(Shared<TryStmt> s) {
         popScope();
     }
 
-    // 回填跳过跳转
+    // 鍥炲～璺宠繃璺宠浆
     patchJump(skipJump, static_cast<int>(code_->size()));
 
     freeRegs(1);
@@ -328,8 +320,8 @@ void Codegen::compileTry(Shared<TryStmt> s) {
 void Codegen::compileThrow(Shared<ThrowStmt> s) {
     int reg = compileExpr(s->exception);
     emit(OP_THROW, (UInt8)reg);
-    // 注意: 不在这里freeReg，因为OP_THROW控制流不会返回
-    // 寄存器由外层compileStmt统一管理
+    // 娉ㄦ剰: 涓嶅湪杩欓噷freeReg锛屽洜涓篛P_THROW鎺у埗娴佷笉浼氳繑鍥?
+    // 瀵勫瓨鍣ㄧ敱澶栧眰compileStmt缁熶竴绠＄悊
 }
 
 void Codegen::compileSwitch(Shared<SwitchStmt> s) {
@@ -395,7 +387,7 @@ VMFunction* Compiler::compileFile(const String& filename) {
     std::ifstream ifs(filename);
     if (!ifs.is_open()) {
         hasError_ = true;
-        errorMsg_ = "无法打开文件: " + filename;
+        errorMsg_ = "鏃犳硶鎵撳紑鏂囦欢: " + filename;
         return nullptr;
     }
     String source((std::istreambuf_iterator<char>(ifs)),
@@ -404,55 +396,49 @@ VMFunction* Compiler::compileFile(const String& filename) {
 }
 
 VMFunction* Compiler::compileInternal(const String& source, const String& sourceFile) {
-    printf("DEBUG: compileInternal start\n"); fflush(stdout);
-    // 词法分析
+    // 璇嶆硶鍒嗘瀽
     Lexer lexer(source);
 
-    // 语法分析
-    printf("DEBUG: parsing...\n"); fflush(stdout);
+    // 璇硶鍒嗘瀽
     Parser parser(&lexer);
     auto program = parser.parse();
     if (!program) {
         hasError_ = true;
-        errorMsg_ = "语法分析: 程序为空";
+        errorMsg_ = "璇硶鍒嗘瀽: 绋嬪簭涓虹┖";
         return nullptr;
     }
     if (parser.hasError()) {
         hasError_ = true;
-        errorMsg_ = "语法分析: " + parser.errorMessage();
+        errorMsg_ = "璇硶鍒嗘瀽: " + parser.errorMessage();
         return nullptr;
     }
 
-    printf("DEBUG: parsing done, semantic...\n"); fflush(stdout);
-    // 语义分析
+    // 璇箟鍒嗘瀽
     SemanticAnalyzer analyzer;
     if (!analyzer.analyze(program)) {
         hasError_ = true;
-        errorMsg_ = "语义分析: " + analyzer.errorMessage();
+        errorMsg_ = "璇箟鍒嗘瀽: " + analyzer.errorMessage();
         return nullptr;
     }
 
-    printf("DEBUG: semantic done, codegen...\n"); fflush(stdout);
-    // 代码生成
+    // 浠ｇ爜鐢熸垚
     Codegen codegen(useSlotOpt_ ? vm_.get() : nullptr, &analyzer);
     codegen.setSourceFile(sourceFile);
-    printf("DEBUG: codegen created, compiling...\n"); fflush(stdout);
     VMFunction* func = codegen.compile(program);
-    printf("DEBUG: compile returned, func=%p\n", (void*)func); fflush(stdout);
     if (codegen.hasError()) {
         hasError_ = true;
-        errorMsg_ = "代码生成: " + codegen.errorMessage();
+        errorMsg_ = "浠ｇ爜鐢熸垚: " + codegen.errorMessage();
         return nullptr;
     }
 
-    // 设置源文件名（供 source_location 标准库使用）
+    // 璁剧疆婧愭枃浠跺悕锛堜緵 source_location 鏍囧噯搴撲娇鐢級
     if (func) func->sourceFile = sourceFile;
 
     return func;
 }
 
 void Compiler::setTraceVM(bool v) {
-    // 设置 VM 跟踪标志(用于调试)
+    // 璁剧疆 VM 璺熻釜鏍囧織(鐢ㄤ簬璋冭瘯)
     (void)v;
 }
 

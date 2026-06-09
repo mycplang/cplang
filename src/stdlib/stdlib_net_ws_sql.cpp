@@ -1,13 +1,6 @@
 #include "stdlib/stdlib.hpp"
-#define WIN32_LEAN_AND_MEAN
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#include "platform/platform.hpp"
 #include <crypto/md5_impl.h>
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <winhttp.h>
 #include <sqlite/sqlite3.h>
 
 
@@ -22,27 +15,19 @@ namespace crypto { std::string sha1Hash(const std::string& input); }
 
 namespace net {
 
-static bool g_wsaInit = false;
-static std::unordered_map<int, SOCKET> g_sockets;
+static std::unordered_map<int, int> g_sockets;
 static int g_nextId = 1;
 
-static bool initWinsock() {
-    if (g_wsaInit) return true;
-    WSADATA wsaData;
-    g_wsaInit = (WSAStartup(MAKEWORD(2, 2), &wsaData) == 0);
-    return g_wsaInit;
-}
-
-static int storeSocket(SOCKET s) {
+static int storeSocket(int s) {
     int id = g_nextId++;
     g_sockets[id] = s;
     return id;
 }
 
-static SOCKET getSocket(int id) {
+static int getSocket(int id) {
     auto it = g_sockets.find(id);
     if (it != g_sockets.end()) return it->second;
-    return INVALID_SOCKET;
+    return -1;
 }
 
 static void removeSocket(int id) {
@@ -56,17 +41,13 @@ static std::string getStr(const Value& v) {
 
 Value tcpConnect(std::vector<Value>& args) {
     if (args.size() < 2 || !args[0].isString() || !args[1].isNumber()) return Value::Float(-1);
-    if (!initWinsock()) return Value::Float(-1);
+    if (!platform::net_init()) return Value::Float(-1);
     std::string host = getStr(args[0]);
     int port = static_cast<int>(args[1].asFloat());
-    SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (s == INVALID_SOCKET) return Value::Float(-1);
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
-    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
-        closesocket(s);
+    int s = platform::sock_create(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) return Value::Float(-1);
+    if (platform::sock_connect(s, host.c_str(), port) < 0) {
+        platform::sock_close(s);
         return Value::Float(-1);
     }
     return Value::Float(static_cast<double>(storeSocket(s)));
@@ -74,20 +55,20 @@ Value tcpConnect(std::vector<Value>& args) {
 
 Value tcpSend(std::vector<Value>& args) {
     if (args.size() < 2 || !args[0].isNumber() || !args[1].isString()) return Value::Bool(false);
-    SOCKET s = getSocket(static_cast<int>(args[0].asFloat()));
-    if (s == INVALID_SOCKET) return Value::Bool(false);
+    int s = getSocket(static_cast<int>(args[0].asFloat()));
+    if (s < 0) return Value::Bool(false);
     std::string data = getStr(args[1]);
-    int sent = send(s, data.c_str(), static_cast<int>(data.size()), 0);
-    return Value::Bool(sent != SOCKET_ERROR);
+    int sent = platform::sock_send(s, data.c_str(), static_cast<int>(data.size()));
+    return Value::Bool(sent >= 0);
 }
 
 Value tcpReceive(std::vector<Value>& args) {
     if (args.size() < 2 || !args[0].isNumber() || !args[1].isNumber()) return Value::nil();
-    SOCKET s = getSocket(static_cast<int>(args[0].asFloat()));
-    if (s == INVALID_SOCKET) return Value::nil();
+    int s = getSocket(static_cast<int>(args[0].asFloat()));
+    if (s < 0) return Value::nil();
     int maxBytes = static_cast<int>(args[1].asFloat());
     std::vector<char> buf(maxBytes + 1, '\0');
-    int received = recv(s, buf.data(), maxBytes, 0);
+    int received = platform::sock_recv(s, buf.data(), maxBytes);
     if (received <= 0) return Value::nil();
     return Value::String(VMString::create(std::string(buf.data(), received)));
 }
@@ -95,28 +76,24 @@ Value tcpReceive(std::vector<Value>& args) {
 Value tcpClose(std::vector<Value>& args) {
     if (args.empty() || !args[0].isNumber()) return Value::Bool(false);
     int id = static_cast<int>(args[0].asFloat());
-    SOCKET s = getSocket(id);
-    if (s != INVALID_SOCKET) closesocket(s);
+    int s = getSocket(id);
+    if (s >= 0) platform::sock_close(s);
     removeSocket(id);
     return Value::Bool(true);
 }
 
 Value tcpListen(std::vector<Value>& args) {
     if (args.empty() || !args[0].isNumber()) return Value::Float(-1);
-    if (!initWinsock()) return Value::Float(-1);
+    if (!platform::net_init()) return Value::Float(-1);
     int port = static_cast<int>(args[0].asFloat());
-    SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (s == INVALID_SOCKET) return Value::Float(-1);
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = INADDR_ANY;
-    if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
-        closesocket(s);
+    int s = platform::sock_create(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) return Value::Float(-1);
+    if (platform::sock_bind(s, port) < 0) {
+        platform::sock_close(s);
         return Value::Float(-1);
     }
-    if (listen(s, SOMAXCONN) == SOCKET_ERROR) {
-        closesocket(s);
+    if (platform::sock_listen(s, 128) < 0) {
+        platform::sock_close(s);
         return Value::Float(-1);
     }
     return Value::Float(static_cast<double>(storeSocket(s)));
@@ -124,26 +101,24 @@ Value tcpListen(std::vector<Value>& args) {
 
 Value tcpAccept(std::vector<Value>& args) {
     if (args.empty() || !args[0].isNumber()) return Value::Float(-1);
-    SOCKET s = getSocket(static_cast<int>(args[0].asFloat()));
-    if (s == INVALID_SOCKET) return Value::Float(-1);
-    struct sockaddr_in addr;
-    int len = sizeof(addr);
-    SOCKET client = accept(s, (struct sockaddr*)&addr, &len);
-    if (client == INVALID_SOCKET) return Value::Float(-1);
+    int s = getSocket(static_cast<int>(args[0].asFloat()));
+    if (s < 0) return Value::Float(-1);
+    int client = platform::sock_accept(s);
+    if (client < 0) return Value::Float(-1);
     return Value::Float(static_cast<double>(storeSocket(client)));
 }
 
 Value udpSocket(std::vector<Value>& args) {
-    if (!initWinsock()) return Value::Float(-1);
-    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (s == INVALID_SOCKET) return Value::Float(-1);
+    if (!platform::net_init()) return Value::Float(-1);
+    int s = platform::sock_create(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) return Value::Float(-1);
     return Value::Float(static_cast<double>(storeSocket(s)));
 }
 
 Value udpSend(std::vector<Value>& args) {
     if (args.size() < 4 || !args[0].isNumber() || !args[1].isString() || !args[2].isNumber() || !args[3].isString()) return Value::Bool(false);
-    SOCKET s = getSocket(static_cast<int>(args[0].asFloat()));
-    if (s == INVALID_SOCKET) return Value::Bool(false);
+    int s = getSocket(static_cast<int>(args[0].asFloat()));
+    if (s < 0) return Value::Bool(false);
     std::string host = getStr(args[1]);
     int port = static_cast<int>(args[2].asFloat());
     std::string data = getStr(args[3]);
@@ -151,25 +126,24 @@ Value udpSend(std::vector<Value>& args) {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
-    int sent = sendto(s, data.c_str(), static_cast<int>(data.size()), 0, (struct sockaddr*)&addr, sizeof(addr));
-    return Value::Bool(sent != SOCKET_ERROR);
+    int sent = platform::sock_send(s, data.c_str(), static_cast<int>(data.size()));
+    return Value::Bool(sent >= 0);
 }
 
 Value udpReceive(std::vector<Value>& args) {
     if (args.size() < 2 || !args[0].isNumber() || !args[1].isNumber()) return Value::nil();
-    SOCKET s = getSocket(static_cast<int>(args[0].asFloat()));
-    if (s == INVALID_SOCKET) return Value::nil();
+    int s = getSocket(static_cast<int>(args[0].asFloat()));
+    if (s < 0) return Value::nil();
     int maxBytes = static_cast<int>(args[1].asFloat());
     std::vector<char> buf(maxBytes + 1, '\0');
-    struct sockaddr_in addr;
-    int len = sizeof(addr);
-    int received = recvfrom(s, buf.data(), maxBytes, 0, (struct sockaddr*)&addr, &len);
+    int received = platform::sock_recv(s, buf.data(), maxBytes);
     if (received <= 0) return Value::nil();
     return Value::String(VMString::create(std::string(buf.data(), received)));
 }
 } // namespace net
 
 // ==================== WebSocket (WinHTTP) ====================
+#ifdef _WIN32
 namespace ws_ns {
 
 static std::string genSecKey() {
@@ -260,6 +234,7 @@ Value isOpen_(std::vector<Value>& args) {
     return Value::Bool(ws&&!ws->closed);
 }
 } // namespace ws_ns
+#endif // _WIN32
 
 // ==================== SQLite3 ====================
 namespace sql_ns {
@@ -443,6 +418,7 @@ Value version_(std::vector<Value>& args) {
 } // namespace sql_ns
 
 void StdLib::registerWebSocket(VM* vm) {
+#ifdef _WIN32
     registerFunction(vm, "wsConnect",        ws_ns::connect_);
     registerFunction(vm, "wsSend",           ws_ns::send_);
     registerFunction(vm, "wsRecv",           ws_ns::recv_);
@@ -452,6 +428,9 @@ void StdLib::registerWebSocket(VM* vm) {
     registerAlias(vm, "WS发送",              "wsSend");
     registerAlias(vm, "WS接收",              "wsRecv");
     registerAlias(vm, "WS关闭",              "wsClose");
+#else
+    (void)vm;
+#endif
 }
 
 void StdLib::registerSqlite(VM* vm) {

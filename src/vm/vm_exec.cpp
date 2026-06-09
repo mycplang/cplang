@@ -716,6 +716,7 @@ case OP_CALLMETHOD: {
                     }
                     
                     // ── JIT 分派（委托给独立模块） ──
+#ifdef CPLANG_HAS_LLVM
                     {
                         Value jitResult;
                         if (jitTryCallDispatch(this, func, argc, args.data(), jitResult)) {
@@ -724,6 +725,7 @@ case OP_CALLMETHOD: {
                             break;
                         }
                     }
+#endif
                     
                     // 用户函数字节码调用
                     CallFrame frame;
