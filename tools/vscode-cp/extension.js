@@ -112,15 +112,39 @@ function activate(context) {
         terminal.sendText(`"${compiler}" -p "${filePath}"`);
     });
 
-    // ---- Command: AOT compile to .exe ----
-    const aotCommand = vscode.commands.registerCommand('cp.aot', () => {
+    // ---- Command: SFX 打包为 .exe ----
+    const sfxCommand = vscode.commands.registerCommand('cp.sfx', () => {
         const filePath = getActiveCpFile();
         if (!filePath) return;
         const compiler = getCplangCompiler();
         const outPath = filePath.replace(/\.cp$/i, '.exe');
-        const terminal = vscode.window.createTerminal({ name: 'CP AOT', hideFromUser: false });
+        const terminal = vscode.window.createTerminal({ name: 'CP SFX Pack', hideFromUser: false });
         terminal.show();
-        terminal.sendText(`& "${compiler}" -a -o "${outPath}" "${filePath}"`);
+        terminal.sendText(`& "${compiler}" -k "${filePath}" -o "${outPath}"`);
+    });
+
+    // ---- Command: 构建 Linux 可执行文件 ----
+    const linuxCommand = vscode.commands.registerCommand('cp.linux', () => {
+        const filePath = getActiveCpFile();
+        if (!filePath) return;
+        const projectRoot = path.dirname(path.dirname(path.dirname(__dirname)));
+        const terminal = vscode.window.createTerminal({ name: 'CP Linux Build', hideFromUser: false });
+        terminal.show();
+        const buildScript = path.join(projectRoot, 'build_linux.sh').replace(/\\/g, '/');
+        const wslPath = '/mnt/' + buildScript[0].toLowerCase() + buildScript.slice(2);
+        terminal.sendText(`wsl chmod +x ${wslPath} && wsl ${wslPath} Release cli`);
+    });
+
+    // ---- Command: 构建 Android APK ----
+    const androidCommand = vscode.commands.registerCommand('cp.android', () => {
+        const filePath = getActiveCpFile();
+        if (!filePath) return;
+        const projectRoot = path.dirname(path.dirname(path.dirname(__dirname)));
+        const terminal = vscode.window.createTerminal({ name: 'CP Android Build', hideFromUser: false });
+        terminal.show();
+        const buildScript = path.join(projectRoot, 'build_linux.sh').replace(/\\/g, '/');
+        const wslPath = '/mnt/' + buildScript[0].toLowerCase() + buildScript.slice(2);
+        terminal.sendText(`wsl "ANDROID_NDK=\${ANDROID_NDK:-\$HOME/Android/Sdk/ndk-bundle} ${wslPath} android"`);
     });
 
     // ---- Command: show environment info ----
@@ -140,7 +164,7 @@ function activate(context) {
         );
     });
 
-    context.subscriptions.push(runCommand, buildCommand, aotCommand, infoCommand);
+    context.subscriptions.push(runCommand, buildCommand, sfxCommand, linuxCommand, androidCommand, infoCommand);
 
     // ---- Cleanup ----
     context.subscriptions.push({

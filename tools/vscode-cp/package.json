@@ -11,7 +11,7 @@
   },
   "engines": {"vscode": "^1.80.0"},
   "categories": ["Programming Languages", "Linters"],
-  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.aot", "onCommand:cp.info"],
+  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.sfx", "onCommand:cp.linux", "onCommand:cp.android", "onCommand:cp.info"],
   "main": "./extension.js",
   "contributes": {
     "languages": [{
@@ -46,9 +46,19 @@
         "description": "编译检查当前 .cp 文件（不运行）"
       },
       {
-        "command": "cp.aot",
-        "title": "CP: AOT 编译为 .exe",
-        "description": "将当前 .cp 文件编译为原生可执行文件"
+        "command": "cp.sfx",
+        "title": "CP: SFX 打包为 .exe",
+        "description": "将当前 .cp 文件打包为自解压可执行文件"
+      },
+      {
+        "command": "cp.linux",
+        "title": "CP: 构建 Linux 可执行文件",
+        "description": "在 WSL/Docker 中构建 Linux 原生可执行文件"
+      },
+      {
+        "command": "cp.android",
+        "title": "CP: 构建 Android APK",
+        "description": "使用 Android NDK 交叉编译 APK"
       },
       {
         "command": "cp.info",
@@ -68,8 +78,18 @@
         "when": "editorLangId == cp && editorTextFocus"
       },
       {
-        "command": "cp.aot",
+        "command": "cp.sfx",
         "key": "ctrl+shift+b",
+        "when": "editorLangId == cp && editorTextFocus"
+      },
+      {
+        "command": "cp.linux",
+        "key": "ctrl+shift+l",
+        "when": "editorLangId == cp && editorTextFocus"
+      },
+      {
+        "command": "cp.android",
+        "key": "ctrl+shift+a",
         "when": "editorLangId == cp && editorTextFocus"
       }
     ],
@@ -93,8 +113,18 @@
           "when": "editorLangId == cp"
         },
         {
-          "command": "cp.aot",
+          "command": "cp.sfx",
           "group": "cp@3",
+          "when": "editorLangId == cp"
+        },
+        {
+          "command": "cp.linux",
+          "group": "cp@4",
+          "when": "editorLangId == cp"
+        },
+        {
+          "command": "cp.android",
+          "group": "cp@5",
           "when": "editorLangId == cp"
         }
       ]
