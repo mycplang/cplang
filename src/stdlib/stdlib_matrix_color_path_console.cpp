@@ -418,18 +418,32 @@ Value color(std::vector<Value>& args) {
     int bg = args[1].isInt() ? (int)args[1].asInt() : 0;
     if (fg < 0) fg = 0; if (fg > 15) fg = 15;
     if (bg < 0) bg = 0; if (bg > 15) bg = 15;
+#ifdef _WIN32
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (h != INVALID_HANDLE_VALUE) SetConsoleTextAttribute(h, (WORD)((bg << 4) | fg));
+#else
+    // ANSI 转义序列: fg 0-7 暗色, 8-15 亮色 (30-37, 90-97)
+    static const int fgAnsi[] = {30,34,32,36,31,35,33,37,90,94,92,96,91,95,93,97};
+    static const int bgAnsi[] = {40,44,42,46,41,45,43,47,100,104,102,106,101,105,103,107};
+    printf("\033[%d;%dm", fgAnsi[fg], bgAnsi[bg]);
+    fflush(stdout);
+#endif
     return Value::nil();
 }
 
 Value reset(std::vector<Value>& args) {
+#ifdef _WIN32
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (h != INVALID_HANDLE_VALUE) SetConsoleTextAttribute(h, 7);
+#else
+    printf("\033[0m");
+    fflush(stdout);
+#endif
     return Value::nil();
 }
 
 Value inputHidden(std::vector<Value>& args) {
+#ifdef _WIN32
     HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
     DWORD oldMode = 0;
     if (h != INVALID_HANDLE_VALUE) GetConsoleMode(h, &oldMode);
@@ -440,14 +454,26 @@ Value inputHidden(std::vector<Value>& args) {
         SetConsoleMode(hOut, oldOutMode & ~ENABLE_ECHO_INPUT);
     }
     if (h != INVALID_HANDLE_VALUE) SetConsoleMode(h, oldMode & ~ENABLE_ECHO_INPUT);
+#else
+    struct termios oldt, newt;
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ECHO | ICANON);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+#endif
     std::string input;
     std::getline(std::cin, input);
+#ifdef _WIN32
     if (h != INVALID_HANDLE_VALUE) SetConsoleMode(h, oldMode);
     if (hOut != INVALID_HANDLE_VALUE) SetConsoleMode(hOut, oldOutMode);
+#else
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+#endif
     return Value::String(VMString::create(input));
 }
 
 Value clear(std::vector<Value>& args) {
+#ifdef _WIN32
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (h == INVALID_HANDLE_VALUE) return Value::nil();
     CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -459,10 +485,15 @@ Value clear(std::vector<Value>& args) {
         FillConsoleOutputAttribute(h, csbi.wAttributes, size, topLeft, &written);
     }
     SetConsoleCursorPosition(h, topLeft);
+#else
+    printf("\033[2J\033[H");
+    fflush(stdout);
+#endif
     return Value::nil();
 }
 
 Value size(std::vector<Value>& args) {
+#ifdef _WIN32
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (h == INVALID_HANDLE_VALUE) return Value::nil();
     CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -473,17 +504,34 @@ Value size(std::vector<Value>& args) {
         return Value::Array(arr);
     }
     return Value::nil();
+#else
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+        auto arr = VMArray::create(2);
+        arr->data.push_back(Value::Int(ws.ws_col));
+        arr->data.push_back(Value::Int(ws.ws_row));
+        return Value::Array(arr);
+    }
+    // 回退：环境变量
+    return Value::nil();
+#endif
 }
 
 Value cursor(std::vector<Value>& args) {
     if (args.size() < 2) return Value::nil();
     int x = (int)(args[0].isNumber() ? args[0].asFloat() : 0);
     int y = (int)(args[1].isNumber() ? args[1].asFloat() : 0);
+#ifdef _WIN32
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (h != INVALID_HANDLE_VALUE) {
         COORD pos = {(SHORT)x, (SHORT)y};
         SetConsoleCursorPosition(h, pos);
     }
+#else
+    // ANSI: 行=y+1, 列=x+1 (ANSI 坐标从 1 开始)
+    printf("\033[%d;%dH", y + 1, x + 1);
+    fflush(stdout);
+#endif
     return Value::nil();
 }
 
