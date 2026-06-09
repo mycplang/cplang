@@ -1,0 +1,27 @@
+# GitPod 在线开发环境配置
+# 打开方式: https://gitpod.io/#https://gitee.com/cplang/cplang
+
+image:
+  file: Dockerfile.linux
+
+tasks:
+  - name: 构建 CP 语言编译器
+    init: |
+      echo "=== 安装依赖中 ==="
+      sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build
+    command: |
+      echo "=== CP 语言 Linux 构建环境就绪 ==="
+      echo ""
+      echo "运行构建:  ./build_linux.sh"
+      echo "快速测试:  build_linux/bin/cplang -c examples/hello.cp"
+      echo ""
+
+ports:
+  - port: 8080
+    onOpen: ignore
+
+vscode:
+  extensions:
+    - ms-vscode.cpptools
+    - twxs.cmake
+    - ms-vscode.cmake-tools
