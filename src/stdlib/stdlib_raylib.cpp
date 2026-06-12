@@ -100,6 +100,7 @@ Value rl_initWindow(std::vector<Value>& args) {
     const char* title = "CP + raylib";
     if (args.size() >= 1 && args[0].isInt()) w = (int)args[0].asInt();
     if (args.size() >= 2 && args[1].isInt()) h = (int)args[1].asInt();
+    SetTraceLogLevel(LOG_ERROR);  // 静默 raylib 的 INFO/WARNING 日志
     if (args.size() >= 3 && args[2].isString()) {
         auto s = args[2].asString();
         title = s->c_str();

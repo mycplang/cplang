@@ -187,7 +187,7 @@ bool runParser(const String& source) {
 }
 
 bool runFullCompile(const String& source, const char* filepath, bool useJit, bool useHotspot = false, int hotspotThreshold = 100, OptLevel optLevel = OptLevel::O2, bool useBytecodeOpt = true, int debugPort = 0) {
-    std::cout << "编译中...\n";
+    VERBOSE(std::cout << "编译中...\n");
     
     Compiler compiler;
     compiler.setOptLevel(optLevel);
@@ -199,7 +199,7 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
         return false;
     }
 
-    std::cout << "编译成功\n";
+    VERBOSE(std::cout << "编译成功\n");
     
     // 打印字节码优化统计（仅 verbose 模式）
     if (useBytecodeOpt && cplang::verboseEnabled()) {
@@ -431,7 +431,7 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
     if (debugServer) { debugServer->stop(); delete debugServer; }
     if (debugger) delete debugger;
 
-    std::cout << "\n执行完成，总指令数: " << vm->totalInstructions() << "\n";
+    VERBOSE(std::cout << "\n执行完成，总指令数: " << vm->totalInstructions() << "\n");
     
     // 如果有热点检测，输出统计（仅 verbose 模式）
     if (useHotspot && cplang::verboseEnabled()) {
