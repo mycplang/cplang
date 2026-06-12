@@ -17,6 +17,18 @@ namespace imgui_ns {
 Value init_(std::vector<Value>& args) {
     bool dark = args.empty() || !args[0].isBool() || args[0].isTrue();
     rlImGuiSetup(dark);
+    // 加载中文字体
+    ImGuiIO& io = ImGui::GetIO();
+    const char* fontPaths[] = {
+        "C:/Windows/Fonts/msyh.ttf",
+        "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/simsun.ttc",
+        NULL
+    };
+    for (int fi = 0; fontPaths[fi] != NULL; fi++) {
+        ImFont* font = io.Fonts->AddFontFromFileTTF(fontPaths[fi], 18.0f, NULL, io.Fonts->GetGlyphRangesChineseFull());
+        if (font) break;
+    }
     return Value::Int(0);
 }
 
