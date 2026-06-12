@@ -11,7 +11,7 @@
   },
   "engines": {"vscode": "^1.80.0"},
   "categories": ["Programming Languages", "Linters"],
-  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.sfx", "onCommand:cp.linux", "onCommand:cp.android", "onCommand:cp.info"],
+  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.pack", "onCommand:cp.linux", "onCommand:cp.android", "onCommand:cp.info"],
   "main": "./extension.js",
   "contributes": {
     "languages": [{
@@ -46,9 +46,9 @@
         "description": "编译检查当前 .cp 文件（不运行）"
       },
       {
-        "command": "cp.sfx",
-        "title": "CP: SFX 打包为 .exe",
-        "description": "将当前 .cp 文件打包为自解压可执行文件"
+        "command": "cp.pack",
+        "title": "CP: AOT 打包为 .exe",
+        "description": "AOT 编译当前 .cp 文件为原生机器码 .exe"
       },
       {
         "command": "cp.linux",
@@ -78,7 +78,7 @@
         "when": "editorLangId == cp && editorTextFocus"
       },
       {
-        "command": "cp.sfx",
+        "command": "cp.pack",
         "key": "ctrl+shift+b",
         "when": "editorLangId == cp && editorTextFocus"
       },
@@ -113,7 +113,7 @@
           "when": "editorLangId == cp"
         },
         {
-          "command": "cp.sfx",
+          "command": "cp.pack",
           "group": "cp@3",
           "when": "editorLangId == cp"
         },

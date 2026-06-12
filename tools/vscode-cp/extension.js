@@ -113,13 +113,13 @@ function activate(context) {
         terminal.sendText(`"${compiler}" -p "${filePath}"`);
     });
 
-    // ---- Command: SFX 打包为 .exe ----
-    const sfxCommand = vscode.commands.registerCommand('cp.sfx', () => {
+    // ---- Command: AOT 打包为 .exe ----
+    const sfxCommand = vscode.commands.registerCommand('cp.pack', () => {
         const filePath = getActiveCpFile();
         if (!filePath) return;
         const compiler = getCplangCompiler();
         const outPath = filePath.replace(/\.cp$/i, '.exe');
-        const terminal = vscode.window.createTerminal({ name: 'CP SFX Pack', hideFromUser: false });
+        const terminal = vscode.window.createTerminal({ name: 'CP AOT Pack', hideFromUser: false });
         terminal.show();
         terminal.sendText(`& "${compiler}" -k "${filePath}" -o "${outPath}"`);
     });
