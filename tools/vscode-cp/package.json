@@ -1,7 +1,7 @@
 {
   "name": "cp-language",
   "displayName": "CP Language Support",
-  "version": "0.5.0",
+  "version": "0.5.5",
   "publisher": "cplang",
   "description": "CP语言 — 中文编程语言：语法高亮、代码补全、跳转定义、引用查找、重命名、格式化、悬停提示、语义诊断、调试运行",
   "license": "MIT",
@@ -42,8 +42,8 @@
       },
       {
         "command": "cp.build",
-        "title": "CP: AOT 编译为 .exe",
-        "description": "AOT 编译当前 .cp 文件为原生机器码 .exe"
+        "title": "CP: 打包为 SFX 自解压 .exe",
+        "description": "SFX 自解压打包：嵌入编译器 + 源码到 .exe，运行时解释执行"
       },
       {
         "command": "cp.linux",

@@ -107,13 +107,13 @@ function activate(context) {
         terminal.sendText(`& "${compiler}" -c "${filePath}"`);
     });
 
-    // ---- Command: AOT 编译为 .exe (Ctrl+F7) ----
+    // ---- Command: SFX 自解压打包为 .exe (Ctrl+F7) ----
     const buildCommand = vscode.commands.registerCommand('cp.build', () => {
         const filePath = getActiveCpFile();
         if (!filePath) return;
         const compiler = findCompilerNearFile(filePath);
         const outPath = filePath.replace(/\.cp$/i, '.exe');
-        const terminal = vscode.window.createTerminal({ name: 'CP AOT', hideFromUser: false });
+        const terminal = vscode.window.createTerminal({ name: 'CP SFX Pack', hideFromUser: false });
         terminal.show();
         terminal.sendText(`& "${compiler}" -k "${filePath}" -o "${outPath}"`);
     });
