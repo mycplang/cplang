@@ -304,19 +304,25 @@ Shared<ImportStmt> Parser::parseImport() {
     consume();  // consume 'import'
     auto imp = Shared<ImportStmt>(new ImportStmt());
     
-    // 支持点号分隔的模块名
-    while (true) {
-        // 先保存当前标识符，再调用expect()
-        String namePart = current_.text;
-        expect(TokenType::IDENTIFIER, "需要模块名");
-        imp->moduleName += namePart;
-        // expect()已经调用了consume()
-        
-        if (match(TokenType::OP_DOT)) {
-            consume();
-            imp->moduleName += ".";
-        } else {
-            break;
+    // 支持字符串模块名: import "@cp/graphics"
+    if (match(TokenType::STRING)) {
+        if (auto* s = std::get_if<String>(&current_.value)) {
+            imp->moduleName = *s;
+        }
+        consume();
+    } else {
+        // 支持点号分隔的模块名: import module.name
+        while (true) {
+            String namePart = current_.text;
+            expect(TokenType::IDENTIFIER, "需要模块名");
+            imp->moduleName += namePart;
+            
+            if (match(TokenType::OP_DOT)) {
+                consume();
+                imp->moduleName += ".";
+            } else {
+                break;
+            }
         }
     }
     

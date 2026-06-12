@@ -188,27 +188,27 @@ void StdLib::registerCore(VM* vm) {
 
 void StdLib::registerModules(VM* vm, const std::vector<std::string>& modules) {
     for (const auto& m : modules) {
-        if (m == "graphics" || m == "@cp/graphics") {
+        if (m == "graphics" || m == "@cp/graphics" || m == "图形" || m == "@cp/图形") {
             registerRaylib(vm);
             registerImGui(vm);
-        } else if (m == "database" || m == "@cp/database") {
+        } else if (m == "database" || m == "@cp/database" || m == "数据库" || m == "@cp/数据库") {
             registerSqlite(vm);
             registerMysql(vm);
             registerPg(vm);
             registerRedis(vm);
             registerWebSocket(vm);
-        } else if (m == "crypto" || m == "@cp/crypto") {
+        } else if (m == "crypto" || m == "@cp/crypto" || m == "加密" || m == "@cp/加密") {
             registerCrypto(vm);
             registerCryptoPlus(vm);
             registerAes(vm);
             registerEncoding(vm);
-        } else if (m == "ffi" || m == "@cp/ffi") {
+        } else if (m == "ffi" || m == "@cp/ffi" || m == "外部接口" || m == "@cp/外部接口") {
             registerFFI(vm);
-        } else if (m == "net" || m == "@cp/net") {
+        } else if (m == "net" || m == "@cp/net" || m == "网络" || m == "@cp/网络") {
             registerJSON(vm);
             registerHTTP(vm);
             registerHttp(vm);
-        } else if (m == "container" || m == "@cp/container") {
+        } else if (m == "container" || m == "@cp/container" || m == "容器" || m == "@cp/容器") {
             registerSet(vm);
             registerStack(vm);
             registerQueue(vm);
@@ -226,9 +226,9 @@ void StdLib::registerModules(VM* vm, const std::vector<std::string>& modules) {
             registerHeap(vm);
             registerComplex(vm);
             registerPair(vm);
-        } else if (m == "concurrent" || m == "@cp/concurrent") {
+        } else if (m == "concurrent" || m == "@cp/concurrent" || m == "并发" || m == "@cp/并发") {
             registerThreading(vm);
-        } else if (m == "string_ext" || m == "@cp/string_ext") {
+        } else if (m == "string_ext" || m == "@cp/string_ext" || m == "字符串扩展" || m == "@cp/字符串扩展") {
             registerStringExt(vm);
             registerStringMore(vm);
             registerStringSearch(vm);
@@ -238,9 +238,9 @@ void StdLib::registerModules(VM* vm, const std::vector<std::string>& modules) {
             registerStatistics(vm);
             registerUtils(vm);
             registerMoreUtils(vm);
-        } else if (m == "charset" || m == "@cp/charset") {
+        } else if (m == "charset" || m == "@cp/charset" || m == "字符集" || m == "@cp/字符集") {
             registerCharset(vm);
-        } else if (m == "algorithm" || m == "@cp/algorithm") {
+        } else if (m == "algorithm" || m == "@cp/algorithm" || m == "算法" || m == "@cp/算法") {
             registerAlgorithms(vm);
             registerAlgoExt(vm);
             registerAlgoMissing(vm);

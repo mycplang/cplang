@@ -1,4 +1,4 @@
-﻿// CP语言 AOT 编译器实现
+// CP语言 AOT 编译器实现
 #include "codegen/aot_compiler.hpp"
 #include "codegen/llvm_codegen.hpp"
 #include "lexer/lexer.hpp"
@@ -905,19 +905,39 @@ void AOTCompiler::scanGraphicsUsage(Shared<Program> ast, bool& found) {
 void AOTCompiler::scanModuleImports(Shared<Program> ast, std::set<String>& modules) {
     if (!ast) return;
     
+    // 中文短名 → 完整 @cp/ 模块名映射
+    static const std::unordered_map<std::string, std::string> shortNames = {
+        {"图形", "@cp/图形"}, {"算法", "@cp/算法"},
+        {"数据库", "@cp/数据库"}, {"加密", "@cp/加密"},
+        {"网络", "@cp/网络"}, {"容器", "@cp/容器"},
+        {"并发", "@cp/并发"}, {"字符串扩展", "@cp/字符串扩展"},
+        {"字符集", "@cp/字符集"}, {"外部接口", "@cp/外部接口"},
+        // 也支持英文短名
+        {"graphics", "@cp/graphics"}, {"algorithm", "@cp/algorithm"},
+        {"database", "@cp/database"}, {"crypto", "@cp/crypto"},
+        {"net", "@cp/net"}, {"container", "@cp/container"},
+        {"concurrent", "@cp/concurrent"}, {"string_ext", "@cp/string_ext"},
+        {"charset", "@cp/charset"}, {"ffi", "@cp/ffi"},
+    };
+    
     for (auto& stmt : ast->statements) {
-        // 查找 ImportStmt: 导入 "@cp/xxx"
         if (auto importStmt = std::dynamic_pointer_cast<ImportStmt>(stmt)) {
             std::string modulePath = importStmt->moduleName;
-            // 只处理 @cp/ 前缀的官方模块
+            std::string normalized;
+            
             if (modulePath.find("@cp/") == 0 || modulePath.find("cp/") == 0) {
-                // 标准化模块名
-                std::string normalized;
-                if (modulePath.find("@cp/") == 0) {
-                    normalized = modulePath;
-                } else {
-                    normalized = "@" + modulePath;
+                // 带 @cp/ 前缀：原样保留
+                normalized = modulePath;
+                if (modulePath.find("cp/") == 0) normalized = "@" + modulePath;
+            } else {
+                // 短名：查映射表
+                auto it = shortNames.find(modulePath);
+                if (it != shortNames.end()) {
+                    normalized = it->second;
                 }
+            }
+            
+            if (!normalized.empty()) {
                 modules.insert(normalized);
             }
         }
@@ -990,15 +1010,25 @@ String AOTCompiler::findModuleLib(const String& moduleName) {
 // 模块名 → C 链接函数名映射
 static const std::unordered_map<std::string, std::string> kModuleRegisterFuncs = {
     {"@cp/graphics",    "cplang_module_graphics_register"},
+    {"@cp/图形",       "cplang_module_graphics_register"},
     {"@cp/database",    "cplang_module_database_register"},
+    {"@cp/数据库",     "cplang_module_database_register"},
     {"@cp/crypto",      "cplang_module_crypto_register"},
+    {"@cp/加密",       "cplang_module_crypto_register"},
     {"@cp/ffi",         "cplang_module_ffi_register"},
+    {"@cp/外部接口",   "cplang_module_ffi_register"},
     {"@cp/net",         "cplang_module_network_register"},
+    {"@cp/网络",       "cplang_module_network_register"},
     {"@cp/container",   "cplang_module_container_register"},
+    {"@cp/容器",       "cplang_module_container_register"},
     {"@cp/concurrent",  "cplang_module_concurrent_register"},
+    {"@cp/并发",       "cplang_module_concurrent_register"},
     {"@cp/string_ext",  "cplang_module_string_ext_register"},
+    {"@cp/字符串扩展", "cplang_module_string_ext_register"},
     {"@cp/charset",     "cplang_module_charset_register"},
+    {"@cp/字符集",     "cplang_module_charset_register"},
     {"@cp/algorithm",   "cplang_module_algorithm_register"},
+    {"@cp/算法",       "cplang_module_algorithm_register"},
 };
 
 String AOTCompiler::generateModuleBootstrap(const std::set<String>& modules) {
