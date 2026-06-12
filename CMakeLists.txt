@@ -492,7 +492,7 @@ set_target_properties(cplang_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 if(WIN32)
-    set_target_properties(cplang_cli PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup /FORCE:MULTIPLE")
+    set_target_properties(cplang_cli PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
 endif()
 
 # ═══════════════════════════════════════════════════════════════════

@@ -109,6 +109,29 @@ static bool packSource(const char* srcFile, const char* outFile) {
     out.write((const char*)lb2, 4);
     out.close();
 
+    // 将输出 exe 的子系统改为 WINDOWS_GUI，双击不弹 cmd 窗口
+    {
+        std::fstream patch(outFile, std::ios::binary | std::ios::in | std::ios::out);
+        if (patch.is_open()) {
+            // 读 PE 签名偏移 (file[0x3C])
+            uint8_t buf[4];
+            patch.seekg(0x3C); patch.read((char*)buf, 4);
+            uint32_t sigOff = buf[0] | (buf[1]<<8) | (buf[2]<<16) | (buf[3]<<24);
+            // PE32+ 可选头开始 = sig + 4(PE) + 20(COFF)
+            uint32_t optHdrOff = sigOff + 24;
+            // 子系统在可选头 + 68 字节处 (1 WORD)
+            patch.seekg(optHdrOff + 68);
+            patch.read((char*)buf, 2);
+            uint16_t sub = buf[0] | (buf[1]<<8);
+            if (sub == 3) {  // CONSOLE → WINDOWS
+                buf[0] = 2; buf[1] = 0;
+                patch.seekp(optHdrOff + 68);
+                patch.write((char*)buf, 2);
+            }
+            patch.close();
+        }
+    }
+
     std::cout << "  输出: " << (std::ifstream(outFile,std::ios::binary|std::ios::ate).tellg()/1024) << " KB\n";
     std::cout << "打包成功!\n";
     return true;
