@@ -32,6 +32,7 @@ void DrawRectangle(int x, int y, int w, int h, AOTColor color);
 void ClearBackground(AOTColor color);
 void DrawText(const char* text, int x, int y, int fontSize, AOTColor color);
 void SetTraceLogLevel(int logType);
+void CloseWindow(void);
 #define LOG_ERROR   4
 void jit_cleanup(void);
 #ifdef __cplusplus
@@ -191,7 +192,116 @@ void aot_init_runtime(void) {
 
     StdLib::registerFunction(g_aot_vm, "closeWindow", [](std::vector<Value>&) -> Value {
         CloseWindow(); return Value::Int(0);
-    });#endif
+    });
+
+    // ═══ 图形绘制函数注册（替代 bypass 的稳定路径）═══
+    StdLib::registerFunction(g_aot_vm, "drawRectangle", [](std::vector<Value>& args) -> Value {
+        int x = args.size()>0 && args[0].isInt() ? (int)args[0].asInt() : 0;
+        int y = args.size()>1 && args[1].isInt() ? (int)args[1].asInt() : 0;
+        int w = args.size()>2 && args[2].isInt() ? (int)args[2].asInt() : 0;
+        int h = args.size()>3 && args[3].isInt() ? (int)args[3].asInt() : 0;
+        // 从表或整数解析颜色
+        AOTColor col = {255,255,255,255};
+        if (args.size()>4) {
+            uint64_t raw = args[4].raw();
+            if ((raw>>48)==0xFFFF && !(raw&0x0000800000000000ULL)) {
+                auto* p = reinterpret_cast<const void*>(raw & 0x0000FFFFFFFFFFFFULL);
+                if (p && *(const uint64_t*)p == kTableMagic) {
+                    auto* td = static_cast<const TableData*>(p);
+                    int r=-2,g=-2,b=-2,a=-2;
+                    for(int ei=0;ei<td->capacity;ei++){
+                        if(td->entries[ei].key == kTableEmpty) continue;
+                        uint64_t ek = td->entries[ei].key;
+                        if((ek>>48)==0xFFFF && !(ek&0x0000800000000000ULL)){
+                            const char* fn=reinterpret_cast<const char*>(ek&0x0000FFFFFFFFFFFFULL);
+                            if(fn){
+                                int64_t fv=(int64_t)td->entries[ei].value;
+                                if(fn[0]=='r'&&fn[1]=='\0') r=(int)fv;
+                                else if(fn[0]=='g'&&fn[1]=='\0') g=(int)fv;
+                                else if(fn[0]=='b'&&fn[1]=='\0') b=(int)fv;
+                                else if(fn[0]=='a'&&fn[1]=='\0') a=(int)fv;
+                            }
+                        }
+                    }
+                    if(r>=0&&g>=0&&b>=0) col={(unsigned char)r,(unsigned char)g,(unsigned char)b,(unsigned char)(a>=0?a:255)};
+                }
+            }
+        }
+        DrawRectangle(x,y,w,h,col);
+        return Value::Int(0);
+    });
+
+    StdLib::registerFunction(g_aot_vm, "clearBackground", [](std::vector<Value>& args) -> Value {
+        AOTColor col = {0,0,0,255};
+        if(args.size()>0){
+            uint64_t raw = args[0].raw();
+            if((raw>>48)==0xFFFF && !(raw&0x0000800000000000ULL)){
+                auto* p = reinterpret_cast<const void*>(raw & 0x0000FFFFFFFFFFFFULL);
+                if(p && *(const uint64_t*)p == kTableMagic){
+                    auto* td = static_cast<const TableData*>(p);
+                    int r=-2,g=-2,b=-2,a=-2;
+                    for(int ei=0;ei<td->capacity;ei++){
+                        if(td->entries[ei].key == kTableEmpty) continue;
+                        uint64_t ek = td->entries[ei].key;
+                        if((ek>>48)==0xFFFF && !(ek&0x0000800000000000ULL)){
+                            const char* fn=reinterpret_cast<const char*>(ek&0x0000FFFFFFFFFFFFULL);
+                            if(fn){
+                                int64_t fv=(int64_t)td->entries[ei].value;
+                                if(fn[0]=='r'&&fn[1]=='\0') r=(int)fv;
+                                else if(fn[0]=='g'&&fn[1]=='\0') g=(int)fv;
+                                else if(fn[0]=='b'&&fn[1]=='\0') b=(int)fv;
+                                else if(fn[0]=='a'&&fn[1]=='\0') a=(int)fv;
+                            }
+                        }
+                    }
+                    if(r>=0&&g>=0&&b>=0) col={(unsigned char)r,(unsigned char)g,(unsigned char)b,(unsigned char)(a>=0?a:255)};
+                }
+            }
+        }
+        ClearBackground(col);
+        return Value::Int(0);
+    });
+
+    StdLib::registerFunction(g_aot_vm, "drawText", [](std::vector<Value>& args) -> Value {
+        const char* text = "";
+        if (args.size()>0) {
+            uint64_t raw = args[0].raw();
+            if ((raw>>48)==0xFFFF && !(raw&0x0000800000000000ULL))
+                text = reinterpret_cast<const char*>(raw & 0x0000FFFFFFFFFFFFULL);
+        }
+        int x = args.size()>1 && args[1].isInt() ? (int)args[1].asInt() : 0;
+        int y = args.size()>2 && args[2].isInt() ? (int)args[2].asInt() : 0;
+        int fontSize = args.size()>3 && args[3].isInt() ? (int)args[3].asInt() : 20;
+        AOTColor col = {255,255,255,255};
+        if(args.size()>4){
+            uint64_t raw = args[4].raw();
+            if((raw>>48)==0xFFFF && !(raw&0x0000800000000000ULL)){
+                auto* p = reinterpret_cast<const void*>(raw & 0x0000FFFFFFFFFFFFULL);
+                if(p && *(const uint64_t*)p == kTableMagic){
+                    auto* td = static_cast<const TableData*>(p);
+                    int r=-2,g=-2,b=-2,a=-2;
+                    for(int ei=0;ei<td->capacity;ei++){
+                        if(td->entries[ei].key == kTableEmpty) continue;
+                        uint64_t ek = td->entries[ei].key;
+                        if((ek>>48)==0xFFFF && !(ek&0x0000800000000000ULL)){
+                            const char* fn=reinterpret_cast<const char*>(ek&0x0000FFFFFFFFFFFFULL);
+                            if(fn){
+                                int64_t fv=(int64_t)td->entries[ei].value;
+                                if(fn[0]=='r'&&fn[1]=='\0') r=(int)fv;
+                                else if(fn[0]=='g'&&fn[1]=='\0') g=(int)fv;
+                                else if(fn[0]=='b'&&fn[1]=='\0') b=(int)fv;
+                                else if(fn[0]=='a'&&fn[1]=='\0') a=(int)fv;
+                            }
+                        }
+                    }
+                    if(r>=0&&g>=0&&b>=0) col={(unsigned char)r,(unsigned char)g,(unsigned char)b,(unsigned char)(a>=0?a:255)};
+                }
+            }
+        }
+        DrawText(text?text:"", x, y, fontSize, col);
+        return Value::Int(0);
+    });
+#endif
 
     aot_log("init: all registration complete");
 }
@@ -260,7 +370,11 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
 #endif // CPLANG_AOT_NO_RAYLIB
     // 1. 按名称查找全局 slot
     Int32 slot = g_aot_vm->getGlobalSlot(name);
-    if (slot < 0) { aot_logf("call_native: slot not found for '%s'", name); return 0; }
+    if (slot < 0) { 
+    aot_logf("call_native: slot not found for '%s'", name);
+    std::fprintf(stderr, "[AOT] 函数未注册: %s\n", name);
+    return 0; 
+}
 
     // 2. 获取全局值 → 验证是原生函数
     Value* gv = g_aot_vm->getGlobalBySlot(static_cast<UInt16>(slot));
