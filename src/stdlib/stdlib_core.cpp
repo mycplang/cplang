@@ -33,6 +33,7 @@ static void registerColors(VM* vm) {
         t->set(makeStringVal(VMString::create("g")), Value::Int(c.g));
         t->set(makeStringVal(VMString::create("b")), Value::Int(c.b));
         t->set(makeStringVal(VMString::create("a")), Value::Int(c.a));
+        vm->trackGC(reinterpret_cast<VMObject*>(t));
         vm->setGlobal(c.name, makeTableVal(t));
     }
 }
