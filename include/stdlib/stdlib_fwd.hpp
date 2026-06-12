@@ -131,8 +131,7 @@ public:
     // 按需注册接口（AOT 模式使用，仅注册实际需要的模块）
     static void registerModules(VM* vm, const std::vector<std::string>& modules);
 
-private:
-    // 辅助函数
+    // 辅助函数（公有，供 AOT 桥接外部注册使用）
     static void registerFunction(VM* vm, const char* name, VMNativeFunc::Fn fn);
     static void registerAlias(VM* vm, const char* alias, const char* original);
 };

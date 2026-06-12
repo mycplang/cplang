@@ -694,8 +694,8 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
     cmd += " /FORCE:MULTIPLE";  // 兜底：忽略残余重复符号
     // 添加系统库（Shell32 / WinHTTP / Winsock / OpenGL 等）
     cmd += " Shell32.lib Winhttp.lib Ws2_32.lib Cabinet.lib opengl32.lib";
-    // raylib.lib（图形支持，可选）
-    if (graphicsNeeded_) {
+    // raylib.lib（始终链接，链接器自动丢弃未使用的代码）
+    {
         char _own[MAX_PATH]; GetModuleFileNameA(NULL, _own, MAX_PATH);
         String _dir(_own); size_t _p = _dir.find_last_of("\\/");
         if (_p != String::npos) _dir = _dir.substr(0, _p);
@@ -704,6 +704,11 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
         if (!testRl.good()) {
             testRl.close();
             rlLib = _dir + "\\..\\third_party\\raylib\\build_vs\\raylib\\raylib.lib";
+            testRl.open(rlLib);
+        }
+        if (!testRl.good()) {
+            // 尝试 build_verify 同级目录
+            rlLib = _dir + "\\..\\raylib.lib";
             testRl.open(rlLib);
         }
         if (testRl.good()) {

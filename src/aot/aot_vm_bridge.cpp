@@ -22,6 +22,12 @@
 extern "C" {
 #endif
 typedef struct AOTColor { unsigned char r, g, b, a; } AOTColor;
+int  InitWindow(int w, int h, const char* title);
+int  WindowShouldClose(void);
+void BeginDrawing(void);
+void EndDrawing(void);
+void SetTargetFPS(int fps);
+int  IsKeyPressed(int key);
 void DrawRectangle(int x, int y, int w, int h, AOTColor color);
 void ClearBackground(AOTColor color);
 void DrawText(const char* text, int x, int y, int fontSize, AOTColor color);
@@ -149,10 +155,38 @@ void aot_init_runtime(void) {
         std::fprintf(stderr, "[AOT] 无法创建 VM\n");
         std::abort();
     }
-    aot_log("init: VM created, registering core...");
-    StdLib::registerCore(g_aot_vm);
-    aot_log("init: core registration complete, registering modules...");
+    aot_log("init: VM created, registering all stdlib...");
+    StdLib::registerAll(g_aot_vm);
+    aot_log("init: full stdlib registration complete, registering modules...");
     aot_register_modules(g_aot_vm);
+
+    // 手动注册 AOT 模式下被存根跳过的 raylib 窗口函数
+    // 这些直接调用 raylib C 函数，不走 VM native 桥接
+    StdLib::registerFunction(g_aot_vm, "initWindow", [](std::vector<Value>& args) -> Value {
+        int w = args.size()>=1 && args[0].isInt() ? (int)args[0].asInt() : 800;
+        int h = args.size()>=2 && args[1].isInt() ? (int)args[1].asInt() : 600;
+        InitWindow(w, h, "CP + raylib");
+        return Value::Int(0);
+    });
+    StdLib::registerFunction(g_aot_vm, "windowShouldClose", [](std::vector<Value>&) -> Value {
+        return Value::Bool(WindowShouldClose() != 0);
+    });
+    StdLib::registerFunction(g_aot_vm, "beginDrawing", [](std::vector<Value>&) -> Value {
+        BeginDrawing(); return Value::Int(0);
+    });
+    StdLib::registerFunction(g_aot_vm, "endDrawing", [](std::vector<Value>&) -> Value {
+        EndDrawing(); return Value::Int(0);
+    });
+    StdLib::registerFunction(g_aot_vm, "setTargetFPS", [](std::vector<Value>& args) -> Value {
+        int fps = args.size()>=1 && args[0].isInt() ? (int)args[0].asInt() : 60;
+        SetTargetFPS(fps); return Value::Int(0);
+    });
+    StdLib::registerFunction(g_aot_vm, "keyPressed", [](std::vector<Value>& args) -> Value {
+        int key = args.size()>=1 && args[0].isInt() ? (int)args[0].asInt() : 0;
+        return Value::Bool(IsKeyPressed(key) != 0);
+    });
+    aot_log("init: raylib window functions registered");
+
     aot_log("init: all registration complete");
 }
 
