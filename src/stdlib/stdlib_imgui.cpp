@@ -16,6 +16,7 @@ namespace imgui_ns {
 
 Value init_(std::vector<Value>& args) {
     bool dark = args.empty() || !args[0].isBool() || args[0].isTrue();
+    { ImGuiIO& io = ImGui::GetIO(); io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/simhei.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesChineseSimplifiedCommon()); io.Fonts->Build(); }
     rlImGuiSetup(dark);
     // 加载中文字体
     ImGuiIO& io = ImGui::GetIO();
