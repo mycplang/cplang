@@ -20,6 +20,7 @@ void StdLib::registerCore(VM* vm) {
     registerPath(vm);         // 路径处理
     registerMemory(vm);       // 内存
     registerFixMissing(vm);   // 修复缺失
+    registerRandom(vm);       // 随机数（getRandomValue 等）
     registerIOPoll(vm);       // IO轮询
 }
 

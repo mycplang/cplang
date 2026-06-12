@@ -31,6 +31,8 @@ int  IsKeyPressed(int key);
 void DrawRectangle(int x, int y, int w, int h, AOTColor color);
 void ClearBackground(AOTColor color);
 void DrawText(const char* text, int x, int y, int fontSize, AOTColor color);
+void SetTraceLogLevel(int logType);
+#define LOG_ERROR   4
 void jit_cleanup(void);
 #ifdef __cplusplus
 }
@@ -165,6 +167,7 @@ void aot_init_runtime(void) {
     StdLib::registerFunction(g_aot_vm, "initWindow", [](std::vector<Value>& args) -> Value {
         int w = args.size()>=1 && args[0].isInt() ? (int)args[0].asInt() : 800;
         int h = args.size()>=2 && args[1].isInt() ? (int)args[1].asInt() : 600;
+        SetTraceLogLevel(LOG_ERROR);  // 静默 raylib 的 INFO/WARNING
         InitWindow(w, h, "CP + raylib");
         return Value::Int(0);
     });
