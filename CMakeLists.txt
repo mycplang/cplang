@@ -460,7 +460,7 @@ endif()
 # ============================================================================
 # 15. cplang_cli — 命令行入口（可执行文件，main.cpp）
 # ============================================================================
-add_executable(cplang_cli WIN32
+add_executable(cplang_cli
     src/main.cpp
     src/repl.cpp
 )
@@ -492,7 +492,7 @@ set_target_properties(cplang_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 if(WIN32)
-    set_target_properties(cplang_cli PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
+    set_target_properties(cplang_cli PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup /FORCE:MULTIPLE")
 endif()
 
 # ═══════════════════════════════════════════════════════════════════
