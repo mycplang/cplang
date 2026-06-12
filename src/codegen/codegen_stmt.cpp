@@ -10,29 +10,29 @@ void Codegen::compileStmt(Shared<Stmt> stmt) {
     // 设置当前源码行号（用于错误定位）
     setLine(stmt->token.line);
 
-    if (auto p = std::dynamic_pointer_cast<PackageStmt>(stmt)) { printf("compileStmt: Package\n"); fflush(stdout); compilePackage(p); }
-    else if (auto imp = std::dynamic_pointer_cast<ImportStmt>(stmt)) { printf("compileStmt: Import\n"); fflush(stdout); compileImport(imp); }
-    else if (auto v = std::dynamic_pointer_cast<VarDeclStmt>(stmt)) { printf("compileStmt: VarDecl\n"); fflush(stdout); compileVarDecl(v); }
-    else if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(stmt)) { printf("compileStmt: FuncDecl\n"); fflush(stdout); compileFuncDecl(func); printf("compileStmt: FuncDecl done\n"); fflush(stdout); }
-    else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(stmt)) { printf("compileStmt: ClassDecl\n"); fflush(stdout); compileClassDecl(cls); }
-    else if (auto enm = std::dynamic_pointer_cast<EnumDeclStmt>(stmt)) { printf("compileStmt: EnumDecl\n"); fflush(stdout); compileEnumDecl(enm); }
-    else if (auto s = std::dynamic_pointer_cast<StructDeclStmt>(stmt)) { printf("compileStmt: StructDecl\n"); fflush(stdout); compileStructDecl(s); }
+    if (auto p = std::dynamic_pointer_cast<PackageStmt>(stmt)) { compilePackage(p); }
+    else if (auto imp = std::dynamic_pointer_cast<ImportStmt>(stmt)) { compileImport(imp); }
+    else if (auto v = std::dynamic_pointer_cast<VarDeclStmt>(stmt)) { compileVarDecl(v); }
+    else if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(stmt)) { compileFuncDecl(func); }
+    else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(stmt)) { compileClassDecl(cls); }
+    else if (auto enm = std::dynamic_pointer_cast<EnumDeclStmt>(stmt)) { compileEnumDecl(enm); }
+    else if (auto s = std::dynamic_pointer_cast<StructDeclStmt>(stmt)) { compileStructDecl(s); }
     else if (auto blk = std::dynamic_pointer_cast<BlockStmt>(stmt)) { compileBlock(blk); }
     else if (auto ifStmt = std::dynamic_pointer_cast<IfStmt>(stmt)) { compileIf(ifStmt); }
-    else if (auto forStmt = std::dynamic_pointer_cast<ForStmt>(stmt)) { printf("compileStmt: For\n"); fflush(stdout); compileFor(forStmt); }
-    else if (auto fe = std::dynamic_pointer_cast<ForEachStmt>(stmt)) { printf("compileStmt: ForEach\n"); fflush(stdout); compileForEach(fe); }
-    else if (auto w = std::dynamic_pointer_cast<WhileStmt>(stmt)) { printf("compileStmt: While\n"); fflush(stdout); compileWhile(w); }
-    else if (auto dw = std::dynamic_pointer_cast<DoWhileStmt>(stmt)) { printf("compileStmt: DoWhile\n"); fflush(stdout); compileDoWhile(dw); }
-    else if (auto iface = std::dynamic_pointer_cast<InterfaceDeclStmt>(stmt)) { printf("compileStmt: InterfaceDecl\n"); fflush(stdout); compileInterfaceDecl(iface); }
-    else if (auto r = std::dynamic_pointer_cast<ReturnStmt>(stmt)) { printf("compileStmt: Return\n"); fflush(stdout); compileReturn(r); }
-    else if (auto brk = std::dynamic_pointer_cast<BreakStmt>(stmt)) { printf("compileStmt: Break\n"); fflush(stdout); compileBreak(brk); }
-    else if (auto cont = std::dynamic_pointer_cast<ContinueStmt>(stmt)) { printf("compileStmt: Continue\n"); fflush(stdout); compileContinue(cont); }
-    else if (auto tr = std::dynamic_pointer_cast<TryStmt>(stmt)) { printf("compileStmt: Try\n"); fflush(stdout); compileTry(tr); }
-    else if (auto th = std::dynamic_pointer_cast<ThrowStmt>(stmt)) { printf("compileStmt: Throw\n"); fflush(stdout); compileThrow(th); }
-    else if (auto sw = std::dynamic_pointer_cast<SwitchStmt>(stmt)) { printf("compileStmt: Switch\n"); fflush(stdout); compileSwitch(sw); }
-    else if (auto matchStmt = std::dynamic_pointer_cast<MatchStmt>(stmt)) { printf("compileStmt: Match\n"); fflush(stdout); compileMatch(matchStmt); }
-    else if (auto e = std::dynamic_pointer_cast<ExprStmt>(stmt)) { printf("compileStmt: ExprStmt\n"); fflush(stdout); compileExprStmt(e); }
-    else if (auto d = std::dynamic_pointer_cast<DeferStmt>(stmt)) { printf("compileStmt: Defer\n"); fflush(stdout); compileDefer(d); }
+    else if (auto forStmt = std::dynamic_pointer_cast<ForStmt>(stmt)) { compileFor(forStmt); }
+    else if (auto fe = std::dynamic_pointer_cast<ForEachStmt>(stmt)) { compileForEach(fe); }
+    else if (auto w = std::dynamic_pointer_cast<WhileStmt>(stmt)) { compileWhile(w); }
+    else if (auto dw = std::dynamic_pointer_cast<DoWhileStmt>(stmt)) { compileDoWhile(dw); }
+    else if (auto iface = std::dynamic_pointer_cast<InterfaceDeclStmt>(stmt)) { compileInterfaceDecl(iface); }
+    else if (auto r = std::dynamic_pointer_cast<ReturnStmt>(stmt)) { compileReturn(r); }
+    else if (auto brk = std::dynamic_pointer_cast<BreakStmt>(stmt)) { compileBreak(brk); }
+    else if (auto cont = std::dynamic_pointer_cast<ContinueStmt>(stmt)) { compileContinue(cont); }
+    else if (auto tr = std::dynamic_pointer_cast<TryStmt>(stmt)) { compileTry(tr); }
+    else if (auto th = std::dynamic_pointer_cast<ThrowStmt>(stmt)) { compileThrow(th); }
+    else if (auto sw = std::dynamic_pointer_cast<SwitchStmt>(stmt)) { compileSwitch(sw); }
+    else if (auto matchStmt = std::dynamic_pointer_cast<MatchStmt>(stmt)) { compileMatch(matchStmt); }
+    else if (auto e = std::dynamic_pointer_cast<ExprStmt>(stmt)) { compileExprStmt(e); }
+    else if (auto d = std::dynamic_pointer_cast<DeferStmt>(stmt)) { compileDefer(d); }
 }
 
 void Codegen::compilePackage(Shared<PackageStmt> /*stmt*/) {
@@ -40,21 +40,17 @@ void Codegen::compilePackage(Shared<PackageStmt> /*stmt*/) {
 }
 
 void Codegen::compileImport(Shared<ImportStmt> stmt) {
-    // 将模块名添加到常量池
+    // VM 模式下所有函数已由 registerAll() 注册，import 无需执行
+    if (vm_) return;
+
+    // AOT 模式：生成 OP_IMPORT 供链接器使用
     VMString* modNameStr = VMString::create(stmt->moduleName.c_str(),
                                              static_cast<UInt32>(stmt->moduleName.length()));
     Int32 modNameIdx = addConstant(makeStringVal(modNameStr));
 
-    // 分配结果寄存器
     int resultReg = allocReg();
-
-    // 生成 OP_IMPORT ra, moduleNameIdx
-    // 格式: OP(8) | A(8) | B(8) | C(8)
-    // B 是常量池索引的低8位
     emit(OP_IMPORT, static_cast<UInt8>(resultReg), static_cast<UInt8>(modNameIdx & 0xFF), 0);
-
-    // 释放结果寄存器(import结果通常不需要使用)
-    nextReg_ = resultReg;  // 回退寄存器分配
+    nextReg_ = resultReg;
 }
 
 void Codegen::compileVarDecl(Shared<VarDeclStmt> stmt) {
@@ -156,30 +152,29 @@ void Codegen::compileFuncDecl(Shared<FuncDeclStmt> stmt) {
 
     // 编译函数体
     if (stmt->body) {
-        printf("DEBUG: compileFuncDecl: compiling body\n"); fflush(stdout);
-        compileBlock(stmt->body);
+
+compileBlock(stmt->body);
     }
 
-    printf("DEBUG: compileFuncDecl: adding default return\n"); fflush(stdout);
 
-    // 默认返回 nil
+// 默认返回 nil
     if (func_->code.empty() || func_->code.back() != OP_RETURN) {
         emit(OP_LOADNIL, 0, 0, 0);
         emit(OP_RETURN, 0, 0, 0);
     }
 
-    printf("DEBUG: compileFuncDecl: popScope\n"); fflush(stdout);
-    // 弹出函数作用域
+
+// 弹出函数作用域
     popScope();
 
-    printf("DEBUG: compileFuncDecl: setting properties\n"); fflush(stdout);
-    // 设置新函数的属性
+
+// 设置新函数的属性
     newFunc->maxStack = maxReg_ + 16;
     newFunc->constants = constants_;  // 复制常量表
     newFunc->isTyped = allTyped_;     // 渐进类型标记
     
-    printf("DEBUG: compileFuncDecl: restoring context\n"); fflush(stdout);
-    lastCompiledFunc_ = func_;
+
+lastCompiledFunc_ = func_;
     // 恢复外层编译状态
     func_ = oldFunc;
     code_ = oldCode;
@@ -189,18 +184,18 @@ void Codegen::compileFuncDecl(Shared<FuncDeclStmt> stmt) {
     // 重置 typed 追踪
     allTyped_ = true;
 
-    printf("DEBUG: compileFuncDecl: adding function to constant pool\n"); fflush(stdout);
-    // 添加新函数到外层的常量池
+
+// 添加新函数到外层的常量池
     Value funcVal = makeFunctionVal(reinterpret_cast<VMFunction*>(newFunc));
     Int32 funcIdx = addConstant(funcVal);
 
-    printf("DEBUG: compileFuncDecl: creating name string\n"); fflush(stdout);
-    // 全局注册函数名
+
+// 全局注册函数名
     VMString* nameStr = VMString::create(stmt->name);
     Int32 nameIdx = addConstant(makeStringVal(nameStr));
 
-    printf("DEBUG: compileFuncDecl: emitting LOADCONST\n"); fflush(stdout);
-    // 生成代码:加载函数引用,存入全局(使用Slot化优化)
+
+// 生成代码:加载函数引用,存入全局(使用Slot化优化)
     int r = allocReg();
     emitInt(OP_LOADCONST, r, funcIdx);
     if (vm_) {

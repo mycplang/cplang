@@ -197,18 +197,8 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
     aot_logf("call_native: %s argc=%d", name, argc);
     if (!g_aot_vm) { aot_log("call_native: VM null, reinitializing..."); aot_init_runtime(); }
 
-    // 1. 按名称查找全局 slot
-    Int32 slot = g_aot_vm->getGlobalSlot(name);
-    if (slot < 0) { aot_logf("call_native: slot not found for '%s'", name); return 0; }
 
-    // 2. 获取全局值 → 验证是原生函数
-    Value* gv = g_aot_vm->getGlobalBySlot(static_cast<UInt16>(slot));
-    if (!gv || !gv->isPtr()) return 0;
-    VMObject* obj = gv->asPtr();
-    if (!obj || obj->typeTag != ObjectHeader::TAG_NATIVE) return 0;
-    VMNativeFunc* nf = static_cast<VMNativeFunc*>(obj);
-
-    // ═══ 直接 raylib 调用绕过（仅在链接 raylib 时启用，避免非图形 AOT 链接 raylib）═══
+// ═══ 直接 raylib 调用绕过（仅在链接 raylib 时启用，避免非图形 AOT 链接 raylib）═══
     // 对于非图形 AOT 编译，走标准 stdlib 路径
 #ifndef CPLANG_AOT_NO_RAYLIB
     {
@@ -265,6 +255,18 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
         }
     }
 #endif // CPLANG_AOT_NO_RAYLIB
+    // 1. 按名称查找全局 slot
+    Int32 slot = g_aot_vm->getGlobalSlot(name);
+    if (slot < 0) { aot_logf("call_native: slot not found for '%s'", name); return 0; }
+
+    // 2. 获取全局值 → 验证是原生函数
+    Value* gv = g_aot_vm->getGlobalBySlot(static_cast<UInt16>(slot));
+    if (!gv || !gv->isPtr()) return 0;
+    VMObject* obj = gv->asPtr();
+    if (!obj || obj->typeTag != ObjectHeader::TAG_NATIVE) return 0;
+    VMNativeFunc* nf = static_cast<VMNativeFunc*>(obj);
+
+    
 
     // 3. 构造参数数组
     std::vector<Value> vm_args(argc);

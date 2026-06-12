@@ -954,6 +954,19 @@ String AOTCompiler::findModuleLib(const String& moduleName) {
     auto pos = shortName.rfind('/');
     if (pos != std::string::npos) shortName = shortName.substr(pos + 1);
     
+    // 中文模块名 → 英文目录/.lib 文件名映射
+    static const std::unordered_map<std::string, std::string> cnToEn = {
+        {"图形", "graphics"}, {"算法", "algorithm"},
+        {"数据库", "database"}, {"加密", "crypto"},
+        {"网络", "network"}, {"容器", "container"},
+        {"并发", "concurrent"}, {"字符串扩展", "string_ext"},
+        {"字符集", "charset"}, {"外部接口", "ffi"},
+    };
+    auto it = cnToEn.find(shortName);
+    if (it != cnToEn.end()) {
+        shortName = it->second;
+    }
+    
     // 搜索路径优先级:
     // 1. cplang.exe 同级的 modules/<name>/win-x64/<name>.lib
     // 2. 项目根目录的 modules/<name>/win-x64/<name>.lib
