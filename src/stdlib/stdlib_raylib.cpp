@@ -231,13 +231,19 @@ font_ok:
 }
 
 Value rl_drawText(std::vector<Value>& args) {
-    if (args.size() < 3) return Value::Int(0);
-    const char* text = args[0].isString() ? args[0].asString()->c_str() : "";
-    int x = args[1].isInt() ? (int)args[1].asInt() : 0;
-    int y = args[2].isInt() ? (int)args[2].asInt() : 0;
+    if (args.size() < 3) { VM::current()->raiseError("drawText 至少需要3个参数: 文字, x, y"); return Value::Int(0); }
+    if (!args[0].isString()) { VM::current()->raiseError("drawText 第1个参数必须是字符串"); return Value::Int(0); }
+    if (!args[1].isInt()) { VM::current()->raiseError("drawText 第2个参数(x)必须是整数"); return Value::Int(0); }
+    if (!args[2].isInt()) { VM::current()->raiseError("drawText 第3个参数(y)必须是整数"); return Value::Int(0); }
+    const char* text = args[0].asString()->c_str();
+    int x = (int)args[1].asInt();
+    int y = (int)args[2].asInt();
     int fontSize = 20;
     Color c = BLACK;
-    if (args.size() >= 4 && args[3].isInt()) fontSize = (int)args[3].asInt();
+    if (args.size() >= 4) {
+        if (!args[3].isInt()) { VM::current()->raiseError("drawText 第4个参数(字号)必须是整数"); return Value::Int(0); }
+        fontSize = (int)args[3].asInt();
+    }
     if (args.size() >= 5) c = valueToColor(args[4]);
     Color textColor = { c.r, c.g, c.b, c.a };
     Font asciiFont = GetFontDefault();
