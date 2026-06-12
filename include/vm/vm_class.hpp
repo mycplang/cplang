@@ -23,6 +23,7 @@ public:
     void registerGlobal(const char* name, Value val);
     void registerNative(const char* name, VMNativeFunc::Fn fn);
     void registerNativeAlias(const char* aliasName, const char* originalName);
+    void setGlobal(const char* name, Value v);
 
     Int32 getOrCreateGlobalSlot(const char* name);
     Int32 getGlobalSlot(const char* name) const {

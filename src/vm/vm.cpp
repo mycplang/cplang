@@ -159,6 +159,16 @@ bool VM::doImport(const std::string& filename) {
     return importCallback(filename);
 }
 
+void VM::setGlobal(const char* name, Value v) {
+    globals_[std::string(name)] = v;
+    Int32 slot = getOrCreateGlobalSlot(name);
+    if (slot >= 0) {
+        if (slot >= static_cast<Int32>(globalSlots_.size()))
+            globalSlots_.resize(slot + 1);
+        globalSlots_[slot] = v;
+    }
+}
+
 void VM::raiseError(const std::string& msg) {
     error_ = msg;
 }
