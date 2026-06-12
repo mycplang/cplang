@@ -934,6 +934,10 @@ void StdLib::registerRaylib(VM* vm) {
     registerFunction(vm, "setMusicVolume",   rl_setMusicVolume);
     
     // Random
+    registerFunction(vm, "loadFont",             rl_loadFont);
+    registerAlias(vm,   "加载字体",              "loadFont");
+    registerFunction(vm, "unloadFont",           rl_unloadFont);
+    registerAlias(vm,   "卸载字体",              "unloadFont");
     registerFunction(vm, "getRandomValue",   rl_getRandomValue);
     
     // Time
