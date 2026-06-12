@@ -499,19 +499,32 @@ endif()
 # AOT 运行时支持文件（由 cplang_cli 构建后自动生成）
 # ═══════════════════════════════════════════════════════════════════
 if(CPLANG_USE_LLVM AND LLVM_FOUND AND WIN32)
-    # aot_vm_bridge.obj — AOT 运行时桥接（带 raylib 支持）
+    # aot_vm_bridge.obj — AOT 运行时桥接（无 raylib，纯数学/IO 模式）
     set(AOT_BRIDGE_OBJ "${CMAKE_BINARY_DIR}/bin/aot_vm_bridge.obj")
     add_custom_command(OUTPUT ${AOT_BRIDGE_OBJ}
+        COMMAND cl /c /EHsc /std:c++17 /O2 /nologo /utf-8 /MD
+                /I"${CMAKE_SOURCE_DIR}/include"
+                /DCPLANG_AOT_NO_RAYLIB=1
+                /Fo"${AOT_BRIDGE_OBJ}"
+                "${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp"
+        DEPENDS ${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp
+                ${CMAKE_SOURCE_DIR}/include/aot/aot_vm_bridge.hpp
+        COMMENT "Building aot_vm_bridge.obj for AOT linker (no raylib)"
+    )
+    
+    # aot_vm_bridge_gfx.obj — AOT 运行时桥接（带 raylib 图形支持）
+    set(AOT_BRIDGE_GFX_OBJ "${CMAKE_BINARY_DIR}/bin/aot_vm_bridge_gfx.obj")
+    add_custom_command(OUTPUT ${AOT_BRIDGE_GFX_OBJ}
         COMMAND cl /c /EHsc /std:c++17 /O2 /nologo /utf-8 /MD
                 /I"${CMAKE_SOURCE_DIR}/include"
                 /I"${CMAKE_SOURCE_DIR}/third_party/raylib/src"
                 /I"${CMAKE_SOURCE_DIR}/third_party/raylib/src/external/glfw/include"
                 /DGRAPHICS_API_OPENGL_21 /DPLATFORM_DESKTOP
-                /Fo"${AOT_BRIDGE_OBJ}"
+                /Fo"${AOT_BRIDGE_GFX_OBJ}"
                 "${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp"
         DEPENDS ${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp
                 ${CMAKE_SOURCE_DIR}/include/aot/aot_vm_bridge.hpp
-        COMMENT "Building aot_vm_bridge.obj for AOT linker (with raylib)"
+        COMMENT "Building aot_vm_bridge_gfx.obj for AOT linker (with raylib)"
     )
     
     # jit_runtime_standalone.obj → jit_runtime.lib — AOT 独立运行时

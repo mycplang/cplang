@@ -569,18 +569,20 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
         String buildDir = ownDir + "\\..";  // build_verify/
         
         // 3b. 链接 aot_vm_bridge.obj（运行时桥接入口）
-        String bridgeObj = ownDir + "\\aot_vm_bridge.obj";
+        //     带图形时用 gfx 版（有 raylib），否则用普通版（无 raylib）
+        String bridgeName = graphicsNeeded_ ? "aot_vm_bridge_gfx.obj" : "aot_vm_bridge.obj";
+        String bridgeObj = ownDir + "\\" + bridgeName;
         std::ifstream testBridge(bridgeObj);
         if (!testBridge.good()) {
             testBridge.close();
-            bridgeObj = buildDir + "\\CMakeFiles\\cplang_aot.dir\\src\\aot\\aot_vm_bridge.cpp.obj";
+            bridgeObj = buildDir + "\\CMakeFiles\\cplang_aot.dir\\src\\aot\\" + bridgeName;
             testBridge.open(bridgeObj);
         }
         if (testBridge.good()) {
             testBridge.close();
             allObjs.push_back(bridgeObj);
         } else {
-            std::cerr << "[AOT] 警告: 未找到 aot_vm_bridge.obj，将跳过桥接初始化\n";
+            std::cerr << "[AOT] 警告: 未找到 " << bridgeName << "，将跳过桥接初始化\n";
         }
         
         // 3a. 链接核心运行时库（cplang_stdlib_core.lib + cplang_stdlib.lib + cplang_vm.lib）
@@ -694,8 +696,8 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
     cmd += " /FORCE:MULTIPLE";  // 兜底：忽略残余重复符号
     // 添加系统库（Shell32 / WinHTTP / Winsock / OpenGL 等）
     cmd += " Shell32.lib Winhttp.lib Ws2_32.lib Cabinet.lib opengl32.lib";
-    // raylib.lib（始终链接，链接器自动丢弃未使用的代码）
-    {
+    // raylib.lib（仅在图形 AOT 时链接，非图形 exe 不需要 raylib）
+    if (graphicsNeeded_) {
         char _own[MAX_PATH]; GetModuleFileNameA(NULL, _own, MAX_PATH);
         String _dir(_own); size_t _p = _dir.find_last_of("\\/");
         if (_p != String::npos) _dir = _dir.substr(0, _p);
@@ -704,11 +706,6 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
         if (!testRl.good()) {
             testRl.close();
             rlLib = _dir + "\\..\\third_party\\raylib\\build_vs\\raylib\\raylib.lib";
-            testRl.open(rlLib);
-        }
-        if (!testRl.good()) {
-            // 尝试 build_verify 同级目录
-            rlLib = _dir + "\\..\\raylib.lib";
             testRl.open(rlLib);
         }
         if (testRl.good()) {
