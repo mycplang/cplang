@@ -126,7 +126,7 @@ void printUsage(const char* program) {
     std::cout << "       --hotspot-threshold=N  热点阈值 (默认 100)\n";
     std::cout << "  -j, --jit      完整编译并执行（JIT 模式）\n";
     std::cout << "  -a, --aot      AOT 编译为原生 .exe（LLVM，需模块包）\n";
-    std::cout << "  -k, --pack     打包 CP 源码为独立 .exe（嵌入 VM）\n";
+    std::cout << "  -k, --pack     AOT 编译打包为独立 .exe（原生机器码，推荐）\n";
     std::cout << "  -o <file>      指定输出文件（配合 --aot/--pack 使用）\n";
     std::cout << "  -O0/-O1/-O2/-O3 优化级别\n";
     std::cout << "  --no-bytecode-opt 禁用字节码优化\n";
@@ -491,7 +491,7 @@ int main(int argc, char* argv[]) {
     int  debugPort = 0;  // 0 = 禁用调试服务器
     
     // 检查主模式
-    // ── 打包模式 ──
+    // ── 打包模式（改为 AOT 编译，替代旧 SFX 自解压）──
     if (mode == "-k" || mode == "--pack") {
         const char* pf = nullptr;
         const char* po = nullptr;
@@ -508,7 +508,20 @@ int main(int argc, char* argv[]) {
             defout += ".exe";
             po = defout.c_str();
         }
-        return packSource(pf, po) ? 0 : 1;
+        // 使用 AOT 编译替代旧的 SFX 自解压打包
+        std::cout << "AOT 打包: " << pf << " → " << po << "\n";
+        AOTConfig aotCfg;
+        aotCfg.outputFile = po;
+        aotCfg.optLevel = optLevel;
+        AOTCompiler aot;
+        AOTResult res = aot.compileFile(pf, aotCfg);
+        if (res.success) {
+            std::cout << "打包成功: " << res.outputFile << " (" << (std::ifstream(po,std::ios::binary|std::ios::ate).tellg()/1024) << " KB)\n";
+            return 0;
+        } else {
+            std::cerr << "打包失败: " << res.errorMessage << "\n";
+            return 1;
+        }
     }
 
     // 扫描参数（从第2个开始，跳过模式）
