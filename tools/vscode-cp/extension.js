@@ -24,16 +24,20 @@ function getCplangCompiler() {
 
 function findCompilerNearFile(filePath) {
     const exe = process.platform === 'win32' ? 'cplang.exe' : 'cplang';
-    // 从文件所在目录向上搜索 build_msvc/bin/cplang.exe
+    // 从文件所在目录向上搜索（同时支持 build_verify 和 build_msvc）
     let dir = path.dirname(filePath);
     while (true) {
-        const p = path.join(dir, 'build_msvc', 'bin', exe);
+        // 优先新版 build_verify
+        let p = path.join(dir, 'build_verify', 'bin', exe);
+        try { if (require('fs').statSync(p).isFile()) return p; } catch (_) {}
+        // 次选旧版 build_msvc
+        p = path.join(dir, 'build_msvc', 'bin', exe);
         try { if (require('fs').statSync(p).isFile()) return p; } catch (_) {}
         const parent = path.dirname(dir);
         if (parent === dir) break;
         dir = parent;
     }
-    // 兜底：旧的查找逻辑
+    // 兜底：回退到默认搜索
     return getCplangCompiler();
 }
 
@@ -107,7 +111,7 @@ function activate(context) {
     const buildCommand = vscode.commands.registerCommand('cp.build', () => {
         const filePath = getActiveCpFile();
         if (!filePath) return;
-        const compiler = getCplangCompiler();
+        const compiler = findCompilerNearFile(filePath);
         const terminal = vscode.window.createTerminal({ name: 'CP Build', hideFromUser: false });
         terminal.show();
         terminal.sendText(`"${compiler}" -p "${filePath}"`);
@@ -117,7 +121,7 @@ function activate(context) {
     const sfxCommand = vscode.commands.registerCommand('cp.pack', () => {
         const filePath = getActiveCpFile();
         if (!filePath) return;
-        const compiler = getCplangCompiler();
+        const compiler = findCompilerNearFile(filePath);
         const outPath = filePath.replace(/\.cp$/i, '.exe');
         const terminal = vscode.window.createTerminal({ name: 'CP AOT Pack', hideFromUser: false });
         terminal.show();
@@ -148,6 +152,12 @@ function activate(context) {
         terminal.sendText(`wsl "ANDROID_NDK=\${ANDROID_NDK:-\$HOME/Android/Sdk/ndk-bundle} ${wslPath} android"`);
     });
 
+    // ---- Command: 启动调试器 ----
+    const debugCommand = vscode.commands.registerCommand('cp.debug', () => {
+        const vscode_ = require('vscode');
+        vscode_.commands.executeCommand('workbench.action.debug.start');
+    });
+
     // ---- Command: show environment info ----
     const infoCommand = vscode.commands.registerCommand('cp.info', () => {
         const home = getCplangHome();
@@ -165,7 +175,7 @@ function activate(context) {
         );
     });
 
-    context.subscriptions.push(runCommand, buildCommand, sfxCommand, linuxCommand, androidCommand, infoCommand);
+    context.subscriptions.push(runCommand, buildCommand, sfxCommand, linuxCommand, androidCommand, debugCommand, infoCommand);
 
     // ---- Cleanup ----
     context.subscriptions.push({

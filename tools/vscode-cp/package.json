@@ -11,7 +11,7 @@
   },
   "engines": {"vscode": "^1.80.0"},
   "categories": ["Programming Languages", "Linters"],
-  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.pack", "onCommand:cp.linux", "onCommand:cp.android", "onCommand:cp.info"],
+  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.debug", "onCommand:cp.pack", "onCommand:cp.linux", "onCommand:cp.android", "onCommand:cp.info"],
   "main": "./extension.js",
   "contributes": {
     "languages": [{
@@ -69,6 +69,11 @@
     "keybindings": [
       {
         "command": "cp.run",
+        "key": "f5",
+        "when": "editorLangId == cp && editorTextFocus"
+      },
+      {
+        "command": "cp.debug",
         "key": "ctrl+shift+r",
         "when": "editorLangId == cp && editorTextFocus"
       },
