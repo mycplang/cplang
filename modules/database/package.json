@@ -1,0 +1,12 @@
+{
+    "name": "@cp/database",
+    "version": "0.2.0",
+    "desc": "CP语言 数据库模块（SQLite + MySQL + Redis + WebSocket）",
+    "author": "cplang",
+    "license": "MIT",
+    "keywords": ["数据库", "sqlite", "mysql", "redis", "websocket"],
+    "dependencies": {},
+    "platforms": {
+        "win-x64": "database.lib"
+    }
+}

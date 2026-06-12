@@ -1,3 +1,4 @@
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
 // 测试1: 直接 RGBA 整数调用 clearBackground
 initWindow(400, 300, "RGBA TEST");
 setTargetFPS(60);

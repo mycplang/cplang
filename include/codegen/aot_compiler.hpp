@@ -4,6 +4,7 @@
 #include "ast/ast.hpp"
 #include <string>
 #include <vector>
+#include <set>
 #include <unordered_map>
 
 namespace cplang {
@@ -86,6 +87,13 @@ private:
     // 图形检测（编译时自动选择轻量/图形库）
     bool graphicsNeeded_ = false;
     static void scanGraphicsUsage(Shared<Program> ast, bool& found);
+    
+    // 模块导入检测（AOT 编译时自动发现需要的模块包）
+    std::set<String> neededModules_;
+    static void scanModuleImports(Shared<Program> ast, std::set<String>& modules);
+    static String findModuleLib(const String& moduleName);
+    String generateModuleBootstrap(const std::set<String>& modules);
+    bool compileBootstrapToObj(const String& bootstrapLl, const String& objFile, const AOTConfig& config);
 };
 
 // 进程内 LLVM IR → 目标文件编译（替代外部 llc.exe）

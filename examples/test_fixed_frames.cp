@@ -1,3 +1,4 @@
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
 // 固定帧数渲染测试：用 while 循环，兼容 CP 语言特性
 initWindow(800, 620, "CP RENDER TEST");
 setTargetFPS(60);

@@ -1,0 +1,12 @@
+{
+    "name": "@cp/ffi",
+    "version": "0.2.0",
+    "desc": "CP语言 外部函数接口模块（加载 DLL / 调用外部函数）",
+    "author": "cplang",
+    "license": "MIT",
+    "keywords": ["ffi", "dll", "外部调用", "动态库"],
+    "dependencies": {},
+    "platforms": {
+        "win-x64": "ffi.lib"
+    }
+}

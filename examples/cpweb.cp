@@ -1,3 +1,4 @@
+﻿导入 "@cp/net";  // 网络模块 (HTTP + JSON)
 // CP Web 演示 — 简单静态文件服务器 + API
 // 依赖: TCP监听 TCP接受 TCP发送 TCP接收 TCP关闭 读取文件 文件存在
 

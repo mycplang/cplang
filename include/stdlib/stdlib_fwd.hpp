@@ -1,5 +1,7 @@
 #pragma once
 #include "vm/vm.hpp"
+#include <string>
+#include <vector>
 #include <unordered_map>
 #include <functional>
 
@@ -121,11 +123,28 @@ public:
     static void registerRaylib(VM* vm);
     static void registerFixMissing(VM* vm);
     static void registerFFI(VM* vm);
+    static void registerIOPoll(VM* vm);
+
+    // 核心注册（AOT 模式使用，只注册绝对必要的基础模块）
+    static void registerCore(VM* vm);
+    
+    // 按需注册接口（AOT 模式使用，仅注册实际需要的模块）
+    static void registerModules(VM* vm, const std::vector<std::string>& modules);
 
 private:
     // 辅助函数
     static void registerFunction(VM* vm, const char* name, VMNativeFunc::Fn fn);
     static void registerAlias(VM* vm, const char* alias, const char* original);
 };
+
+// ── 内联辅助实现（定义在类外，方便模块独立编译）──
+#ifndef CPLANG_STDLIB_IMPL_ONLY
+inline void StdLib::registerFunction(VM* vm, const char* name, VMNativeFunc::Fn fn) {
+    vm->registerNative(name, fn);
+}
+inline void StdLib::registerAlias(VM* vm, const char* alias, const char* original) {
+    vm->registerNativeAlias(alias, original);
+}
+#endif
 
 } // namespace cplang

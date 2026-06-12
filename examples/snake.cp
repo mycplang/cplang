@@ -1,4 +1,5 @@
-﻿// 贪吃蛇 — CP + Raylib 纯中文
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
+// 贪吃蛇 — CP + Raylib 纯中文
 // 方向键控制，吃红方块成长
 
 变量 格子大小 = 20;

@@ -64,6 +64,16 @@ AOTResult AOTCompiler::compileAST(Shared<Program> ast, const AOTConfig& config) 
     // 检测是否需要图形库
     scanGraphicsUsage(ast, graphicsNeeded_);
     
+    // 检测模块导入（AOT 模块化支持）
+    scanModuleImports(ast, neededModules_);
+    VERBOSE(
+        if (!neededModules_.empty()) {
+            std::cout << "[AOT] 检测到模块导入:";
+            for (auto& m : neededModules_) std::cout << " " << m;
+            std::cout << std::endl;
+        }
+    );
+    
     // 语义分析
     SemanticAnalyzer analyzer;
     if (!analyzer.analyze(ast)) {
@@ -123,13 +133,26 @@ AOTResult AOTCompiler::compileAST(Shared<Program> ast, const AOTConfig& config) 
         return result;
     }
     
+    // 生成模块引导文件（如果检测到模块导入）
+    std::vector<String> linkObjects = {objFile, wrapperObj};
+    String bootstrapObj;
+    if (!neededModules_.empty() && !config.pureMath) {
+        String bootstrapLl = generateModuleBootstrap(neededModules_);
+        bootstrapObj = getTempFile("_bootstrap.obj");
+        if (!compileBootstrapToObj(bootstrapLl, bootstrapObj, config)) {
+            std::cerr << "[AOT] 警告: 模块引导编译失败，将跳过模块注册\n";
+        } else {
+            linkObjects.push_back(bootstrapObj);
+        }
+    }
+    
     // 链接到可执行文件
     String exeFile = config.outputFile;
     if (exeFile.empty()) {
         exeFile = "a" + getDefaultOutputExtension();
     }
     
-    if (!linkToExecutable({objFile, wrapperObj}, exeFile, config)) {
+    if (!linkToExecutable(linkObjects, exeFile, config)) {
         return result;
     }
     
@@ -205,9 +228,9 @@ static bool runTool(const std::string& cmdLine) {
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
     
-    // 打印子进程输出
+    // 打印子进程输出（仅 verbose 模式，正常编译不显示链接器警告）
     if (!output.empty()) {
-        std::cerr << output;
+        VERBOSE(std::cerr << output);
     }
     return exitCode == 0;
 }
@@ -365,21 +388,59 @@ AOTCompiler::MSVCPaths AOTCompiler::detectMSVCPaths() {
         }
     }
     
-    // 3. 如果 vswhere 失败，尝试已知路径
+    // 3. 如果 vswhere 失败，扫描最新可用版本（避免硬编码版本号）
     if (paths.msvcLib.empty()) {
-        String knownMsvc = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207";
-        paths.msvcLib = knownMsvc + "\\lib\\x64";
-        paths.msvcBin = knownMsvc + "\\bin\\Hostx64\\x64";
-        paths.msvcInclude = knownMsvc + "\\include";
+        String msvcBase = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\";
+        // 扫描 MSVC 版本目录，取最新的
+        WIN32_FIND_DATAA ffd;
+        String latestMsvc;
+        HANDLE hFind = FindFirstFileA((msvcBase + "*").c_str(), &ffd);
+        if (hFind != INVALID_HANDLE_VALUE) {
+            latestMsvc = ffd.cFileName;
+            while (FindNextFileA(hFind, &ffd)) {
+                if (strcmp(ffd.cFileName, ".") != 0 && strcmp(ffd.cFileName, "..") != 0) {
+                    // 取字典序最大的版本号（14.xx.xxxxx 格式，可自然比较）
+                    if (strcmp(ffd.cFileName, latestMsvc.c_str()) > 0) {
+                        latestMsvc = ffd.cFileName;
+                    }
+                }
+            }
+            FindClose(hFind);
+        }
+        if (!latestMsvc.empty()) {
+            String knownMsvc = msvcBase + latestMsvc;
+            paths.msvcLib = knownMsvc + "\\lib\\x64";
+            paths.msvcBin = knownMsvc + "\\bin\\Hostx64\\x64";
+            paths.msvcInclude = knownMsvc + "\\include";
+        }
     }
     if (paths.ucrtLib.empty()) {
-        String knownKit = "C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0";
-        String knownKitInc = "C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0";
-        paths.ucrtLib = knownKit + "\\ucrt\\x64";
-        paths.umLib = knownKit + "\\um\\x64";
-        paths.ucrtInclude = knownKitInc + "\\ucrt";
-        paths.umInclude = knownKitInc + "\\um";
-        paths.sharedInclude = knownKitInc + "\\shared";
+        String kitsBase = "C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\";
+        String kitsIncBase = "C:\\Program Files (x86)\\Windows Kits\\10\\Include\\";
+        // 扫描 Windows Kits 版本目录，取最新的
+        WIN32_FIND_DATAA ffd;
+        String latestKit;
+        HANDLE hFind = FindFirstFileA((kitsBase + "*").c_str(), &ffd);
+        if (hFind != INVALID_HANDLE_VALUE) {
+            latestKit = ffd.cFileName;
+            while (FindNextFileA(hFind, &ffd)) {
+                if (strcmp(ffd.cFileName, ".") != 0 && strcmp(ffd.cFileName, "..") != 0) {
+                    if (strcmp(ffd.cFileName, latestKit.c_str()) > 0) {
+                        latestKit = ffd.cFileName;
+                    }
+                }
+            }
+            FindClose(hFind);
+        }
+        if (!latestKit.empty()) {
+            String knownKit = kitsBase + latestKit;
+            String knownKitInc = kitsIncBase + latestKit;
+            paths.ucrtLib = knownKit + "\\ucrt\\x64";
+            paths.umLib = knownKit + "\\um\\x64";
+            paths.ucrtInclude = knownKitInc + "\\ucrt";
+            paths.umInclude = knownKitInc + "\\um";
+            paths.sharedInclude = knownKitInc + "\\shared";
+        }
     }
 #endif
     
@@ -497,34 +558,64 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
     
     // 3. 非纯数学模式：链接预编译的运行时库
     if (!config.pureMath) {
-        // 在 cplang.exe 同级目录查找运行时库文件
+        // 在 cplang.exe 同级目录及 CMake 构建输出目录查找运行时库文件
         char ownPath[MAX_PATH];
         GetModuleFileNameA(NULL, ownPath, MAX_PATH);
         String ownDir(ownPath);
         auto pos = ownDir.find_last_of("\\/");
         if (pos != String::npos) ownDir = ownDir.substr(0, pos);
         
+        // CMake 构建输出目录（回退搜索路径）
+        String buildDir = ownDir + "\\..";  // build_verify/
+        
         // 3b. 链接 aot_vm_bridge.obj（运行时桥接入口）
         String bridgeObj = ownDir + "\\aot_vm_bridge.obj";
         std::ifstream testBridge(bridgeObj);
+        if (!testBridge.good()) {
+            testBridge.close();
+            bridgeObj = buildDir + "\\CMakeFiles\\cplang_aot.dir\\src\\aot\\aot_vm_bridge.cpp.obj";
+            testBridge.open(bridgeObj);
+        }
         if (testBridge.good()) {
             testBridge.close();
             allObjs.push_back(bridgeObj);
         } else {
-            std::cerr << "[AOT] 警告: 未找到 " << bridgeObj << "，将跳过桥接初始化\n";
+            std::cerr << "[AOT] 警告: 未找到 aot_vm_bridge.obj，将跳过桥接初始化\n";
         }
         
-        // 3a. 自动选择运行时库（检测是否需要图形支持）
-        String cplangLib = ownDir + (graphicsNeeded_ ? "\\cplang_graphics.lib" : "\\cplang_aot.lib");
-        std::ifstream testCplang(cplangLib);
-        if (testCplang.good()) {
-            testCplang.close();
-            // 裸路径 + 带内层引号的 /WHOLEARCHIVE（循环中统一加外层引号，/WHOLEARCHIVE 自身已含引号）
-            allObjs.push_back(cplangLib);
-            allObjs.push_back(String("/WHOLEARCHIVE:\"") + cplangLib + String("\""));
-        } else {
-            std::cerr << "[AOT] 警告: 未找到 " << cplangLib << "，stdlib 桥接将不可用\n";
-            std::cerr << "[AOT] 提示: 请运行 build_msvc.bat 以生成 cplang.lib\n";
+        // 3a. 链接核心运行时库（cplang_stdlib_core.lib + cplang_stdlib.lib + cplang_vm.lib）
+        //     cplang_stdlib_core 提供 registerCore()，cplang_stdlib 提供各模块 .obj
+        //     由于 registerAll() 仅存在于 stdlib.obj 且不再被引用，不会拖入全部 stdlib
+        std::vector<String> runtimeLibs = {
+            buildDir + "\\cplang_stdlib_core.lib",
+            buildDir + "\\cplang_stdlib.lib",
+            buildDir + "\\cplang_vm.lib",
+            buildDir + "\\cplang_platform.lib",
+            buildDir + "\\cplang_debug.lib"
+        };
+        for (auto& lib : runtimeLibs) {
+            std::ifstream test(lib, std::ios::binary);
+            if (test.good()) {
+                test.close();
+                allObjs.push_back(lib);
+            }
+        }
+        // 回退：exe 同级目录
+        if (allObjs.size() == objFiles.size()) {
+            String fallback = ownDir + "\\cplang_aot.lib";
+            std::ifstream test(fallback, std::ios::binary);
+            if (test.good()) { test.close(); allObjs.push_back(fallback); }
+        }
+        
+        // 3a2. 添加检测到的模块 .lib 文件（AOT 模块化）
+        for (auto& modName : neededModules_) {
+            String modLib = findModuleLib(modName);
+            if (!modLib.empty()) {
+                VERBOSE(std::cout << "[AOT] 链接模块: " << modName << " → " << modLib << std::endl);
+                allObjs.push_back(modLib);
+            } else {
+                std::cerr << "[AOT] 警告: 未找到模块 " << modName << " 的 .lib 文件\n";
+            }
         }
         
         // 3c. 链接所有 LLVM lib（自动扫描目录）
@@ -603,22 +694,22 @@ bool AOTCompiler::linkToExecutable(const std::vector<String>& objFiles, const St
     cmd += " /FORCE:MULTIPLE";  // 兜底：忽略残余重复符号
     // 添加系统库（Shell32 / WinHTTP / Winsock / OpenGL 等）
     cmd += " Shell32.lib Winhttp.lib Ws2_32.lib Cabinet.lib opengl32.lib";
-    // raylib.lib（图形支持，来自第三方目录）
-    {
+    // raylib.lib（图形支持，可选）
+    if (graphicsNeeded_) {
         char _own[MAX_PATH]; GetModuleFileNameA(NULL, _own, MAX_PATH);
         String _dir(_own); size_t _p = _dir.find_last_of("\\/");
         if (_p != String::npos) _dir = _dir.substr(0, _p);
-        // 优先在 exe 同级目录找 raylib.lib（所有 AOT 配套文件集中部署的方式）
         String rlLib = _dir + "\\raylib.lib";
         std::ifstream testRl(rlLib);
         if (!testRl.good()) {
             testRl.close();
-            // 回退到 build_vs 下的预编译版（旧项目布局兼容）
             rlLib = _dir + "\\..\\third_party\\raylib\\build_vs\\raylib\\raylib.lib";
-        } else {
-            testRl.close();
+            testRl.open(rlLib);
         }
-        cmd += " \"" + rlLib + "\"";
+        if (testRl.good()) {
+            testRl.close();
+            cmd += " \"" + rlLib + "\"";
+        }
     }
     cmd += " gdi32.lib winmm.lib ole32.lib comctl32.lib user32.lib urlmon.lib";
     
@@ -803,6 +894,171 @@ void AOTCompiler::scanGraphicsUsage(Shared<Program> ast, bool& found) {
         scanGraphicsStmt(stmt, found);
         if (found) return;
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  模块导入扫描（AOT 模块化支持）
+// ═══════════════════════════════════════════════════════════════════
+
+void AOTCompiler::scanModuleImports(Shared<Program> ast, std::set<String>& modules) {
+    if (!ast) return;
+    
+    for (auto& stmt : ast->statements) {
+        // 查找 ImportStmt: 导入 "@cp/xxx"
+        if (auto importStmt = std::dynamic_pointer_cast<ImportStmt>(stmt)) {
+            std::string modulePath = importStmt->moduleName;
+            // 只处理 @cp/ 前缀的官方模块
+            if (modulePath.find("@cp/") == 0 || modulePath.find("cp/") == 0) {
+                // 标准化模块名
+                std::string normalized;
+                if (modulePath.find("@cp/") == 0) {
+                    normalized = modulePath;
+                } else {
+                    normalized = "@" + modulePath;
+                }
+                modules.insert(normalized);
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  模块 .lib 文件查找
+// ═══════════════════════════════════════════════════════════════════
+
+String AOTCompiler::findModuleLib(const String& moduleName) {
+    // 提取模块短名 (如 @cp/graphics → graphics)
+    std::string shortName = moduleName;
+    auto pos = shortName.rfind('/');
+    if (pos != std::string::npos) shortName = shortName.substr(pos + 1);
+    
+    // 搜索路径优先级:
+    // 1. cplang.exe 同级的 modules/<name>/win-x64/<name>.lib
+    // 2. 项目根目录的 modules/<name>/win-x64/<name>.lib
+    // 3. ~/.cpkg/packages/@cp/<name>/win-x64/<name>.lib
+    
+    std::vector<std::string> searchPaths;
+    
+#ifdef _WIN32
+    char ownPath[MAX_PATH];
+    GetModuleFileNameA(NULL, ownPath, MAX_PATH);
+    std::string ownDir(ownPath);
+    auto slashPos = ownDir.find_last_of("\\/");
+    if (slashPos != std::string::npos) ownDir = ownDir.substr(0, slashPos);
+    
+    searchPaths.push_back(ownDir + "\\modules\\" + shortName + "\\win-x64\\" + shortName + ".lib");
+    searchPaths.push_back(ownDir + "\\..\\modules\\" + shortName + "\\win-x64\\" + shortName + ".lib");
+    searchPaths.push_back(ownDir + "\\..\\build_modules\\" + shortName + "\\" + shortName + "\\Release\\" + shortName + ".lib");
+    
+    // ~/.cpkg/packages/
+    std::string home;
+    const char* homeEnv = getenv("USERPROFILE");
+    if (!homeEnv) homeEnv = getenv("HOME");
+    if (homeEnv) {
+        home = homeEnv;
+        searchPaths.push_back(home + "\\.cpkg\\packages\\@cp\\" + shortName + "\\win-x64\\" + shortName + ".lib");
+        searchPaths.push_back(home + "\\.cpkg\\packages\\" + moduleName + "\\win-x64\\" + shortName + ".lib");
+    }
+    
+    // 也尝试不带 @ 的路径
+    if (moduleName.find("@cp/") == 0) {
+        std::string barePath = moduleName.substr(1); // cp/graphics
+        if (!home.empty()) {
+            searchPaths.push_back(home + "\\.cpkg\\packages\\" + barePath + "\\win-x64\\" + shortName + ".lib");
+        }
+    }
+#endif
+    
+    for (auto& path : searchPaths) {
+        std::ifstream test(path, std::ios::binary);
+        if (test.good()) {
+            test.close();
+            return path;
+        }
+        test.close();
+    }
+    
+    return "";
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  生成模块引导 LLVM IR
+// ═══════════════════════════════════════════════════════════════════
+
+// 模块名 → C 链接函数名映射
+static const std::unordered_map<std::string, std::string> kModuleRegisterFuncs = {
+    {"@cp/graphics",    "cplang_module_graphics_register"},
+    {"@cp/database",    "cplang_module_database_register"},
+    {"@cp/crypto",      "cplang_module_crypto_register"},
+    {"@cp/ffi",         "cplang_module_ffi_register"},
+    {"@cp/net",         "cplang_module_network_register"},
+    {"@cp/container",   "cplang_module_container_register"},
+    {"@cp/concurrent",  "cplang_module_concurrent_register"},
+    {"@cp/string_ext",  "cplang_module_string_ext_register"},
+    {"@cp/charset",     "cplang_module_charset_register"},
+    {"@cp/algorithm",   "cplang_module_algorithm_register"},
+};
+
+String AOTCompiler::generateModuleBootstrap(const std::set<String>& modules) {
+    std::stringstream ss;
+    ss << "; _aot_modules.ll — AOT 模块引导（自动生成）\n";
+    ss << "; 检测到的模块:";
+    for (auto& m : modules) ss << " " << m;
+    ss << "\n\n";
+    
+    // 声明所有需要的注册函数
+    for (auto& m : modules) {
+        auto it = kModuleRegisterFuncs.find(m);
+        if (it != kModuleRegisterFuncs.end()) {
+            ss << "declare void @" << it->second << "(ptr)\n";
+        }
+    }
+    
+    // 定义 aot_register_modules —— 桥接代码会调用此函数
+    ss << "\ndefine void @aot_register_modules(ptr %vm) {\n";
+    ss << "entry:\n";
+    for (auto& m : modules) {
+        auto it = kModuleRegisterFuncs.find(m);
+        if (it != kModuleRegisterFuncs.end()) {
+            ss << "  call void @" << it->second << "(ptr %vm)\n";
+        }
+    }
+    ss << "  ret void\n";
+    ss << "}\n";
+    
+    return ss.str();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  编译 LLVM IR 引导文件为 .obj
+// ═══════════════════════════════════════════════════════════════════
+
+bool AOTCompiler::compileBootstrapToObj(const String& bootstrapLl, const String& objFile, const AOTConfig& config) {
+    // 写入临时 .ll 文件
+    std::string llFile = getTempFile(".ll");
+    std::ofstream ofs(llFile);
+    if (!ofs) return false;
+    ofs << bootstrapLl;
+    ofs.close();
+    
+    // 用 llc 编译为 .obj
+    std::string llcExe;
+    if (!config.llvmToolsDir.empty()) {
+        llcExe = config.llvmToolsDir + "/llc.exe";
+    } else {
+        llcExe = findLLVMTool("llc.exe", config);
+    }
+    if (llcExe.empty()) {
+        std::cerr << "[AOT] 错误: 未找到 llc.exe\n";
+        return false;
+    }
+    
+    std::string cmd = "\"" + llcExe + "\" -filetype=obj \"" + llFile + "\" -o \"" + objFile + "\"";
+    if (!runTool(cmd)) {
+        std::cerr << "[AOT] 错误: 模块引导编译失败\n";
+        return false;
+    }
+    return true;
 }
 
 } // namespace cplang

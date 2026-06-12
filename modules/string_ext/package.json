@@ -1,0 +1,1 @@
+{"name":"@cp/string_ext","version":"0.2.0","desc":"CP语言 字符串高级模块（正则/格式化/搜索/统计/工具函数）","author":"cplang","license":"MIT","keywords":["字符串","正则","格式化","搜索","统计"],"dependencies":{},"platforms":{"win-x64":"string_ext.lib"}}

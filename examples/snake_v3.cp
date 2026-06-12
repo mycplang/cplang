@@ -1,4 +1,5 @@
-﻿打印("=== CP SNAKE v3 (with text!) ===");
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
+打印("=== CP SNAKE v3 (with text!) ===");
 
 // 预计算颜色（表字面量绕过颜色函数名解析 bug）
 var v白 = {r: 255, g: 255, b: 255, a: 255};

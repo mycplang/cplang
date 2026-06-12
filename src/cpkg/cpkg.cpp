@@ -11,8 +11,8 @@
 //   cpkg registry [URL]      查看/设置注册表
 //
 // 环境变量:
-//   CPKG_GITHUB_TOKEN    GitHub token（访问私有仓库/提高限频）
-//   CPKG_REGISTRY_URL    注册表地址（默认指向 mycpmlang/registry）
+//   CPKG_GITEE_TOKEN     Gitee token（访问私有仓库）
+//   CPKG_REGISTRY_URL    注册表地址（默认指向 cplang/bao）
 // ═══════════════════════════════════════════════════════════════════
 
 #include <string>
@@ -234,17 +234,18 @@ static std::string httpRequestUrlmon(const std::string& url) {
 
 static bool httpDownload(const std::string& url, const std::string& destPath,
     const std::string& token) {
-    // 如果有 token，用 WinHTTP
+    std::string finalUrl = url;
     if (!token.empty()) {
-        std::string data = httpRequest(url, token);
+        char sep = (url.find('?') == std::string::npos) ? '?' : '&';
+        finalUrl += sep;
+        finalUrl += "access_token=" + token;
+        std::string data = httpRequest(finalUrl, "");
         if (!data.empty()) return writeFile(destPath, data);
     }
-    // 无 token 或 WinHTTP 失败，用 urlmon
-    return SUCCEEDED(URLDownloadToFileW(NULL, utf8ToWstr(url).c_str(),
+    return SUCCEEDED(URLDownloadToFileW(NULL, utf8ToWstr(finalUrl).c_str(),
         utf8ToWstr(destPath).c_str(), 0, NULL));
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // 轻量 JSON 解析器（仅解析 registry index 格式）
 // ═══════════════════════════════════════════════════════════════════
 
@@ -342,7 +343,7 @@ static std::unordered_map<std::string, std::unordered_map<std::string, std::stri
 struct Config {
     std::string packagesDir;
     std::string registryUrl;
-    std::string githubToken;
+    std::string giteeToken;
     std::string registryCacheFile;
 };
 
@@ -352,12 +353,12 @@ static Config loadConfig() {
     cfg.registryCacheFile = home + "\\.cpkg\\registry_url";
     cfg.packagesDir = home + "\\.cpkg\\packages";
     cfg.registryUrl = getEnv("CPKG_REGISTRY_URL",
-        "https://raw.githubusercontent.com/mycplang/registry/main/index.json");
-    cfg.githubToken = getEnv("CPKG_GITHUB_TOKEN", "");
+        "https://gitee.com/cplang/bao/raw/master/index.json");
+    cfg.giteeToken = getEnv("CPKG_GITEE_TOKEN", "");
 
     // 从文件读取备用 token
-    if (cfg.githubToken.empty()) {
-        cfg.githubToken = trim(readFile(home + "\\.cpkg\\token"));
+    if (cfg.giteeToken.empty()) {
+        cfg.giteeToken = trim(readFile(home + "\\.cpkg\\token"));
     }
 
     // 从文件读取缓存的 registry URL
@@ -377,9 +378,14 @@ static Config loadConfig() {
 
 static std::string fetchRegistry(const Config& cfg) {
     std::string result;
-    if (!cfg.githubToken.empty()) {
-        result = httpRequest(cfg.registryUrl, cfg.githubToken);
+    std::string url = cfg.registryUrl;
+    if (!cfg.giteeToken.empty()) {
+        // Gitee 认证方式: URL 参数 access_token
+        char sep = (url.find('?') == std::string::npos) ? '?' : '&';
+        url += sep;
+        url += "access_token=" + cfg.giteeToken;
     }
+    result = httpRequest(url, "");
     if (result.empty()) {
         result = httpRequestUrlmon(cfg.registryUrl);
     }
@@ -424,7 +430,7 @@ static bool installPackage(const std::string& name, const Config& cfg) {
     // 2. URL
     if (name.substr(0, 7) == "http://" || name.substr(0, 8) == "https://") {
         ensureDir(targetDir);
-        if (!httpDownload(name, targetFile, cfg.githubToken)) {
+        if (!httpDownload(name, targetFile, cfg.giteeToken)) {
             std::cerr << "  ✗ 下载失败: " << name << std::endl;
             return false;
         }
@@ -436,7 +442,7 @@ static bool installPackage(const std::string& name, const Config& cfg) {
     std::string pkgUrl = getPackageUrl(name, cfg);
     if (!pkgUrl.empty()) {
         ensureDir(targetDir);
-        if (!httpDownload(pkgUrl, targetFile, cfg.githubToken)) {
+        if (!httpDownload(pkgUrl, targetFile, cfg.giteeToken)) {
             std::cerr << "  ✗ 下载失败: " << pkgUrl << std::endl;
             return false;
         }
@@ -592,12 +598,12 @@ static void printHelp() {
   包   注册表 [URL]
 
 环境变量:
-  CPKG_GITHUB_TOKEN    GitHub token（访问私有仓库/提高 API 限频）
-  CPKG_REGISTRY_URL    注册表地址
+  CPKG_GITEE_TOKEN     Gitee token（访问私有仓库）
+  CPKG_REGISTRY_URL    注册表地址（默认: https://gitee.com/cplang/bao）
 
 配置文件:
   %USERPROFILE%\.cpkg\  包管理器配置目录
-  %USERPROFILE%\.cpkg\token   GitHub token（可选，优先级低于环境变量）
+  %USERPROFILE%\.cpkg\token   Gitee token（可选，优先级低于环境变量）
 )" << std::endl;
 }
 

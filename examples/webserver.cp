@@ -1,3 +1,4 @@
+﻿导入 "@cp/net";  // 网络模块 (HTTP + JSON)
 // webserver — CP HTTP 服务器演示（使用 TCP 原生函数）
 // 依赖: TCP监听 TCP接受 TCP发送 TCP接收 TCP关闭
 //       读取文件 文件存在 查找 子串 长度

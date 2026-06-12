@@ -264,6 +264,13 @@ Compiler::Compiler(bool useSlotOpt) : useSlotOpt_(useSlotOpt) {
         // 蹇呴』鍦╟odegen鍓嶆敞鍐宻tdlib,纭繚global slot缂栧彿涓€鑷?
         StdLib::registerAll(vm_.get());
         vm_->importCallback = [this](const std::string& filename) -> bool {
+            // @cp/ 模块导入: 直接注册，不编译文件
+            if (filename.find("@cp/") == 0 || filename.find("cp/") == 0) {
+                std::vector<std::string> modules = {filename};
+                StdLib::registerModules(vm_.get(), modules);
+                return true;
+            }
+            // 常规文件导入
             VMFunction* f = compileFile(filename);
             if (!f) { vm_->raiseError(errorMsg_); return false; }
             vm_->setLastImportedFunc(f);

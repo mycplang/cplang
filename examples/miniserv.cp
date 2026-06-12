@@ -1,3 +1,4 @@
+﻿导入 "@cp/net";  // 网络模块 (HTTP + JSON)
 // miniserv v8 — 从已验证的 echo 模式重构
 变量 STORE = JSON解析("{}");
 

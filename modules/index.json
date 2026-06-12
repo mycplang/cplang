@@ -1,0 +1,52 @@
+﻿{
+    "@cp/graphics": {
+        "desc": "图形模块（Raylib 2D/3D + ImGui UI）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/graphics/win-x64/graphics.lib"
+    },
+    "@cp/database": {
+        "desc": "数据库模块（SQLite + MySQL + Redis + WebSocket）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/database/win-x64/database.lib"
+    },
+    "@cp/crypto": {
+        "desc": "加密模块（AES-128/256 + SHA256/512 + MD5 + Base64 + 压缩）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/crypto/win-x64/crypto.lib"
+    },
+    "@cp/ffi": {
+        "desc": "外部函数接口模块（加载 DLL / 调用外部函数）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/ffi/win-x64/ffi.lib"
+    },
+    "@cp/net": {
+        "desc": "网络模块（HTTP 客户端 + JSON 解析）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/net/win-x64/network.lib"
+    },
+    "@cp/container": {
+        "desc": "高级容器模块（栈/队列/链表/集合/映射/堆/位集/复数）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/container/win-x64/container.lib"
+    },
+    "@cp/concurrent": {
+        "desc": "并发模块（线程/互斥/Channel/Future/RWLock/TLS）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/concurrent/win-x64/concurrent.lib"
+    },
+    "@cp/string_ext": {
+        "desc": "字符串高级模块（正则/格式化/搜索/统计/工具函数）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/string_ext/win-x64/string_ext.lib"
+    },
+    "@cp/charset": {
+        "desc": "字符集转换模块（UTF-8 ↔ GBK/Big5/Shift-JIS）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/charset/win-x64/charset.lib"
+    },
+    "@cp/algorithm": {
+        "desc": "算法模块（排序/查找/分区/随机/位运算）",
+        "version": "0.2.0",
+        "url": "https://gitee.com/cplang/bao/raw/master/@cp/algorithm/win-x64/algorithm.lib"
+    }
+}

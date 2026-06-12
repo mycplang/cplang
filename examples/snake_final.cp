@@ -1,4 +1,5 @@
-﻿打印("=== CP SNAKE ===");
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
+打印("=== CP SNAKE ===");
 
 变量 格 = 20;
 变量 列 = 40;

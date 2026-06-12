@@ -1,0 +1,12 @@
+{
+    "name": "@cp/net",
+    "version": "0.2.0",
+    "desc": "CP语言 网络模块（HTTP 客户端 + JSON 解析）",
+    "author": "cplang",
+    "license": "MIT",
+    "keywords": ["网络", "http", "json", "api"],
+    "dependencies": {},
+    "platforms": {
+        "win-x64": "network.lib"
+    }
+}

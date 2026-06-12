@@ -14,6 +14,10 @@ extern "C" {
 // 在 main() 入口处调用，全局仅初始化一次
 void aot_init_runtime(void);
 
+// AOT 模块注册（由 _aot_bootstrap.obj 覆盖，弱符号）
+// 仅注册检测到的模块包，默认空实现
+void aot_register_modules(void* vm);
+
 // 通过桥接调用 stdlib 原生函数
 // name:   函数名（UTF-8 C 字符串）
 // argc:   参数数量
@@ -40,6 +44,9 @@ static inline const void* aot_get_ptr(uint64_t v) {
 static inline uint64_t aot_make_ptr(const void* ptr) {
     return AOT_NAN_TAG | ((uint64_t)(uintptr_t)ptr & AOT_PTR_MASK);
 }
+
+// 释放内联表字面量分配的内存（循环中防止内存泄漏）
+uint64_t jit_table_free(uint64_t tableVal);
 
 // 获取全局变量值（如 raylib 常量 `键_左`、`乳白` 等）
 // name:   变量名（UTF-8 C 字符串）

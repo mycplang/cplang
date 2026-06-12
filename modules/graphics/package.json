@@ -1,0 +1,12 @@
+{
+    "name": "@cp/graphics",
+    "version": "0.2.0",
+    "desc": "CP语言 图形模块（Raylib 2D/3D + ImGui UI）",
+    "author": "cplang",
+    "license": "MIT",
+    "keywords": ["图形", "raylib", "imgui", "游戏"],
+    "dependencies": {},
+    "platforms": {
+        "win-x64": "graphics.lib"
+    }
+}

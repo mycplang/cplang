@@ -1,0 +1,12 @@
+{
+    "name": "@cp/crypto",
+    "version": "0.2.0",
+    "desc": "CP语言 加密模块（AES-128/256 + SHA256/512 + MD5 + Base64 + 压缩）",
+    "author": "cplang",
+    "license": "MIT",
+    "keywords": ["加密", "aes", "sha256", "md5", "base64", "压缩"],
+    "dependencies": {},
+    "platforms": {
+        "win-x64": "crypto.lib"
+    }
+}

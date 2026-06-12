@@ -1,4 +1,5 @@
-﻿打印("=== Raylib Window Demo ===");
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
+打印("=== Raylib Window Demo ===");
 打印("Opening 800x600 window...");
 打印("Press ESC or close window to exit");
 

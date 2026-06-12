@@ -469,7 +469,12 @@ llvm::Value* LLVMCodegen::loadVar(const std::string& varName) {
         return llvm::ConstantInt::get(*context_, llvm::APInt(64, 0));
     }
     llvm::Value* ptr = it->second;
-    return builder_->CreateLoad(llvm::Type::getInt64Ty(*context_), ptr, "load_" + varName);
+    llvm::LoadInst* load = builder_->CreateLoad(llvm::Type::getInt64Ty(*context_), ptr, "load_" + varName);
+    // 表/数组变量的加载使用 volatile 防止 LLVM 优化破坏 NaN-boxed 指针
+    if (tableVarNames_.count(varName)) {
+        load->setVolatile(true);
+    }
+    return load;
 }
 
 void LLVMCodegen::storeVar(const std::string& varName, llvm::Value* value) {
@@ -479,7 +484,11 @@ void LLVMCodegen::storeVar(const std::string& varName, llvm::Value* value) {
         return;
     }
     llvm::Value* ptr = it->second;
-    builder_->CreateStore(value, ptr);
+    llvm::StoreInst* store = builder_->CreateStore(value, ptr);
+    // 表/数组变量的存储使用 volatile 防止 LLVM 优化破坏 NaN-boxed 指针
+    if (tableVarNames_.count(varName)) {
+        store->setVolatile(true);
+    }
 }
 
 // === 辅助函数 ===
@@ -850,6 +859,11 @@ void LLVMCodegen::generateVarDecl(llvm::Function* func, Shared<VarDeclStmt> stmt
     // 如果有初始化表达式，生成并存储
     if (stmt->init) {
         llvm::Value* initVal = generateExpression(func, stmt->init);
+        // 检测是否是表/数组字面量初始化 → 加入 volatile 跟踪避免 LLVM 优化破坏
+        if (std::dynamic_pointer_cast<StructLiteralExpr>(stmt->init) ||
+            std::dynamic_pointer_cast<ArrayExpr>(stmt->init)) {
+            tableVarNames_.insert(stmt->name);
+        }
         // 如果是栈分配的小对象，不需要装箱，直接存储原生值
         if (canStackAlloc && stmt->type.has_value()) {
             // 类型转换为对应原生类型
@@ -859,7 +873,11 @@ void LLVMCodegen::generateVarDecl(llvm::Function* func, Shared<VarDeclStmt> stmt
                 initVal = builder_->CreateSIToFP(initVal, varType);
             }
         }
-        builder_->CreateStore(initVal, alloca);
+        llvm::StoreInst* store = builder_->CreateStore(initVal, alloca);
+        // 表/数组变量的存储使用 volatile 防止 LLVM 优化破坏 NaN-boxed 指针
+        if (tableVarNames_.count(stmt->name)) {
+            store->setVolatile(true);
+        }
     }
     
     // 记录数组/字符串字面量长度（用于 .length 编译期折叠）
@@ -1521,6 +1539,9 @@ llvm::Value* LLVMCodegen::generateExpression(llvm::Function* func, Shared<Expr> 
             "jit_strcat", "jit_printv", "jit_tick",
             "jit_table_create", "jit_table_get", "jit_table_set",
             "jit_len", "jit_toString", // JIT 原生实现
+            "jit_toInt", "jit_toDouble",  // 数值转换
+            "jit_floor", "jit_ceil", "jit_round", // 取整函数
+            "jit_mod", // 模运算
         };
         bool isStandalone = false;
         if (!pureMath_) {

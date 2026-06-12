@@ -22,6 +22,7 @@
 #include "debug/debugger.hpp"
 #include "repl/repl.hpp"
 #include "platform/platform.hpp"
+#include "codegen/aot_compiler.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -124,8 +125,9 @@ void printUsage(const char* program) {
     std::cout << "  -c --hotspot   字节码 VM + 热点 JIT\n";
     std::cout << "       --hotspot-threshold=N  热点阈值 (默认 100)\n";
     std::cout << "  -j, --jit      完整编译并执行（JIT 模式）\n";
+    std::cout << "  -a, --aot      AOT 编译为原生 .exe（LLVM，需模块包）\n";
     std::cout << "  -k, --pack     打包 CP 源码为独立 .exe（嵌入 VM）\n";
-    std::cout << "  -o <file>      指定输出文件（配合 --pack 使用）\n";
+    std::cout << "  -o <file>      指定输出文件（配合 --aot/--pack 使用）\n";
     std::cout << "  -O0/-O1/-O2/-O3 优化级别\n";
     std::cout << "  --no-bytecode-opt 禁用字节码优化\n";
     std::cout << "  -v, --verbose  详细输出（优化统计等调试信息）\n";
@@ -552,6 +554,19 @@ int main(int argc, char* argv[]) {
         success = runFullCompile(source, filename, false, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt, debugPort);
     } else if (mode == "-j" || mode == "--jit") {
         success = runFullCompile(source, filename, true, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt, debugPort);
+    } else if (mode == "-a" || mode == "--aot") {
+        AOTConfig aotCfg;
+        aotCfg.optLevel = optLevel;
+        if (outputFile) aotCfg.outputFile = outputFile;
+        AOTCompiler aot;
+        AOTResult res = aot.compileFile(filename, aotCfg);
+        if (res.success) {
+            VERBOSE(std::cout << "AOT 编译成功: " << res.outputFile << " (" << res.codeSize << " 字节 IR)" << std::endl);
+            success = true;
+        } else {
+            std::cerr << "AOT 编译失败: " << res.errorMessage << std::endl;
+            success = false;
+        }
     } else {
         std::cerr << "错误: 未知选项 '" << mode << "'\n";
         printUsage(argv[0]);

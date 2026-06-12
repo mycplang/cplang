@@ -9,6 +9,7 @@
 #include "vm/vm.hpp"
 #include "stdlib/stdlib.hpp"
 #include "module/module_system.hpp"
+#include "debug/debugger.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -148,9 +149,11 @@ void aot_init_runtime(void) {
         std::fprintf(stderr, "[AOT] 无法创建 VM\n");
         std::abort();
     }
-    aot_log("init: VM created, registering stdlib...");
-    StdLib::registerAll(g_aot_vm);
-    aot_log("init: stdlib registration complete");
+    aot_log("init: VM created, registering core...");
+    StdLib::registerCore(g_aot_vm);
+    aot_log("init: core registration complete, registering modules...");
+    aot_register_modules(g_aot_vm);
+    aot_log("init: all registration complete");
 }
 
 uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
@@ -168,14 +171,15 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
     if (!obj || obj->typeTag != ObjectHeader::TAG_NATIVE) return 0;
     VMNativeFunc* nf = static_cast<VMNativeFunc*>(obj);
 
-    // ═══ 直接 raylib 调用绕过（在 stdlib 调用之前，避免 stdlib 崩溃） ═══
+    // ═══ 直接 raylib 调用绕过（仅在链接 raylib 时启用，避免非图形 AOT 链接 raylib）═══
+    // 对于非图形 AOT 编译，走标准 stdlib 路径
+#ifndef CPLANG_AOT_NO_RAYLIB
     {
         bool isRect = (strcmp(name, "drawRectangle") == 0) || (strcmp(name, "\xe7\xbb\x98\xe5\x88\xb6\xe7\x9f\xa9\xe5\xbd\xa2") == 0);
         bool isBg   = (strcmp(name, "clearBackground") == 0) || (strcmp(name, "\xe6\xb8\x85\xe7\xa9\xba\xe8\x83\x8c\xe6\x99\xaf") == 0);
         bool isText = (strcmp(name, "drawText") == 0) || (strcmp(name, "\xe7\xbb\x98\xe5\x88\xb6\xe6\x96\x87\xe6\x9c\xac") == 0);
         if (isRect || isBg || isText) {
             int colorArgIdx = isBg ? 0 : 4;
-            // 提取颜色表 RGBA
             if (argc > colorArgIdx && (args[colorArgIdx] >> 48) == 0xFFFF && !(args[colorArgIdx] & 0x0000800000000000ULL)) {
                 const void* colPtr = reinterpret_cast<const void*>(args[colorArgIdx] & 0x0000FFFFFFFFFFFFULL);
                 if (colPtr && *(const uint64_t*)colPtr == kTableMagic) {
@@ -203,31 +207,27 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
                             int y = (int)(int32_t)(int64_t)args[1];
                             int w = (int)(int32_t)(int64_t)args[2];
                             int h = (int)(int32_t)(int64_t)args[3];
-                            aot_logf("drawRect: DIRECT rgba=(%d,%d,%d,%d) xywh=(%d,%d,%d,%d)", r, g, b, a, x, y, w, h);
                             DrawRectangle(x, y, w, h, col);
                         } else if (isBg) {
-                            aot_logf("clearBg: DIRECT rgba=(%d,%d,%d,%d)", r, g, b, a);
                             ClearBackground(col);
                         } else if (isText) {
                             const char* text = "";
-                            if ((args[0] >> 48) == 0xFFFF && !(args[0] & 0x0000800000000000ULL)) {
+                            if ((args[0] >> 48) == 0xFFFF && !(args[0] & 0x0000800000000000ULL))
                                 text = reinterpret_cast<const char*>(args[0] & 0x0000FFFFFFFFFFFFULL);
-                            }
                             int x = (int)(int32_t)(int64_t)args[1];
                             int y = (int)(int32_t)(int64_t)args[2];
                             int fontSize = (int)(int32_t)(int64_t)args[3];
-                            aot_logf("drawText: DIRECT rgba=(%d,%d,%d,%d) text='%s' xy=(%d,%d) size=%d", r, g, b, a, text ? text : "", x, y, fontSize);
                             DrawText(text ? text : "", x, y, fontSize, col);
                         }
-                        // 跳过 stdlib 调用
+                        // 释放内联表字面量分配的 tracked_malloc 内存（防止循环中泄漏）
+                        jit_table_free(args[colorArgIdx]);
                         return 0xFFFFD00000000000ULL;
                     }
                 }
             }
-            // fallback: 颜色不是 TableData，走 stdlib
-            aot_logf("WARN: %s color not TableData, falling back to stdlib", name);
         }
     }
+#endif // CPLANG_AOT_NO_RAYLIB
 
     // 3. 构造参数数组
     std::vector<Value> vm_args(argc);
@@ -268,8 +268,15 @@ uint64_t aot_call_native(const char* name, int32_t argc, uint64_t* args) {
     return raw;
 }
 
+// 默认弱实现：由 AOT 编译器生成的 _aot_bootstrap.obj 覆盖
+void aot_register_modules(void* vm) {
+    // 空实现——AOT 编译器会生成覆盖版本
+    (void)vm;
+}
+
 int32_t aot_import_module(const char* name) {
-    // AOT 模式下 import 暂不支持——返回成功但无操作
+    // AOT 模式下模块由 bootstrap 在初始化时注册，运行时 import 为空操作
+    // 避免调用 registerModules() 拉入 stdlib.obj（含 registerAll → 全量依赖）
     (void)name;
     return 0;
 }
@@ -416,6 +423,13 @@ uint64_t jit_toString(uint64_t raw) {
 }
 
 void jit_setVM(void*) { /* AOT: no-op */ }
+
+void jit_printv(void) { /* AOT: no-op, print handled by stdlib */ }
+
+void jit_cleanup(void) { /* AOT: no-op */ }
+
+// JIT 分派桩（AOT 不需要 JIT）
+bool jitTryCallDispatch(VM*, VMFunction*, int, Value*, Value&) { return false; }
 
 } // extern "C"
 

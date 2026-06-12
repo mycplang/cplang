@@ -1,0 +1,1 @@
+{"name":"@cp/algorithm","version":"0.2.0","desc":"CP语言 算法模块（排序/查找/分区/随机/位运算）","author":"cplang","license":"MIT","keywords":["算法","排序","查找","随机","位运算"],"dependencies":{},"platforms":{"win-x64":"algorithm.lib"}}

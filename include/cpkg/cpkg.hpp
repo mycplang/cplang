@@ -13,7 +13,7 @@ namespace cpkg {
 struct Config {
     std::string packagesDir;   // 包安装目录
     std::string registryUrl;   // 注册表 URL
-    std::string githubToken;   // GitHub token（可选）
+    std::string giteeToken;    // Gitee token（可选）
     std::string registryFile;  // 本地注册表 URL 缓存文件
 };
 

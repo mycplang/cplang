@@ -1,3 +1,4 @@
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
 // 打砖块 — CP + Raylib 纯中文
 // 鼠标/方向键移动挡板，反弹球打砖块
 

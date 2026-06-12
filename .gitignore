@@ -2,21 +2,33 @@
 # CP Language — Git 忽略规则
 # ============================================
 
-# --- 系统文件（误捕获） ---
+# --- 系统文件 ---
 %SystemDrive%/
+.DS_Store
+Thumbs.db
+desktop.ini
 
 # --- 构建产物 ---
 /build/
 /build_llvm/
-# 第三方构建目录
+/build_aot/
+/build_msvc/
+/build_clang/
+/build_linux/
+/build_android/
+/build_cmake*/
+/workspace_artifacts/
+/artifacts/
 /third_party/raylib/build_release/
 /third_party/raylib/build/
 /third_party/raylib/build_vs/
-/build_cmake*/
-/build_clang/
-/build_msvc/
-/artifacts/
-/workspace_artifacts/
+/third_party/raylib/src/*.obj
+/third_party/raylib/src/*.lib
+third_party/raylib/src/*.o
+third_party/raylib/src/*.a
+
+# --- 模块构建产物（源码会被追踪） ---
+modules/*/win-x64/
 *.exe
 *.lib
 *.exp
@@ -29,7 +41,7 @@
 *.so
 *.dylib
 
-# --- LLVM 开发 ---
+# --- LLVM 开发包 ---
 /llvm-dev/
 /llvm-dev.tar*
 
@@ -42,16 +54,14 @@ tools/vscode-cp/node_modules/
 *.user
 *.wsp
 
-# --- DeepSeek TUI（独立工具） ---
+# --- 工具目录 ---
 /deepseek-tui/
-
-# --- 包注册表（独立仓库） ---
 /registry/
-
-# --- 开发工具脚本（内部使用） ---
 /_tools/
+/tools/cplang.exe
+/tools/__pycache__/
 
-# --- 临时文件（通用模式，避免逐个列举） ---
+# --- 临时文件 ---
 /tmp/
 *.tmp
 *.bak
@@ -71,7 +81,7 @@ build_log_err.txt
 *.dat
 *.bin
 
-# --- 以下划线前缀的临时文件 ---
+# --- 以下划线开头的临时文件 ---
 _[a-z]*.cmd
 _[a-z]*.bat
 _[a-z]*.ps1
@@ -91,11 +101,6 @@ __pycache__/
 *.egg-info/
 dist/
 
-# --- OS ---
-.DS_Store
-Thumbs.db
-desktop.ini
-
 # --- 凭据 ---
 .git-credentials*
 push_to_github.bat
@@ -108,6 +113,8 @@ tests/_tbind*.cp
 tests/_tmysql*.cp
 tests/_tpg.cp
 examples/*.exe
+imgui.ini
+aot_debug.log
 
 # --- 数据目录 ---
 /data/
@@ -115,20 +122,10 @@ examples/*.exe
 /mysql-tmp/
 /pg-tmp/
 
-# --- 工具二进制 ---
-/tools/cplang.exe
-/tools/__pycache__/
-
-# --- 图标源文件（非源码） ---
+# --- 图标文件 ---
 /icon/
 
-# --- 第三方库编译产物 ---
-third_party/raylib/src/*.obj
-third_party/raylib/src/*.lib
-third_party/raylib/src/*.o
-third_party/raylib/src/*.a
-
-# --- 压缩包 / 数据库文件 ---
+# --- 压缩包/数据库 ---
 *.zip
 *.tar
 *.tar.gz
@@ -140,24 +137,3 @@ third_party/raylib/src/*.a
 # --- DLL（第三方运行时） ---
 /libmysql.dll
 /libpq.dll
-
-# --- 历史存档（已纳入版本控制） ---
-# ��������
-build_aot/
-build_msvc/
-build/
-build_linux/
-build_android/
-*.exe
-*.lib
-*.exp
-*.obj
-*.pdb
-*.ilk
-*.zip
-
-# �����ļ�
-_test_*.c
-_test_*.cp
-imgui.ini
-aot_debug.log

@@ -118,5 +118,32 @@ void          console_set_utf8();            // 设置控制台 UTF-8 输出
 bool          console_is_tty();              // 是否为交互终端
 int           console_getch();               // 读取一个按键（无缓冲）
 
+// ═══════════════════════════════════════════════
+//  IO 多路复用 (IOCP / epoll)
+// ═══════════════════════════════════════════════
+
+// 事件类型标志（与 OS 无关的统一枚举）
+enum IOPollEvent : uint32_t {
+    IOPOLL_IN  = 1 << 0,   // 可读
+    IOPOLL_OUT = 1 << 1,   // 可写
+    IOPOLL_ERR = 1 << 2,   // 错误
+    IOPOLL_HUP = 1 << 3,   // 挂断
+};
+
+struct IOPollResult {
+    uint64_t    user_data;   // 用户自定义数据
+    uint32_t    events;      // 触发的事件（IOPollEvent 组合）
+    int         error_code;  // 错误码（0 = 无错误）
+};
+
+// 创建 IO 多路复用句柄（Windows: IOCP / Linux: epoll）
+void*        iopoll_create(int max_events);
+int          iopoll_add(void* poll, int sock, uint32_t events, uint64_t user_data);
+int          iopoll_mod(void* poll, int sock, uint32_t events, uint64_t user_data);
+int          iopoll_del(void* poll, int sock);
+int          iopoll_wait(void* poll, IOPollResult* results, int max_results, int timeout_ms);
+void         iopoll_interrupt(void* poll);
+void         iopoll_destroy(void* poll);
+
 } // namespace platform
 } // namespace cplang

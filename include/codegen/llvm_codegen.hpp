@@ -139,6 +139,9 @@ private:
     // 数组/字符串字面量长度缓存：变量名 → 长度（用于 .length 编译期折叠）
     std::unordered_map<std::string, size_t> literalLenByVar_;
     
+    // 表/数组变量名集合：存储了表/数组字面量的变量（AOT 模式使用 volatile 防止优化）
+    std::unordered_set<std::string> tableVarNames_;
+    
     // 当前函数逃逸结果
     const FuncEscapeResult* currentEscapeResult_ = nullptr;
     

@@ -169,6 +169,24 @@ void jit_printv(int32_t count, uint64_t* args) {
     fflush(stdout);
 }
 
+// 从追踪链表中移除并释放单个 tracked_malloc 分配的指针
+static void tracked_free(void* ptr) {
+    if (!ptr) return;
+    AllocNode** pp = &allocList;
+    while (*pp) {
+        if ((*pp)->ptr == ptr) {
+            AllocNode* victim = *pp;
+            *pp = victim->next;
+            free(victim->ptr);
+            free(victim);
+            return;
+        }
+        pp = &(*pp)->next;
+    }
+    // 不在追踪链表中：可能是非 tracked_malloc 的指针，直接 free
+    free(ptr);
+}
+
 void jit_cleanup(void) {
     // 释放所有通过 tracked_malloc 分配的堆内存
     // AOT 短程序可以依赖 OS 回收，但长时间运行的 JIT 程序
@@ -187,6 +205,87 @@ void jit_cleanup(void) {
 uint64_t tau(void)         { return 0x401921FB54442D18ULL; }
 uint64_t sqrt2(void)       { return 0x3FF6A09E667F3BCDULL; }
 uint64_t goldenRatio(void) { return 0x3FF9E3779B97F4A8ULL; }
+
+// ===== 数值转换：NaN-boxed 值之间的类型转换 =====
+// jit_toInt: 将 NaN-boxed 值转为整数（截断浮点/直接取 int32）
+uint64_t jit_toInt(uint64_t v) {
+    if (isNanBoxedPtr(v)) return 0;    // 指针值无法转整数
+    if (isNanBoxedInt32(v)) return v;  // 已经是 NaN-boxed Int32
+    // 纯 i64 整数 → NaN-boxed Int32
+    int32_t val = (int32_t)(int64_t)v;
+    return 0xFFFFD00000000000ULL | ((uint64_t)(uint32_t)val);
+}
+
+// jit_toDouble: 将 NaN-boxed 值转为双精度浮点 NaN-boxing
+uint64_t jit_toDouble(uint64_t v) {
+    if (isNanBoxedPtr(v)) return 0;
+    if (isNanBoxedInt32(v)) {
+        int32_t val = (int32_t)(v & 0xFFFFFFFF);
+        double dval = (double)val;
+        uint64_t result;
+        memcpy(&result, &dval, sizeof(result));
+        return result;
+    }
+    // 已经是浮点数或纯 i64
+    double dval = (double)(int64_t)v;
+    uint64_t result;
+    memcpy(&result, &dval, sizeof(result));
+    return result;
+}
+
+// ===== 取整函数 =====
+// jit_floor: 向下取整，输入 NaN-boxed Int32 或 double，输出 double
+uint64_t jit_floor(uint64_t v) {
+    double d;
+    if (isNanBoxedInt32(v)) {
+        d = (double)(int32_t)(v & 0xFFFFFFFF);
+    } else {
+        d = (double)(int64_t)v;
+    }
+    double result = d < 0 ? (double)((long long)d - 1) : (double)((long long)d);
+    if (result > d) result = (double)((long long)d);
+    uint64_t raw;
+    memcpy(&raw, &result, sizeof(raw));
+    return raw;
+}
+
+// jit_ceil: 向上取整
+uint64_t jit_ceil(uint64_t v) {
+    double d;
+    if (isNanBoxedInt32(v)) {
+        d = (double)(int32_t)(v & 0xFFFFFFFF);
+    } else {
+        d = (double)(int64_t)v;
+    }
+    double result = d > 0 ? (double)((long long)d + 1) : (double)((long long)d);
+    if (result < d) result = (double)((long long)d + 1);
+    uint64_t raw;
+    memcpy(&raw, &result, sizeof(raw));
+    return raw;
+}
+
+// jit_round: 四舍五入
+uint64_t jit_round(uint64_t v) {
+    double d;
+    if (isNanBoxedInt32(v)) {
+        d = (double)(int32_t)(v & 0xFFFFFFFF);
+    } else {
+        d = (double)(int64_t)v;
+    }
+    double result = (double)(long long)(d + 0.5);
+    uint64_t raw;
+    memcpy(&raw, &result, sizeof(raw));
+    return raw;
+}
+
+// ===== 模运算 =====
+uint64_t jit_mod(uint64_t a, uint64_t b) {
+    int64_t ia = (int64_t)a;
+    int64_t ib = (int64_t)b;
+    if (ib == 0) return 0;
+    int64_t result = ia % ib;
+    return 0xFFFFD00000000000ULL | ((uint64_t)(uint32_t)(int32_t)result);
+}
 
 // ===== 串(x) — 数值→字符串 =====
 uint64_t __u4E32__(uint64_t v) {
@@ -306,6 +405,18 @@ uint64_t jit_table_set(uint64_t tableVal, uint64_t key, uint64_t value) {
         idx = (idx + 1) % cap;
     }
     return value;
+}
+
+// 释放由 jit_table_create 创建的表（防止内联表字面量在循环中泄漏）
+// 必须在 TableData typedef 之后定义
+uint64_t jit_table_free(uint64_t tableVal) {
+    if (tableVal == 0 || !isNanBoxedPtr(tableVal)) return 0;
+    const void* ptr = getNanBoxedPtr(tableVal);
+    if (!ptr || *(const uint64_t*)ptr != TABLE_MAGIC) return 0;
+    TableData* tbl = (TableData*)ptr;
+    if (tbl->entries) tracked_free(tbl->entries);
+    tracked_free(tbl);
+    return 0;
 }
 
 // ===== CP 标准库函数 =====

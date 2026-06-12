@@ -1,0 +1,1 @@
+{"name":"@cp/container","version":"0.2.0","desc":"CP语言 高级容器模块（栈/队列/链表/集合/映射/堆/位集/复数）","author":"cplang","license":"MIT","keywords":["容器","栈","队列","链表","集合","映射","堆"],"dependencies":{},"platforms":{"win-x64":"container.lib"}}

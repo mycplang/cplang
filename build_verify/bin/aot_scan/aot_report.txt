@@ -1,0 +1,544 @@
+AOT Scan Report
+Date: 2026-06-13T01:00:46.648480
+Binary: C:\cplang\build_verify\bin\cplang.exe
+Total: 268, Passed: 0, Failed: 268, Skipped: 43
+
+=== Compile Failures ===
+  access_field.cp: unresolved stdlib sym
+  benchmark.cp: unresolved stdlib sym
+  chain_comparison.cp: unresolved stdlib sym
+  debug_module_bytecode.cp: unresolved stdlib sym
+  generic_constraint_comprehensive.cp: unresolved stdlib sym
+  generic_constraint_struct.cp: unresolved stdlib sym
+  generic_constraint_test.cp: unresolved stdlib sym
+  generic_constraint_test2.cp: unresolved stdlib sym
+  generic_constraint_violation.cp: compile failed
+  generic_func_return_struct.cp: unresolved stdlib sym
+  generic_nested_test.cp: unresolved stdlib sym
+  generic_pair.cp: unresolved stdlib sym
+  generic_struct.cp: unresolved stdlib sym
+  generic_struct_comprehensive.cp: unresolved stdlib sym
+  generic_struct_debug.cp: unresolved stdlib sym
+  generic_struct_minimal.cp: unresolved stdlib sym
+  generic_struct_param.cp: unresolved stdlib sym
+  generic_struct_simple.cp: unresolved stdlib sym
+  generic_test.cp: unresolved stdlib sym
+  generic_test2.cp: unresolved stdlib sym
+  jit_all_bench.cp: unresolved stdlib sym
+  jit_bench.cp: unresolved stdlib sym
+  jit_bench_fib35.cp: unresolved stdlib sym
+  jit_bench_loop.cp: unresolved stdlib sym
+  jit_big_pure.cp: unresolved stdlib sym
+  jit_fib_print.cp: unresolved stdlib sym
+  jit_minimal.cp: unresolved stdlib sym
+  jit_perf_all.cp: unresolved stdlib sym
+  jit_prime_test.cp: unresolved stdlib sym
+  jit_pure_fib.cp: unresolved stdlib sym
+  jit_pure_test.cp: unresolved stdlib sym
+  jit_simple_while.cp: unresolved stdlib sym
+  jit_step2.cp: unresolved stdlib sym
+  jit_while.cp: unresolved stdlib sym
+  math.cp: unresolved stdlib sym
+  math_utils.cp: unresolved stdlib sym
+  non_generic_access.cp: unresolved stdlib sym
+  non_generic_func_return_struct.cp: unresolved stdlib sym
+  pass_struct.cp: unresolved stdlib sym
+  perf_compare.cp: unresolved stdlib sym
+  perf_fib.cp: unresolved stdlib sym
+  right_shift.cp: unresolved stdlib sym
+  simple_generic_struct.cp: unresolved stdlib sym
+  simple_module.cp: unresolved stdlib sym
+  simple_struct.cp: unresolved stdlib sym
+  simple_test_run.cp: unresolved stdlib sym
+  single_field_access.cp: unresolved stdlib sym
+  sqlite_advanced.cp: unresolved stdlib sym
+  sqlite_test_cn.cp: unresolved stdlib sym
+  test_2048_debug_helper.cp: unresolved stdlib sym
+  test_abs.cp: unresolved stdlib sym
+  test_abs2.cp: unresolved stdlib sym
+  test_add.cp: unresolved stdlib sym
+  test_aes.cp: unresolved stdlib sym
+  test_after_call.cp: unresolved stdlib sym
+  test_aot_bridge.cp: compile failed
+  test_arith.cp: unresolved stdlib sym
+  test_arith2.cp: unresolved stdlib sym
+  test_arith_after.cp: unresolved stdlib sym
+  test_arr_only.cp: unresolved stdlib sym
+  test_arr_simple.cp: unresolved stdlib sym
+  test_array.cp: unresolved stdlib sym
+  test_array_index.cp: unresolved stdlib sym
+  test_assign.cp: unresolved stdlib sym
+  test_basic.cp: unresolved stdlib sym
+  test_basic_cn.cp: unresolved stdlib sym
+  test_bench_fib.cp: unresolved stdlib sym
+  test_bench_fib38.cp: unresolved stdlib sym
+  test_bench_primes.cp: unresolved stdlib sym
+  test_bilingual.cp: unresolved stdlib sym
+  test_bool.cp: unresolved stdlib sym
+  test_bool_simple.cp: unresolved stdlib sym
+  test_break.cp: unresolved stdlib sym
+  test_break_fixed.cp: unresolved stdlib sym
+  test_break_only.cp: unresolved stdlib sym
+  test_break_simple.cp: unresolved stdlib sym
+  test_channel.cp: unresolved stdlib sym
+  test_channel2.cp: unresolved stdlib sym
+  test_charset.cp: unresolved stdlib sym
+  test_chinese_keywords.cp: unresolved stdlib sym
+  test_class.cp: unresolved stdlib sym
+  test_class2.cp: unresolved stdlib sym
+  test_complex.cp: unresolved stdlib sym
+  test_compress.cp: unresolved stdlib sym
+  test_continue_if.cp: unresolved stdlib sym
+  test_continue_mod.cp: unresolved stdlib sym
+  test_continue_only.cp: unresolved stdlib sym
+  test_continue_simple.cp: unresolved stdlib sym
+  test_control.cp: unresolved stdlib sym
+  test_cpa.cp: unresolved stdlib sym
+  test_crypto.cp: unresolved stdlib sym
+  test_dec.cp: unresolved stdlib sym
+  test_defer.cp: unresolved stdlib sym
+  test_div.cp: unresolved stdlib sym
+  test_div2.cp: unresolved stdlib sym
+  test_dns_min.cp: unresolved stdlib sym
+  test_dns_min2.cp: unresolved stdlib sym
+  test_dyn.cp: unresolved stdlib sym
+  test_dynamic_type.cp: unresolved stdlib sym
+  test_en.cp: unresolved stdlib sym
+  test_encode.cp: unresolved stdlib sym
+  test_enum.cp: unresolved stdlib sym
+  test_enum2.cp: unresolved stdlib sym
+  test_enum3.cp: unresolved stdlib sym
+  test_enum_basic.cp: unresolved stdlib sym
+  test_enum_only.cp: unresolved stdlib sym
+  test_err_arg.cp: unresolved stdlib sym
+  test_err_binary.cp: unresolved stdlib sym
+  test_err_type.cp: compile failed
+  test_err_type2.cp: compile failed
+  test_err_undefined.cp: unresolved stdlib sym
+  test_err_unknown_struct.cp: compile failed
+  test_escape.cp: unresolved stdlib sym
+  test_exception.cp: unresolved stdlib sym
+  test_fe.cp: unresolved stdlib sym
+  test_ffi.cp: unresolved stdlib sym
+  test_ffi2.cp: unresolved stdlib sym
+  test_fib.cp: unresolved stdlib sym
+  test_file.cp: unresolved stdlib sym
+  test_fn_call_arr.cp: unresolved stdlib sym
+  test_fn_return.cp: unresolved stdlib sym
+  test_fn_with_arr.cp: unresolved stdlib sym
+  test_forEach2.cp: unresolved stdlib sym
+  test_forEach3.cp: unresolved stdlib sym
+  test_forEach_fn2.cp: unresolved stdlib sym
+  test_forEach_fn3.cp: unresolved stdlib sym
+  test_forEach_fn4.cp: unresolved stdlib sym
+  test_forEach_fn5.cp: unresolved stdlib sym
+  test_forEach_main.cp: unresolved stdlib sym
+  test_forEach_only.cp: unresolved stdlib sym
+  test_forEach_sep.cp: unresolved stdlib sym
+  test_forEach_simple.cp: unresolved stdlib sym
+  test_for_both.cp: unresolved stdlib sym
+  test_for_nested.cp: unresolved stdlib sym
+  test_for_simple.cp: unresolved stdlib sym
+  test_foreach.cp: unresolved stdlib sym
+  test_func.cp: unresolved stdlib sym
+  test_func_basic.cp: unresolved stdlib sym
+  test_func_check.cp: unresolved stdlib sym
+  test_fwatcher.cp: unresolved stdlib sym
+  test_generic2.cp: unresolved stdlib sym
+  test_generic_struct.cp: unresolved stdlib sym
+  test_global.cp: unresolved stdlib sym
+  test_hello_simple.cp: unresolved stdlib sym
+  test_hmac_md5.cp: unresolved stdlib sym
+  test_http.cp: unresolved stdlib sym
+  test_import.cp: unresolved stdlib sym
+  test_inc.cp: unresolved stdlib sym
+  test_inc_dec.cp: unresolved stdlib sym
+  test_inline.cp: unresolved stdlib sym
+  test_interpolation.cp: unresolved stdlib sym
+  test_iterator.cp: unresolved stdlib sym
+  test_jit.cp: unresolved stdlib sym
+  test_jit_fib.cp: unresolved stdlib sym
+  test_jit_fib20.cp: unresolved stdlib sym
+  test_jit_hotspot.cp: unresolved stdlib sym
+  test_jit_loop.cp: unresolved stdlib sym
+  test_jit_loop2.cp: unresolved stdlib sym
+  test_jit_main.cp: unresolved stdlib sym
+  test_jit_mini.cp: unresolved stdlib sym
+  test_jit_mixed.cp: unresolved stdlib sym
+  test_jit_named.cp: unresolved stdlib sym
+  test_jit_nested.cp: unresolved stdlib sym
+  test_jit_nested3.cp: unresolved stdlib sym
+  test_jit_nested_anon.cp: unresolved stdlib sym
+  test_jit_print.cp: unresolved stdlib sym
+  test_jit_simple.cp: unresolved stdlib sym
+  test_jit_simple_nest.cp: unresolved stdlib sym
+  test_jit_struct.cp: unresolved stdlib sym
+  test_jit_table.cp: unresolved stdlib sym
+  test_jit_vardecl.cp: unresolved stdlib sym
+  test_json.cp: unresolved stdlib sym
+  test_json_proc_env.cp: unresolved stdlib sym
+  test_lambda.cp: unresolved stdlib sym
+  test_len2.cp: unresolved stdlib sym
+  test_length.cp: unresolved stdlib sym
+  test_length_cn.cp: unresolved stdlib sym
+  test_llvm.cp: unresolved stdlib sym
+  test_loop.cp: unresolved stdlib sym
+  test_loop100m.cp: unresolved stdlib sym
+  test_loop_unroll.cp: unresolved stdlib sym
+  test_loops_full.cp: unresolved stdlib sym
+  test_loops_simple.cp: unresolved stdlib sym
+  test_match.cp: unresolved stdlib sym
+  test_match_def.cp: unresolved stdlib sym
+  test_match_int.cp: compile failed
+  test_match_simple.cp: unresolved stdlib sym
+  test_match_tok.cp: unresolved stdlib sym
+  test_matrix.cp: unresolved stdlib sym
+  test_md5_check.cp: unresolved stdlib sym
+  test_min.cp: unresolved stdlib sym
+  test_min2.cp: unresolved stdlib sym
+  test_module.cp: unresolved stdlib sym
+  test_module_globals.cp: unresolved stdlib sym
+  test_native.cp: unresolved stdlib sym
+  test_nested.cp: unresolved stdlib sym
+  test_nested_struct.cp: unresolved stdlib sym
+  test_nested_struct_cn.cp: unresolved stdlib sym
+  test_netcheck.cp: unresolved stdlib sym
+  test_new_features.cp: unresolved stdlib sym
+  test_new_stdlib.cp: unresolved stdlib sym
+  test_new_util.cp: unresolved stdlib sym
+  test_no_import.cp: unresolved stdlib sym
+  test_no_native.cp: unresolved stdlib sym
+  test_nobom.cp: unresolved stdlib sym
+  test_num.cp: unresolved stdlib sym
+  test_numstr.cp: unresolved stdlib sym
+  test_optimizer.cp: unresolved stdlib sym
+  test_p0p1.cp: unresolved stdlib sym
+  test_p2.cp: unresolved stdlib sym
+  test_p2_more.cp: unresolved stdlib sym
+  test_p3.cp: unresolved stdlib sym
+  test_path.cp: unresolved stdlib sym
+  test_perf.cp: unresolved stdlib sym
+  test_print_cn.cp: unresolved stdlib sym
+  test_print_inside.cp: unresolved stdlib sym
+  test_print_solo.cp: unresolved stdlib sym
+  test_println.cp: unresolved stdlib sym
+  test_proc.cp: unresolved stdlib sym
+  test_proc3.cp: unresolved stdlib sym
+  test_proc_dns_http.cp: unresolved stdlib sym
+  test_pure.cp: unresolved stdlib sym
+  test_quick.cp: unresolved stdlib sym
+  test_r10.cp: unresolved stdlib sym
+  test_r11.cp: unresolved stdlib sym
+  test_repl_ops.cp: unresolved stdlib sym
+  test_ret_no_print.cp: unresolved stdlib sym
+  test_simple.cp: unresolved stdlib sym
+  test_simple_call.cp: unresolved stdlib sym
+  test_simple_cn.cp: unresolved stdlib sym
+  test_simple_fn.cp: unresolved stdlib sym
+  test_simple_import.cp: unresolved stdlib sym
+  test_simple_ret.cp: unresolved stdlib sym
+  test_slot_mod.cp: unresolved stdlib sym
+  test_source_location.cp: unresolved stdlib sym
+  test_stdlib.cp: unresolved stdlib sym
+  test_stdlib_cn.cp: unresolved stdlib sym
+  test_stdlib_ext.cp: unresolved stdlib sym
+  test_step2.cp: unresolved stdlib sym
+  test_step3.cp: unresolved stdlib sym
+  test_step4.cp: unresolved stdlib sym
+  test_step6.cp: unresolved stdlib sym
+  test_string.cp: unresolved stdlib sym
+  test_struct.cp: unresolved stdlib sym
+  test_struct_access.cp: unresolved stdlib sym
+  test_struct_access_cn.cp: unresolved stdlib sym
+  test_struct_array.cp: unresolved stdlib sym
+  test_struct_array_cn.cp: unresolved stdlib sym
+  test_struct_cn.cp: unresolved stdlib sym
+  test_struct_infer.cp: unresolved stdlib sym
+  test_struct_lit_simple.cp: unresolved stdlib sym
+  test_struct_lit_simple_cn.cp: unresolved stdlib sym
+  test_struct_literal.cp: unresolved stdlib sym
+  test_struct_literal_cn.cp: unresolved stdlib sym
+  test_struct_simple.cp: unresolved stdlib sym
+  test_struct_simple2.cp: unresolved stdlib sym
+  test_struct_simple_cn.cp: unresolved stdlib sym
+  test_struct_v2.cp: unresolved stdlib sym
+  test_switch.cp: unresolved stdlib sym
+  test_tail_rec.cp: unresolved stdlib sym
+  test_tcp_echo.cp: unresolved stdlib sym
+  test_ternary.cp: unresolved stdlib sym
+  test_text_diag.cp: unresolved stdlib sym
+  test_tostr.cp: unresolved stdlib sym
+  test_transform_ret.cp: unresolved stdlib sym
+  test_v5_util.cp: unresolved stdlib sym
+  test_while_bare.cp: unresolved stdlib sym
+  two_field_struct.cp: unresolved stdlib sym
+
+=== All Results ===
+  FAIL access_field.cp
+  FAIL benchmark.cp
+  FAIL chain_comparison.cp
+  FAIL debug_module_bytecode.cp
+  FAIL generic_constraint_comprehensive.cp
+  FAIL generic_constraint_struct.cp
+  FAIL generic_constraint_test.cp
+  FAIL generic_constraint_test2.cp
+  FAIL generic_constraint_violation.cp
+  FAIL generic_func_return_struct.cp
+  FAIL generic_nested_test.cp
+  FAIL generic_pair.cp
+  FAIL generic_struct.cp
+  FAIL generic_struct_comprehensive.cp
+  FAIL generic_struct_debug.cp
+  FAIL generic_struct_minimal.cp
+  FAIL generic_struct_param.cp
+  FAIL generic_struct_simple.cp
+  FAIL generic_test.cp
+  FAIL generic_test2.cp
+  FAIL jit_all_bench.cp
+  FAIL jit_bench.cp
+  FAIL jit_bench_fib35.cp
+  FAIL jit_bench_loop.cp
+  FAIL jit_big_pure.cp
+  FAIL jit_fib_print.cp
+  FAIL jit_minimal.cp
+  FAIL jit_perf_all.cp
+  FAIL jit_prime_test.cp
+  FAIL jit_pure_fib.cp
+  FAIL jit_pure_test.cp
+  FAIL jit_simple_while.cp
+  FAIL jit_step2.cp
+  FAIL jit_while.cp
+  FAIL math.cp
+  FAIL math_utils.cp
+  FAIL non_generic_access.cp
+  FAIL non_generic_func_return_struct.cp
+  FAIL pass_struct.cp
+  FAIL perf_compare.cp
+  FAIL perf_fib.cp
+  FAIL right_shift.cp
+  FAIL simple_generic_struct.cp
+  FAIL simple_module.cp
+  FAIL simple_struct.cp
+  FAIL simple_test_run.cp
+  FAIL single_field_access.cp
+  FAIL sqlite_advanced.cp
+  FAIL sqlite_test_cn.cp
+  FAIL test_2048_debug_helper.cp
+  FAIL test_abs.cp
+  FAIL test_abs2.cp
+  FAIL test_add.cp
+  FAIL test_aes.cp
+  FAIL test_after_call.cp
+  FAIL test_aot_bridge.cp
+  FAIL test_arith.cp
+  FAIL test_arith2.cp
+  FAIL test_arith_after.cp
+  FAIL test_arr_only.cp
+  FAIL test_arr_simple.cp
+  FAIL test_array.cp
+  FAIL test_array_index.cp
+  FAIL test_assign.cp
+  FAIL test_basic.cp
+  FAIL test_basic_cn.cp
+  FAIL test_bench_fib.cp
+  FAIL test_bench_fib38.cp
+  FAIL test_bench_primes.cp
+  FAIL test_bilingual.cp
+  FAIL test_bool.cp
+  FAIL test_bool_simple.cp
+  FAIL test_break.cp
+  FAIL test_break_fixed.cp
+  FAIL test_break_only.cp
+  FAIL test_break_simple.cp
+  FAIL test_channel.cp
+  FAIL test_channel2.cp
+  FAIL test_charset.cp
+  FAIL test_chinese_keywords.cp
+  FAIL test_class.cp
+  FAIL test_class2.cp
+  FAIL test_complex.cp
+  FAIL test_compress.cp
+  FAIL test_continue_if.cp
+  FAIL test_continue_mod.cp
+  FAIL test_continue_only.cp
+  FAIL test_continue_simple.cp
+  FAIL test_control.cp
+  FAIL test_cpa.cp
+  FAIL test_crypto.cp
+  FAIL test_dec.cp
+  FAIL test_defer.cp
+  FAIL test_div.cp
+  FAIL test_div2.cp
+  FAIL test_dns_min.cp
+  FAIL test_dns_min2.cp
+  FAIL test_dyn.cp
+  FAIL test_dynamic_type.cp
+  FAIL test_en.cp
+  FAIL test_encode.cp
+  FAIL test_enum.cp
+  FAIL test_enum2.cp
+  FAIL test_enum3.cp
+  FAIL test_enum_basic.cp
+  FAIL test_enum_only.cp
+  FAIL test_err_arg.cp
+  FAIL test_err_binary.cp
+  FAIL test_err_type.cp
+  FAIL test_err_type2.cp
+  FAIL test_err_undefined.cp
+  FAIL test_err_unknown_struct.cp
+  FAIL test_escape.cp
+  FAIL test_exception.cp
+  FAIL test_fe.cp
+  FAIL test_ffi.cp
+  FAIL test_ffi2.cp
+  FAIL test_fib.cp
+  FAIL test_file.cp
+  FAIL test_fn_call_arr.cp
+  FAIL test_fn_return.cp
+  FAIL test_fn_with_arr.cp
+  FAIL test_forEach2.cp
+  FAIL test_forEach3.cp
+  FAIL test_forEach_fn2.cp
+  FAIL test_forEach_fn3.cp
+  FAIL test_forEach_fn4.cp
+  FAIL test_forEach_fn5.cp
+  FAIL test_forEach_main.cp
+  FAIL test_forEach_only.cp
+  FAIL test_forEach_sep.cp
+  FAIL test_forEach_simple.cp
+  FAIL test_for_both.cp
+  FAIL test_for_nested.cp
+  FAIL test_for_simple.cp
+  FAIL test_foreach.cp
+  FAIL test_func.cp
+  FAIL test_func_basic.cp
+  FAIL test_func_check.cp
+  FAIL test_fwatcher.cp
+  FAIL test_generic2.cp
+  FAIL test_generic_struct.cp
+  FAIL test_global.cp
+  FAIL test_hello_simple.cp
+  FAIL test_hmac_md5.cp
+  FAIL test_http.cp
+  FAIL test_import.cp
+  FAIL test_inc.cp
+  FAIL test_inc_dec.cp
+  FAIL test_inline.cp
+  FAIL test_interpolation.cp
+  FAIL test_iterator.cp
+  FAIL test_jit.cp
+  FAIL test_jit_fib.cp
+  FAIL test_jit_fib20.cp
+  FAIL test_jit_hotspot.cp
+  FAIL test_jit_loop.cp
+  FAIL test_jit_loop2.cp
+  FAIL test_jit_main.cp
+  FAIL test_jit_mini.cp
+  FAIL test_jit_mixed.cp
+  FAIL test_jit_named.cp
+  FAIL test_jit_nested.cp
+  FAIL test_jit_nested3.cp
+  FAIL test_jit_nested_anon.cp
+  FAIL test_jit_print.cp
+  FAIL test_jit_simple.cp
+  FAIL test_jit_simple_nest.cp
+  FAIL test_jit_struct.cp
+  FAIL test_jit_table.cp
+  FAIL test_jit_vardecl.cp
+  FAIL test_json.cp
+  FAIL test_json_proc_env.cp
+  FAIL test_lambda.cp
+  FAIL test_len2.cp
+  FAIL test_length.cp
+  FAIL test_length_cn.cp
+  FAIL test_llvm.cp
+  FAIL test_loop.cp
+  FAIL test_loop100m.cp
+  FAIL test_loop_unroll.cp
+  FAIL test_loops_full.cp
+  FAIL test_loops_simple.cp
+  FAIL test_match.cp
+  FAIL test_match_def.cp
+  FAIL test_match_int.cp
+  FAIL test_match_simple.cp
+  FAIL test_match_tok.cp
+  FAIL test_matrix.cp
+  FAIL test_md5_check.cp
+  FAIL test_min.cp
+  FAIL test_min2.cp
+  FAIL test_module.cp
+  FAIL test_module_globals.cp
+  FAIL test_native.cp
+  FAIL test_nested.cp
+  FAIL test_nested_struct.cp
+  FAIL test_nested_struct_cn.cp
+  FAIL test_netcheck.cp
+  FAIL test_new_features.cp
+  FAIL test_new_stdlib.cp
+  FAIL test_new_util.cp
+  FAIL test_no_import.cp
+  FAIL test_no_native.cp
+  FAIL test_nobom.cp
+  FAIL test_num.cp
+  FAIL test_numstr.cp
+  FAIL test_optimizer.cp
+  FAIL test_p0p1.cp
+  FAIL test_p2.cp
+  FAIL test_p2_more.cp
+  FAIL test_p3.cp
+  FAIL test_path.cp
+  FAIL test_perf.cp
+  FAIL test_print_cn.cp
+  FAIL test_print_inside.cp
+  FAIL test_print_solo.cp
+  FAIL test_println.cp
+  FAIL test_proc.cp
+  FAIL test_proc3.cp
+  FAIL test_proc_dns_http.cp
+  FAIL test_pure.cp
+  FAIL test_quick.cp
+  FAIL test_r10.cp
+  FAIL test_r11.cp
+  FAIL test_repl_ops.cp
+  FAIL test_ret_no_print.cp
+  FAIL test_simple.cp
+  FAIL test_simple_call.cp
+  FAIL test_simple_cn.cp
+  FAIL test_simple_fn.cp
+  FAIL test_simple_import.cp
+  FAIL test_simple_ret.cp
+  FAIL test_slot_mod.cp
+  FAIL test_source_location.cp
+  FAIL test_stdlib.cp
+  FAIL test_stdlib_cn.cp
+  FAIL test_stdlib_ext.cp
+  FAIL test_step2.cp
+  FAIL test_step3.cp
+  FAIL test_step4.cp
+  FAIL test_step6.cp
+  FAIL test_string.cp
+  FAIL test_struct.cp
+  FAIL test_struct_access.cp
+  FAIL test_struct_access_cn.cp
+  FAIL test_struct_array.cp
+  FAIL test_struct_array_cn.cp
+  FAIL test_struct_cn.cp
+  FAIL test_struct_infer.cp
+  FAIL test_struct_lit_simple.cp
+  FAIL test_struct_lit_simple_cn.cp
+  FAIL test_struct_literal.cp
+  FAIL test_struct_literal_cn.cp
+  FAIL test_struct_simple.cp
+  FAIL test_struct_simple2.cp
+  FAIL test_struct_simple_cn.cp
+  FAIL test_struct_v2.cp
+  FAIL test_switch.cp
+  FAIL test_tail_rec.cp
+  FAIL test_tcp_echo.cp
+  FAIL test_ternary.cp
+  FAIL test_text_diag.cp
+  FAIL test_tostr.cp
+  FAIL test_transform_ret.cp
+  FAIL test_v5_util.cp
+  FAIL test_while_bare.cp
+  FAIL two_field_struct.cp

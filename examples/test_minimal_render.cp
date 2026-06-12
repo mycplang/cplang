@@ -1,3 +1,4 @@
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
 // 最小渲染测试：纯色背景 + 矩形，单帧即停
 initWindow(400, 300, "RENDER TEST");
 setTargetFPS(60);

@@ -1,3 +1,4 @@
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
 // 测试: 手动构造颜色表
 initWindow(400, 300, "TABLE COLOR TEST");
 setTargetFPS(60);

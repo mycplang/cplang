@@ -1,3 +1,4 @@
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
 // CP IDE v1.0 — 自举编辑器
 
 变量 编辑器内容 = "";

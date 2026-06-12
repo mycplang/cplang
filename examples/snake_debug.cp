@@ -1,3 +1,4 @@
+﻿导入 "@cp/graphics";  // 图形模块 (Raylib 2D/3D + ImGui)
 打印("=== MINIMAL SNAKE DEBUG ===");
 
 变量 格 = 20;

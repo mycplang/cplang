@@ -82,8 +82,10 @@ add_library(cplang_platform STATIC
 )
 if(WIN32)
     target_sources(cplang_platform PRIVATE src/platform/platform_win.cpp)
+    target_sources(cplang_platform PRIVATE src/platform/platform_iopoll_win.cpp)
 else()
     target_sources(cplang_platform PRIVATE src/platform/platform_linux.cpp)
+    target_sources(cplang_platform PRIVATE src/platform/platform_iopoll_linux.cpp)
 endif()
 target_include_directories(cplang_platform PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -212,7 +214,7 @@ add_library(cplang_codegen STATIC
     src/codegen/bytecode_optimizer.cpp
 )
 
-# AOT 已移除 (aot_compiler.cpp / aot_compile_ir.cpp)。llvm_codegen.cpp 保留供 JIT 使用。
+# AOT 编译器 + LLVM IR 生成器
 if(CPLANG_USE_LLVM AND LLVM_FOUND)
     target_sources(cplang_codegen PRIVATE
         src/codegen/llvm_codegen.cpp
@@ -274,6 +276,24 @@ if(CPLANG_USE_LLVM AND LLVM_FOUND)
     target_compile_definitions(cplang_jit PUBLIC CPLANG_HAS_LLVM=1)
 endif()
 set_target_warnings(cplang_jit)
+
+# ============================================================================
+# 10b. cplang_aot — AOT 编译器（LLVM IR → .obj → link → .exe）
+# ============================================================================
+add_library(cplang_aot STATIC
+    src/codegen/aot_compiler.cpp
+    src/aot/aot_vm_bridge.cpp
+)
+target_include_directories(cplang_aot PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(cplang_aot PUBLIC cplang_codegen cplang_vm cplang_stdlib)
+if(CPLANG_USE_LLVM AND LLVM_FOUND)
+    target_include_directories(cplang_aot SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
+    target_compile_definitions(cplang_aot PUBLIC CPLANG_HAS_LLVM=1)
+endif()
+target_compile_definitions(cplang_aot PRIVATE CPLANG_AOT_NO_RAYLIB=1)
+set_target_warnings(cplang_aot)
 
 # ============================================================================
 # 11. cplang_module — 模块系统
@@ -340,6 +360,7 @@ add_library(cplang_stdlib STATIC
     src/stdlib/stdlib_types_net.cpp
     src/stdlib/stdlib_variant_utils.cpp
     src/stdlib/stdlib_more_utils_extra.cpp
+    src/stdlib/stdlib_iopoll.cpp
     src/miniz.c
     src/miniz_tdef.c
     src/miniz_tinfl.c
@@ -373,6 +394,18 @@ target_compile_definitions(cplang_stdlib PRIVATE
 )
 target_link_libraries(cplang_stdlib PUBLIC cplang_vm cplang_platform)
 set_target_warnings(cplang_stdlib)
+
+# ============================================================================
+# 12b. cplang_stdlib_core — 核心标准库（AOT 最小运行时，不含图形/数据库等重模块）
+# ============================================================================
+add_library(cplang_stdlib_core STATIC
+    src/stdlib/stdlib_core.cpp
+)
+target_include_directories(cplang_stdlib_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(cplang_stdlib_core PUBLIC cplang_vm cplang_platform)
+set_target_warnings(cplang_stdlib_core)
 
 # ============================================================================
 # 13. cplang_debug — 调试器
@@ -446,6 +479,7 @@ target_link_libraries(cplang_cli PRIVATE
     cplang_module
     cplang_optimizer
     cplang_jit
+    cplang_aot
     cplang_debug
     cplang_exception
     ${LLVM_LIB_FILES}
@@ -459,6 +493,47 @@ set_target_properties(cplang_cli PROPERTIES
 )
 if(WIN32)
     set_target_properties(cplang_cli PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
+endif()
+
+# ═══════════════════════════════════════════════════════════════════
+# AOT 运行时支持文件（由 cplang_cli 构建后自动生成）
+# ═══════════════════════════════════════════════════════════════════
+if(CPLANG_USE_LLVM AND LLVM_FOUND AND WIN32)
+    # aot_vm_bridge.obj — AOT 运行时桥接（非图形模式，无 raylib 依赖）
+    set(AOT_BRIDGE_OBJ "${CMAKE_BINARY_DIR}/bin/aot_vm_bridge.obj")
+    add_custom_command(OUTPUT ${AOT_BRIDGE_OBJ}
+        COMMAND cl /c /EHsc /std:c++17 /O2 /nologo /utf-8 /MD
+                /I"${CMAKE_SOURCE_DIR}/include"
+                /DCPLANG_AOT_NO_RAYLIB=1
+                /Fo"${AOT_BRIDGE_OBJ}"
+                "${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp"
+        DEPENDS ${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp
+                ${CMAKE_SOURCE_DIR}/include/aot/aot_vm_bridge.hpp
+        COMMENT "Building aot_vm_bridge.obj for AOT linker (no-RAYLIB)"
+    )
+    
+    # jit_runtime_standalone.obj → jit_runtime.lib — AOT 独立运行时
+    set(JIT_RT_OBJ "${CMAKE_BINARY_DIR}/bin/jit_runtime_standalone.obj")
+    set(JIT_RT_LIB "${CMAKE_BINARY_DIR}/bin/jit_runtime.lib")
+    add_custom_command(OUTPUT ${JIT_RT_OBJ}
+        COMMAND cl /c /EHsc /std:c++17 /O2 /nologo /utf-8 /MD
+                /I"${CMAKE_SOURCE_DIR}/include"
+                /Fo"${JIT_RT_OBJ}"
+                "${CMAKE_SOURCE_DIR}/src/jit/jit_runtime_standalone.cpp"
+        DEPENDS ${CMAKE_SOURCE_DIR}/src/jit/jit_runtime_standalone.cpp
+        COMMENT "Building jit_runtime_standalone.obj for AOT linker"
+    )
+    add_custom_command(OUTPUT ${JIT_RT_LIB}
+        COMMAND lib /OUT:"${JIT_RT_LIB}" "${JIT_RT_OBJ}"
+        DEPENDS ${JIT_RT_OBJ}
+        COMMENT "Building jit_runtime.lib for AOT linker"
+    )
+    
+    # cplang_aot_utils — 组合目标，生成 AOT 需要的所有支持文件
+    add_custom_target(cplang_aot_utils ALL
+        DEPENDS ${AOT_BRIDGE_OBJ} ${JIT_RT_LIB}
+        COMMENT "AOT support files: aot_vm_bridge.obj + jit_runtime.lib"
+    )
 endif()
 
 # ============================================================================
@@ -673,3 +748,79 @@ set_target_properties(cplang_debug  PROPERTIES FOLDER "cplang/04-runtime")
 set_target_properties(cplang_exception PROPERTIES FOLDER "cplang/04-runtime")
 set_target_properties(cplang_cli    PROPERTIES FOLDER "cplang/99-cli")
 set_target_properties(cplang_repl   PROPERTIES FOLDER "cplang/99-cli")
+
+# ============================================================================
+# 模块化包（独立编译为 .lib，可通过 cpkg 分发）
+# ============================================================================
+option(CPLANG_BUILD_MODULES "构建可拆分模块包" ON)
+if(CPLANG_BUILD_MODULES)
+    # @cp/graphics — Raylib + ImGui
+    add_subdirectory(modules/graphics ${CMAKE_BINARY_DIR}/modules/graphics)
+    set_target_properties(cplang_graphics PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/graphics/win-x64"
+    )
+
+    # @cp/database — SQLite + MySQL + Redis
+    add_subdirectory(modules/database ${CMAKE_BINARY_DIR}/modules/database)
+    set_target_properties(cplang_database PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/database/win-x64"
+    )
+
+    # @cp/crypto — AES + SHA + MD5 + Base64
+    add_subdirectory(modules/crypto ${CMAKE_BINARY_DIR}/modules/crypto)
+    set_target_properties(cplang_crypto PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/crypto/win-x64"
+    )
+
+    # @cp/ffi — 外部函数接口
+    add_subdirectory(modules/ffi ${CMAKE_BINARY_DIR}/modules/ffi)
+    set_target_properties(cplang_ffi PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/ffi/win-x64"
+    )
+
+    # @cp/net — 网络（HTTP + JSON）
+    add_subdirectory(modules/network ${CMAKE_BINARY_DIR}/modules/network)
+    set_target_properties(cplang_net PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/network/win-x64"
+    )
+
+    # @cp/container — 高级容器
+    add_subdirectory(modules/container ${CMAKE_BINARY_DIR}/modules/container)
+    set_target_properties(cplang_container PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/container/win-x64"
+    )
+
+    # @cp/concurrent — 并发
+    add_subdirectory(modules/concurrent ${CMAKE_BINARY_DIR}/modules/concurrent)
+    set_target_properties(cplang_concurrent PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/concurrent/win-x64"
+    )
+
+    # @cp/string_ext — 字符串高级
+    add_subdirectory(modules/string_ext ${CMAKE_BINARY_DIR}/modules/string_ext)
+    set_target_properties(cplang_string_ext PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/string_ext/win-x64"
+    )
+
+    # @cp/charset — 字符集转换
+    add_subdirectory(modules/charset ${CMAKE_BINARY_DIR}/modules/charset)
+    set_target_properties(cplang_charset PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/charset/win-x64"
+    )
+
+    # @cp/algorithm — 算法
+    add_subdirectory(modules/algorithm ${CMAKE_BINARY_DIR}/modules/algorithm)
+    set_target_properties(cplang_algorithm PROPERTIES
+        FOLDER "modules"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/algorithm/win-x64"
+    )
+endif()

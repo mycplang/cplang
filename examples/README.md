@@ -32,11 +32,30 @@ CP 语言支持完整的原生中文语法：中文变量名、中文函数名�
 | `webserver.cp` | 🌐 Web 服务器 | 网络 |
 | `pkgweb.cp` | 📦 包管理 Web 界面 | 网络 |
 
+## 模块依赖
+
+从 v0.2.0 起，部分标准库已拆分为独立模块包。使用前需先安装：
+
+| 模块 | 需要的示例 | 安装命令 |
+|------|-----------|---------|
+| `@cp/graphics` | 所有游戏、图形演示、GUI 应用 | `cpkg install @cp/graphics` |
+| `@cp/net` | HTTP/Web 服务器、网络工具 | `cpkg install @cp/net` |
+
+> **注意**：如果在 VM 字节码模式 (`-c`) 下运行，模块已内置，无需安装。
+> AOT 编译模式 (`-a`) 需要预先安装对应模块包。
+
 ## 如何运行
 
 ```bash
+# 安装依赖（首次）
+cpkg install @cp/graphics
+cpkg install @cp/net
+
 # 编译并执行
 cplang.exe -c 图书管理.cp
+
+# AOT 编译为独立 exe
+cplang.exe -a -o snake.exe snake.cp
 
 # 仅检查语法
 cplang.exe -p 图书管理.cp

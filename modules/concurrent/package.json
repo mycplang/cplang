@@ -1,0 +1,1 @@
+{"name":"@cp/concurrent","version":"0.2.0","desc":"CP语言 并发模块（线程/互斥/Channel/Future/RWLock/TLS）","author":"cplang","license":"MIT","keywords":["并发","线程","互斥","channel","future"],"dependencies":{},"platforms":{"win-x64":"concurrent.lib"}}
