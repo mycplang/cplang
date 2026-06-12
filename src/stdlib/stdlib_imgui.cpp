@@ -14,6 +14,16 @@ namespace imgui_ns {
 
 // ─── 上下文管理 ──────────────────────────────────────────────────
 
+Value loadFont_(std::vector<Value>& args) {
+    if (args.size() < 2 || !args[0].isString() || !args[1].isInt()) return Value::Int(0);
+    const char* path = args[0].asString()->data;
+    int size = (int)args[1].asInt();
+    ImGuiIO& io = ImGui::GetIO();
+    ImFont* font = io.Fonts->AddFontFromFileTTF(path, (float)size, NULL, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+    if (font) { io.Fonts->Build(); return Value::Bool(true); }
+    return Value::Bool(false);
+}
+
 Value init_(std::vector<Value>& args) {
     bool dark = args.empty() || !args[0].isBool() || args[0].isTrue();
     { ImGuiIO& io = ImGui::GetIO(); io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/simhei.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesChineseSimplifiedCommon()); io.Fonts->Build(); }
@@ -537,6 +547,8 @@ void StdLib::registerImGui(VM* vm) {
     using namespace imgui_ns;
     // 上下文
     registerFunction(vm, "igInit",         init_);
+    registerFunction(vm, "igLoadFont",      loadFont_);
+    registerAlias(vm,   "界面加载字体",     "igLoadFont");
     registerFunction(vm, "igBeginDraw",    beginDraw_);
     registerFunction(vm, "igEndDraw",      endDraw_);
     registerFunction(vm, "igShutdown",     shutdown_);
