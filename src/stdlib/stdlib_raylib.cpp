@@ -917,6 +917,7 @@ void StdLib::registerRaylib(VM* vm) {
     registerAlias(vm, "绘制矩形",             "drawRectangle");
     registerAlias(vm, "绘制矩形区域",         "drawRectangleRec");
     registerAlias(vm, "绘制圆形",             "drawCircle");
+    registerAlias(vm, "绘制三角形",           "drawTriangle");
     registerAlias(vm, "绘制线条",             "drawLine");
     registerAlias(vm, "绘制粗线条",           "drawLineEx");
     registerAlias(vm, "绘制像素",             "drawPixel");
