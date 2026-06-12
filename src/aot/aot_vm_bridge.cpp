@@ -188,7 +188,10 @@ void aot_init_runtime(void) {
         int key = args.size()>=1 && args[0].isInt() ? (int)args[0].asInt() : 0;
         return Value::Bool(IsKeyPressed(key) != 0);
     });
-#endif
+
+    StdLib::registerFunction(g_aot_vm, "closeWindow", [](std::vector<Value>&) -> Value {
+        CloseWindow(); return Value::Int(0);
+    });#endif
 
     aot_log("init: all registration complete");
 }
