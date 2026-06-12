@@ -113,5 +113,100 @@
     "prefix": ["main"],
     "body": ["函数 main() {", "\t${1:主体}", "}"],
     "description": "程序入口 main 函数"
+  },
+  "初始化窗口": {
+    "prefix": ["初始化窗口", "initWindow"],
+    "body": ["初始化窗口(${1:宽度}, ${2:高度}, \"${3:标题}\");"],
+    "description": "创建 raylib 窗口"
+  },
+  "窗口应关闭": {
+    "prefix": ["窗口应关闭", "windowShouldClose"],
+    "body": ["窗口应关闭()"],
+    "description": "检查窗口是否应该关闭"
+  },
+  "关闭窗口": {
+    "prefix": ["关闭窗口", "closeWindow"],
+    "body": ["关闭窗口();"],
+    "description": "关闭 raylib 窗口"
+  },
+  "设置目标帧率": {
+    "prefix": ["设置目标帧率", "setTargetFPS"],
+    "body": ["设置目标帧率(${1:帧率});"],
+    "description": "设置目标帧率"
+  },
+  "开始绘制": {
+    "prefix": ["开始绘制", "beginDrawing"],
+    "body": ["开始绘制();"],
+    "description": "开始帧绘制"
+  },
+  "结束绘制": {
+    "prefix": ["结束绘制", "endDrawing"],
+    "body": ["结束绘制();"],
+    "description": "结束帧绘制"
+  },
+  "清空背景": {
+    "prefix": ["清空背景", "clearBackground"],
+    "body": ["清空背景(${1:颜色});"],
+    "description": "清空窗口背景"
+  },
+  "绘制文本": {
+    "prefix": ["绘制文本", "drawText"],
+    "body": ["绘制文本(\"${1:文字}\", ${2:x}, ${3:y}, ${4:大小}, ${5:颜色});"],
+    "description": "在窗口上绘制文字"
+  },
+  "绘制矩形": {
+    "prefix": ["绘制矩形", "drawRectangle"],
+    "body": ["绘制矩形(${1:x}, ${2:y}, ${3:宽}, ${4:高}, ${5:颜色});"],
+    "description": "绘制实心矩形"
+  },
+  "绘制圆形": {
+    "prefix": ["绘制圆形", "drawCircle"],
+    "body": ["绘制圆形(${1:cx}, ${2:cy}, ${3:半径}, ${4:颜色});"],
+    "description": "绘制实心圆"
+  },
+  "绘制三角形": {
+    "prefix": ["绘制三角形", "drawTriangle"],
+    "body": ["绘制三角形(${1:x1}, ${2:y1}, ${3:x2}, ${4:y2}, ${5:x3}, ${6:y3}, ${7:颜色});"],
+    "description": "绘制实心三角形"
+  },
+  "绘制线条": {
+    "prefix": ["绘制线条", "drawLine"],
+    "body": ["绘制线条(${1:x1}, ${2:y1}, ${3:x2}, ${4:y2}, ${5:颜色});"],
+    "description": "绘制线段"
+  },
+  "键盘按下": {
+    "prefix": ["键盘按下", "keyPressed"],
+    "body": ["键盘按下(${1:键码});"],
+    "description": "检测按键是否被按下"
+  },
+  "获取帧率": {
+    "prefix": ["获取帧率", "getFPS"],
+    "body": ["获取帧率();"],
+    "description": "获取当前帧率"
+  },
+  "颜色函数": {
+    "prefix": ["颜色", "color"],
+    "body": ["颜色(${1:r}, ${2:g}, ${3:b}, ${4:a});"],
+    "description": "创建颜色值"
+  },
+  "hex转rgb": {
+    "prefix": ["hexToRgb"],
+    "body": ["hexToRgb(${1:0xRRGGBB});"],
+    "description": "十六进制转 RGB 表"
+  },
+  "控制台颜色": {
+    "prefix": ["控制台颜色", "conColor"],
+    "body": ["控制台颜色(${1:颜色});"],
+    "description": "设置控制台文字颜色"
+  },
+  "控制台重置": {
+    "prefix": ["控制台重置", "conReset"],
+    "body": ["控制台重置();"],
+    "description": "重置控制台颜色"
+  },
+  "控制台清屏": {
+    "prefix": ["控制台清屏", "conClear"],
+    "body": ["控制台清屏();"],
+    "description": "清空控制台"
   }
 }
