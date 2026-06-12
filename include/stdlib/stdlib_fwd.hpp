@@ -127,6 +127,7 @@ public:
 
     // 核心注册（AOT 模式使用，只注册绝对必要的基础模块）
     static void registerCore(VM* vm);
+    static void registerColors(VM* vm);  // 内置颜色常量
     
     // 按需注册接口（AOT 模式使用，仅注册实际需要的模块）
     static void registerModules(VM* vm, const std::vector<std::string>& modules);

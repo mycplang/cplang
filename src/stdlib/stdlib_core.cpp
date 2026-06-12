@@ -4,9 +4,7 @@
 
 namespace cplang {
 
-static void registerColors(VM* vm) {
-    // 内置颜色常量
-    struct ColorDef { const char* name; uint8_t r, g, b, a; };
+;
     ColorDef colors[] = {
         {"亮蓝",   80, 140, 255, 255},
         {"深蓝",   15,  15,  35, 255},

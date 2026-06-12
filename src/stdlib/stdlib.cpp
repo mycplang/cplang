@@ -153,6 +153,7 @@ void StdLib::registerAll(VM* vm) {
     registerStrCi(vm);          // → @cp/string_ext
     registerFixMissing(vm);
     registerIOPoll(vm);
+    registerColors(vm);  // 内置颜色常量（亮蓝/红色/背景色等）
 }
 
 // registerFunction / registerAlias 已内联至 include/stdlib/stdlib_fwd.hpp，
@@ -263,5 +264,44 @@ static void registerRedis(cplang::VM*) {}
 static void registerHttp(cplang::VM*) {}
 static void registerLogPlus(cplang::VM*) {}
 #endif
+
+
+void StdLib::registerColors(VM* vm) {
+    struct ColorDef { const char* name; uint8_t r, g, b, a; };
+    ColorDef colors[] = {
+        {"亮蓝",   80, 140, 255, 255},
+        {"深蓝",   15,  15,  35, 255},
+        {"白色",  255, 255, 255, 255},
+        {"金色",  255, 215,   0, 255},
+        {"灰色",  150, 150, 160, 255},
+        {"红色",  255,  60,  60, 255},
+        {"黑色",    0,   0,   0, 255},
+        {"绿色",   80, 220,  80, 255},
+        {"酸橙色",  0, 255,   0, 255},
+        {"天蓝",  135, 206, 235, 255},
+        {"粉色",  255, 182, 193, 255},
+        {"紫色",  160,  32, 240, 255},
+        {"橙色",  255, 165,   0, 255},
+        {"棕色",  139,  69,  19, 255},
+        {"青色",    0, 255, 255, 255},
+        {"洋红",  255,   0, 255, 255},
+        {"黄色",  255, 255,   0, 255},
+        {"透明",    0,   0,   0,   0},
+        {"背景色", 187, 173, 160, 255},
+        {"空格色", 205, 193, 180, 255},
+        {"深字色", 119, 110, 101, 255},
+        {"浅字色", 249, 246, 242, 255},
+        {"遮罩色",   0,   0,   0, 180},
+    };
+    for (auto& c : colors) {
+        auto t = VMTable::create();
+        t->set(makeStringVal(VMString::create("r")), Value::Int(c.r));
+        t->set(makeStringVal(VMString::create("g")), Value::Int(c.g));
+        t->set(makeStringVal(VMString::create("b")), Value::Int(c.b));
+        t->set(makeStringVal(VMString::create("a")), Value::Int(c.a));
+        vm->trackGC(reinterpret_cast<VMObject*>(t));
+        vm->setGlobal(c.name, makeTableVal(t));
+    }
+}
 
 } // namespace cplang
