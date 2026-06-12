@@ -11,7 +11,7 @@
   },
   "engines": {"vscode": "^1.80.0"},
   "categories": ["Programming Languages", "Linters"],
-  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.debug", "onCommand:cp.pack", "onCommand:cp.linux", "onCommand:cp.android", "onCommand:cp.info"],
+  "activationEvents": ["onLanguage:cp", "onCommand:cp.run", "onCommand:cp.build", "onCommand:cp.debug", "onCommand:cp.linux", "onCommand:cp.android", "onCommand:cp.info"],
   "main": "./extension.js",
   "contributes": {
     "languages": [{
@@ -42,12 +42,7 @@
       },
       {
         "command": "cp.build",
-        "title": "CP: 编译当前文件",
-        "description": "编译检查当前 .cp 文件（不运行）"
-      },
-      {
-        "command": "cp.pack",
-        "title": "CP: AOT 打包为 .exe",
+        "title": "CP: AOT 编译为 .exe",
         "description": "AOT 编译当前 .cp 文件为原生机器码 .exe"
       },
       {
@@ -82,11 +77,7 @@
         "key": "ctrl+f7",
         "when": "editorLangId == cp && editorTextFocus"
       },
-      {
-        "command": "cp.pack",
-        "key": "ctrl+shift+b",
-        "when": "editorLangId == cp && editorTextFocus"
-      },
+
       {
         "command": "cp.linux",
         "key": "ctrl+shift+l",
@@ -115,11 +106,6 @@
         {
           "command": "cp.build",
           "group": "cp@2",
-          "when": "editorLangId == cp"
-        },
-        {
-          "command": "cp.pack",
-          "group": "cp@3",
           "when": "editorLangId == cp"
         },
         {

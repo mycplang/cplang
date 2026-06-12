@@ -107,23 +107,13 @@ function activate(context) {
         terminal.sendText(`& "${compiler}" -c "${filePath}"`);
     });
 
-    // ---- Command: compile .cp file (check only) ----
+    // ---- Command: AOT 编译为 .exe (Ctrl+F7) ----
     const buildCommand = vscode.commands.registerCommand('cp.build', () => {
         const filePath = getActiveCpFile();
         if (!filePath) return;
         const compiler = findCompilerNearFile(filePath);
-        const terminal = vscode.window.createTerminal({ name: 'CP Build', hideFromUser: false });
-        terminal.show();
-        terminal.sendText(`"${compiler}" -p "${filePath}"`);
-    });
-
-    // ---- Command: AOT 打包为 .exe ----
-    const sfxCommand = vscode.commands.registerCommand('cp.pack', () => {
-        const filePath = getActiveCpFile();
-        if (!filePath) return;
-        const compiler = findCompilerNearFile(filePath);
         const outPath = filePath.replace(/\.cp$/i, '.exe');
-        const terminal = vscode.window.createTerminal({ name: 'CP AOT Pack', hideFromUser: false });
+        const terminal = vscode.window.createTerminal({ name: 'CP AOT', hideFromUser: false });
         terminal.show();
         terminal.sendText(`& "${compiler}" -k "${filePath}" -o "${outPath}"`);
     });
@@ -175,7 +165,7 @@ function activate(context) {
         );
     });
 
-    context.subscriptions.push(runCommand, buildCommand, sfxCommand, linuxCommand, androidCommand, debugCommand, infoCommand);
+    context.subscriptions.push(runCommand, buildCommand, linuxCommand, androidCommand, debugCommand, infoCommand);
 
     // ---- Cleanup ----
     context.subscriptions.push({
