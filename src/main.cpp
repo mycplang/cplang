@@ -491,7 +491,7 @@ int main(int argc, char* argv[]) {
     int  debugPort = 0;  // 0 = 禁用调试服务器
     
     // 检查主模式
-    // ── 打包模式（改为 AOT 编译，替代旧 SFX 自解压）──
+    // ── 打包模式（SFX 自解压：嵌入 CP 源码到 exe 末尾）──
     if (mode == "-k" || mode == "--pack") {
         const char* pf = nullptr;
         const char* po = nullptr;
@@ -508,20 +508,8 @@ int main(int argc, char* argv[]) {
             defout += ".exe";
             po = defout.c_str();
         }
-        // 使用 AOT 编译替代旧的 SFX 自解压打包
-        std::cout << "AOT 打包: " << pf << " → " << po << "\n";
-        AOTConfig aotCfg;
-        aotCfg.outputFile = po;
-        aotCfg.optLevel = optLevel;
-        AOTCompiler aot;
-        AOTResult res = aot.compileFile(pf, aotCfg);
-        if (res.success) {
-            std::cout << "打包成功: " << res.outputFile << " (" << (std::ifstream(po,std::ios::binary|std::ios::ate).tellg()/1024) << " KB)\n";
-            return 0;
-        } else {
-            std::cerr << "打包失败: " << res.errorMessage << "\n";
-            return 1;
-        }
+        if (packSource(pf, po)) return 0;
+        return 1;
     }
 
     // 扫描参数（从第2个开始，跳过模式）
