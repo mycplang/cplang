@@ -11,7 +11,8 @@ function getCplangCompiler() {
     // 依次搜索：CPLANG_HOME/bin、CPLANG_HOME/build_msvc/bin、CPLANG_HOME/build、PATH
     const candidates = [
         path.join(home, 'bin', exe),                    // NSIS 安装标准路径
-        path.join(home, 'build_msvc', 'bin', exe),      // 开发构建路径
+        path.join(home, 'build_verify', 'bin', exe),    // CMake Ninja 构建路径（最新）
+        path.join(home, 'build_msvc', 'bin', exe),      // 旧 MSVC 构建路径
         path.join(home, 'build', exe),                  // Linux 构建路径
     ];
     for (const p of candidates) {

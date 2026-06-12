@@ -26,7 +26,9 @@ const COMPILER = (() => {
     const exe = process.platform === 'win32' ? 'cplang.exe' : 'cplang';
     const candidates = [
         path.join(CPLANG_HOME, 'bin', exe),             // NSIS 安装标准路径
+        path.resolve(__dirname, '../..', 'build_verify', 'bin', exe),
         path.resolve(__dirname, '../..', 'build_msvc', 'bin', exe),
+        path.join(CPLANG_HOME, 'build_verify', 'bin', exe),
         path.join(CPLANG_HOME, 'build_msvc', 'bin', exe),
         path.join(CPLANG_HOME, 'build', exe),
     ];
