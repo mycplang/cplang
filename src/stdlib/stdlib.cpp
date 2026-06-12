@@ -153,7 +153,7 @@ void StdLib::registerAll(VM* vm) {
     registerStrCi(vm);          // → @cp/string_ext
     registerFixMissing(vm);
     registerIOPoll(vm);
-    registerColors(vm);  // 内置颜色常量（亮蓝/红色/背景色等）
+        registerColors(vm);  // 临时注释，排查问题
 }
 
 // registerFunction / registerAlias 已内联至 include/stdlib/stdlib_fwd.hpp，

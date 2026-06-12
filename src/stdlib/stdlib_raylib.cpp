@@ -308,6 +308,20 @@ Value rl_drawCircle(std::vector<Value>& args) {
     return Value::Int(0);
 }
 
+Value rl_drawTriangle(std::vector<Value>& args) {
+    if (args.size() < 7) return Value::Int(0);
+    float x1 = (float)args[0].asFloat();
+    float y1 = (float)args[1].asFloat();
+    float x2 = (float)args[2].asFloat();
+    float y2 = (float)args[3].asFloat();
+    float x3 = (float)args[4].asFloat();
+    float y3 = (float)args[5].asFloat();
+    Color c = args.size() >= 7 ? valueToColor(args[6]) : BLACK;
+    DrawTriangle({x1, y1}, {x2, y2}, {x3, y3}, c);
+    return Value::Int(0);
+}
+
+
 Value rl_drawLine(std::vector<Value>& args) {
     if (args.size() < 4) return Value::Int(0);
     int x1 = (int)args[0].asInt();
@@ -792,6 +806,7 @@ void StdLib::registerRaylib(VM* vm) {
     registerFunction(vm, "drawRectangle",    rl_drawRectangle);
     registerFunction(vm, "drawRectangleRec", rl_drawRectangleRec);
     registerFunction(vm, "drawCircle",       rl_drawCircle);
+    registerFunction(vm, "drawTriangle",     rl_drawTriangle);
     registerFunction(vm, "drawLine",         rl_drawLine);
     registerFunction(vm, "drawLineEx",       rl_drawLineEx);
     registerFunction(vm, "drawPixel",        rl_drawPixel);
