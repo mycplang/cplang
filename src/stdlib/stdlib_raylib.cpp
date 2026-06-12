@@ -710,6 +710,31 @@ Value rl_setMusicVolume(std::vector<Value>& args) {
 //  Random
 // ═══════════════════════════════════════════════════════════════════
 
+// Font loading
+#include <unordered_map>
+static std::unordered_map<int, Font> g_loadedFonts;
+static int g_nextFontId = 1;
+
+Value rl_loadFont(std::vector<Value>& args) {
+    if (args.size() < 2) { VM::current()->raiseError("loadFont need 2 args: path, fontSize"); return Value::Int(0); }
+    if (!args[0].isString()) { VM::current()->raiseError("loadFont arg1(path) must be string"); return Value::Int(0); }
+    if (!args[1].isInt()) { VM::current()->raiseError("loadFont arg2(fontSize) must be int"); return Value::Int(0); }
+    const char* path = args[0].asString()->c_str();
+    int fontSize = (int)args[1].asInt();
+    Font font = LoadFontEx(path, fontSize, 0, 0);
+    if (font.texture.id == 0) { VM::current()->raiseError(std::string("loadFont failed: ") + path); return Value::Int(0); }
+    int id = g_nextFontId++;
+    g_loadedFonts[id] = font;
+    return Value::Int(id);
+}
+
+Value rl_unloadFont(std::vector<Value>& args) {
+    if (args.empty() || !args[0].isInt()) { VM::current()->raiseError("unloadFont arg1 must be int(fontId)"); return Value::Int(0); }
+    int id = (int)args[0].asInt();
+    auto it = g_loadedFonts.find(id);
+    if (it != g_loadedFonts.end()) { UnloadFont(it->second); g_loadedFonts.erase(it); }
+    return Value::Int(0);
+}
 Value rl_getRandomValue(std::vector<Value>& args) {
     int min = 0, max = 100;
     if (args.size() >= 1) min = (int)args[0].asInt();
