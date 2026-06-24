@@ -1,6 +1,6 @@
-# CP 语言 Code Wiki
+﻿# CP 语言 Code Wiki
 
-> **CP 语言** — 一款支持原生中文语法的编程语言编译器/解释器系统，采用多引擎架构（字节码 VM + JIT + AOT）。
+> **CP 语言** — 一款支持原生中文语法的编程语言编译器/解释器系统，采用双引擎架构（字节码 VM + JIT）。
 
 ---
 
@@ -43,12 +43,12 @@ CP 语言是一款**纯中文编程语言**，所有关键字、标准库函数�
 | 字节码 VM | `-c` | < 0.1s | 基准 | 开发、调试、脚本 |
 | 热点 JIT | `-c --hotspot` | < 0.1s | 热点函数 ~95x | 长时间运行任务 |
 | 全量 JIT | `-j` | < 0.1s + 预热 | ~95x 加速 | 计算密集型 |
-| AOT 编译 | `-a -o app.exe` | 3-6s 编译 | 原生速度 | 发布部署 |
+| SFX 打包 | `-k -o app.exe` | 即时 | 字节码 | 单文件分发 |
 
 ### 核心特性
 
 - **纯中文语法** — 关键字、函数名、变量名均支持中文
-- **双引擎架构** — DevEngine（VM+JIT）+ AOTEngine（LLVM 原生编译）
+- **双引擎架构** — DevEngine（字节码 VM + ORC JIT 热点编译）
 - **NaN-Boxing** — 64位紧凑值表示，Int8/Int16/Int32/Float32 零堆分配
 - **渐进类型系统** — 动态类型起步 + 类型标注获得 JIT 加速
 - **自动 GC** — 三色标记-清除垃圾回收，无需手动管理内存
@@ -72,20 +72,20 @@ CP 语言是一款**纯中文编程语言**，所有关键字、标准库函数�
     ┌────────────┴────────────┐
     ▼                         ▼
 ┌───────────────┐    ┌───────────────────┐
-│  DevEngine    │    │   AOTEngine       │
+│  DevEngine    │    │   JIT Engine      │
 │  ┌─────────┐  │    │  ┌─────────────┐  │
 │  │ Optimizer│  │    │  │ LLVMCodegen │  │
 │  │ (AST优化)│  │    │  │ (LLVM IR)   │  │
 │  └────┬────┘  │    │  └──────┬──────┘  │
 │       ▼       │    │         ▼         │
 │  ┌─────────┐  │    │  ┌─────────────┐  │
-│  │ Codegen  │  │    │  │ AOTCompiler │  │
-│  │(字节码)  │  │    │  │ (clang+lld) │  │
+│  │ Codegen  │  │    │  │ ORC JIT    │  │
+│  │(字节码)  │  │    │  │ (内存编译)  │  │
 │  └────┬────┘  │    │  └──────┬──────┘  │
 │       ▼       │    │         ▼         │
 │  ┌─────────┐  │    │  ┌─────────────┐  │
-│  │   VM    │  │    │  │   .exe      │  │
-│  │(字节码)  │  │    │  │ (原生代码)  │  │
+│  │   VM    │  │    │  │   机器码     │  │
+│  │(字节码)  │  │    │  │ (直接执行)  │  │
 │  └────┬────┘  │    │  └─────────────┘  │
 │       │       │    │                   │
 │  ┌────▼────┐  │    │                   │
@@ -129,7 +129,7 @@ c:\CPLANG\
 │   │   ├── codegen_stmt.cpp    #   语句编译
 │   │   ├── codegen_expr.cpp    #   表达式编译
 │   │   ├── bytecode_optimizer.cpp  # 字节码优化
-│   │   ├── aot_compiler.cpp    #   AOT 编译器
+│   │   ├── 
 │   │   └── llvm_codegen.cpp    #   LLVM IR 生成
 │   ├── vm/                     # 虚拟机
 │   │   ├── vm.cpp              #   VM 核心/GC
@@ -180,7 +180,7 @@ c:\CPLANG\
 │   ├── codegen/
 │   │   ├── codegen.hpp         # 代码生成器/Compiler
 │   │   ├── bytecode_optimizer.hpp  # 字节码优化器
-│   │   ├── aot_compiler.hpp    # AOT 编译器
+│   │   ├── 
 │   │   └── llvm_codegen.hpp    # LLVM IR 生成器
 │   ├── vm/
 │   │   ├── vm_fwd.hpp          # 前向声明/ObjectHeader
@@ -529,7 +529,7 @@ enum class BuiltinType {
 
 ### 4.6 代码生成器 (codegen)
 
-**文件**: `include/codegen/codegen.hpp`, `include/codegen/bytecode_optimizer.hpp`, `include/codegen/aot_compiler.hpp`, `include/codegen/llvm_codegen.hpp` | `src/codegen/*.cpp`
+**文件**: `include/codegen/codegen.hpp`, `include/codegen/bytecode_optimizer.hpp`, `include/codegen/llvm_codegen.hpp` | `src/codegen/*.cpp`
 
 #### Codegen 类 — 字节码生成器
 
@@ -602,21 +602,9 @@ class Compiler {
 - 单函数 IR 生成（热点编译）: `generateSingleFunction(program, funcName, opt)`
 - IR 字符串输出: `generateIRString(program, opt)`
 
-#### AOTCompiler 类 — 提前编译器
+#### LLVMCodegen 类 — LLVM IR 生成器（供 JIT 使用）
 
-将 CP 代码编译为独立可执行文件。
-
-**配置** (`AOTConfig`):
-- `optLevel` — 优化级别
-- `outputFile` — 输出文件名
-- `emitLLVM` — 只输出 LLVM IR
-- `pureMath` — 纯数学模式（跳过 NaN-boxing 分派）
-- `llvmToolsDir` / `msvcToolsDir` — 工具链路径
-
-**编译流程**:
-1. `generateLLVMIR()` — 生成 LLVM IR
-2. `compileIRToObject()` — 使用 clang 编译为 .obj
-3. `linkToExecutable()` — 使用 lld-link 链接为 .exe
+LLVM IR 在运行时由 ORC JIT 引擎编译为机器码并直接执行。
 
 ---
 
@@ -1161,7 +1149,7 @@ THROW_NAME_ERROR(name)   // 未定义名称
 | `-c --hotspot` | 字节码 VM + 热点 JIT 检测 |
 | `--hotspot-threshold=N` | 热点阈值（默认 100） |
 | `-j, --jit` | 全量 JIT 编译执行 |
-| `-a, --aot` | AOT 编译为原生可执行文件 |
+| `-k, --pack` | SFX 自解压打包 |
 | `-o <file>` | 指定输出文件 |
 | `-O0/-O1/-O2/-O3` | 优化级别 |
 | `--no-bytecode-opt` | 禁用字节码优化 |
@@ -1177,7 +1165,7 @@ THROW_NAME_ERROR(name)   // 未定义名称
 | `runLexer(source)` | 运行词法分析，输出 Token 列表 |
 | `runParser(source)` | 运行语法分析，报告语句数 |
 | `runFullCompile(source, filepath, useJit, useHotspot, ...)` | 完整编译执行流程 |
-| `runAOTCompile(source, filepath, outputFile, ...)` | AOT 编译 |
+| `runFullCompile(source, filepath, useJit, useHotspot, ...)` | 完整编译执行流程（VM/JIT 模式） |
 
 **`runFullCompile()` 流程**:
 1. 创建 `Compiler` 实例，设置优化级别
@@ -1265,7 +1253,7 @@ THROW_NAME_ERROR(name)   // 未定义名称
 - **Windows 10+**
 - **Visual Studio 2022** (MSVC v143)
 - **CMake 3.20+**
-- **可选**: LLVM 18+ (启用 JIT 和 AOT)
+- **可选**: LLVM 18+ (启用 JIT)
 
 ### 构建步骤
 
@@ -1321,8 +1309,7 @@ cplang -c tests/test_new_stdlib.cp
 | 字节码 VM | `cplang -c test.cp` | 完整前端 | 字节码解释器 | 基准 |
 | 热点 JIT | `cplang -c --hotspot test.cp` | 完整前端 | VM + JIT | 热点 ~95x |
 | 全量 JIT | `cplang -j test.cp` | 完整前端 | 全量预编译 | ~95x |
-| AOT 编译 | `cplang -a -o app.exe test.cp` | 完整前端 | LLVM → .exe | 原生 |
-| LLVM IR | `cplang -a --emit-llvm test.cp` | 完整前端 | LLVM IR 输出 | - |
+| SFX 打包 | `cplang -k -o app.exe test.cp` | 完整前端 | 源码嵌入 | 单文件分发 |
 | REPL | `cplang -r` | 逐行编译 | VM + JIT | 即时 |
 
 ### 执行流程详解（字节码 VM 模式）
@@ -1361,16 +1348,6 @@ cplang -c tests/test_new_stdlib.cp
        └── 调用 JIT 编译的函数入口（机器码直接执行）
 ```
 
-### 执行流程详解（AOT 模式）
-
-```
-1. Lexer + Parser + Semantic  → 生成 AST
-2. LLVMCodegen::generate()    → AST → LLVM IR
-3. clang                       → LLVM IR → .obj
-4. lld-link                    → .obj → .exe
-5. 输出独立可执行文件（零运行时依赖）
-```
-
 ---
 
 ## 8. 关键设计决策
@@ -1393,7 +1370,7 @@ cplang -c tests/test_new_stdlib.cp
 - 字节码模式启动快（< 0.1s），适合开发和脚本
 - JIT 在热点函数上提供 ~95x 加速
 - 可通过热点检测自动切换，无需用户干预
-- AOT 编译提供原生部署能力
+- SFX 打包提供单文件分发能力
 
 ### 8.3 渐进类型系统
 
@@ -1456,7 +1433,7 @@ cplang -c tests/test_new_stdlib.cp
     │                                  │
     ▼                                  ├──→ [OrcJIT] ──→ 机器码 (内存)
 [Codegen] ──→ 字节码 (VMFunction)      │
-    │                                  └──→ [AOTCompiler] ──→ .exe
+    │                                  
     ▼
 [BytecodeOptimizer] ──→ 优化后字节码
     │

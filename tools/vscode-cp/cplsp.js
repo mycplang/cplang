@@ -66,7 +66,7 @@ function send(msg) {
 function runDiagnostics(uri, text) {
     const tmpFile = path.join(require('os').tmpdir(), `_cplsp_${Date.now()}.cp`);
     fs.writeFileSync(tmpFile, text, 'utf-8');
-    const proc = spawn(COMPILER, ['-p', tmpFile], { cwd: CPLANG_HOME });
+    const proc = spawn(COMPILER, ['-c', tmpFile], { cwd: CPLANG_HOME, timeout: 8000 });
     let stderr = '';
     proc.stderr.on('data', d => stderr += d.toString());
     proc.on('close', code => {
@@ -339,44 +339,37 @@ const BUILTINS = [
     { label: 'i8', detail: '8位整数' }, { label: 'i16', detail: '16位整数' },
     { label: 'i32', detail: '32位整数' }, { label: 'i64', detail: '64位整数' },
     { label: 'f32', detail: '32位浮点' }, { label: 'f64', detail: '64位浮点' },
-    { label: '初始化窗口',      detail: '创建 raylib 窗口' },
-    { label: 'initWindow',       detail: 'create raylib window' },
-    { label: '窗口应关闭',       detail: '检查窗口是否应关闭' },
-    { label: 'windowShouldClose',detail: 'check if window should close' },
-    { label: '关闭窗口',         detail: '关闭 raylib 窗口' },
-    { label: 'closeWindow',      detail: 'close raylib window' },
-    { label: '设置目标帧率',     detail: '设置目标帧率' },
-    { label: 'setTargetFPS',     detail: 'set target FPS' },
-    { label: '开始绘制',         detail: '开始帧绘制' },
-    { label: 'beginDrawing',     detail: 'begin frame drawing' },
-    { label: '结束绘制',         detail: '结束帧绘制' },
-    { label: 'endDrawing',       detail: 'end frame drawing' },
-    { label: '清空背景',         detail: '清空窗口背景' },
-    { label: 'clearBackground',  detail: 'clear window background' },
-    { label: '绘制文本',         detail: '在窗口上绘制文字' },
-    { label: 'drawText',         detail: 'draw text on window' },
-    { label: '绘制矩形',         detail: '绘制实心矩形' },
-    { label: 'drawRectangle',    detail: 'draw filled rectangle' },
-    { label: '绘制圆形',         detail: '绘制实心圆' },
-    { label: 'drawCircle',       detail: 'draw filled circle' },
-    { label: '绘制三角形',       detail: '绘制实心三角形' },
-    { label: 'drawTriangle',     detail: 'draw filled triangle' },
-    { label: '绘制线条',         detail: '绘制线段' },
-    { label: 'drawLine',         detail: 'draw line segment' },
-    { label: '键盘按下',         detail: '检测按键按下' },
-    { label: 'keyPressed',       detail: 'check if key is pressed' },
-    { label: '获取帧率',         detail: '获取当前帧率' },
-    { label: 'getFPS',           detail: 'get current FPS' },
-    { label: '颜色',             detail: '创建颜色值' },
-    { label: 'color',            detail: 'create color' },
-    { label: 'hexToRgb',         detail: '十六进制转 RGB 表' },
-    { label: '控制台颜色',       detail: '设置控制台文字颜色' },
-    { label: 'conColor',         detail: 'set console text color' },
-    { label: '控制台重置',       detail: '重置控制台颜色' },
-    { label: 'conReset',         detail: 'reset console color' },
-    { label: '控制台清屏',       detail: '清空控制台' },
-    { label: 'conClear',         detail: 'clear console' },
-]
+    // ── v0.5.0: HTTP 框架 (@cp/http) ──
+    { label: '路由', detail: '@cp/http — HTTP 路由框架' },
+    { label: '路由.创建', detail: '创建路由器实例' },
+    { label: '路由.注册', detail: '路由.注册(方法, 路径, 处理器) — 注册路由' },
+    { label: '路由.中间件', detail: '路由.中间件(处理器) — 添加中间件' },
+    { label: '路由.启动', detail: '路由.启动(端口) — 启动 HTTP 服务' },
+    { label: '请求', detail: '{ 方法, 路径, 查询, 请求体, 标头 } — HTTP 请求对象' },
+    { label: '响应', detail: '{ 状态码, JSON, 文本, 标头 } — HTTP 响应对象' },
+    { label: '服务.文件', detail: 'http_start_file(端口, 目录) — 静态文件服务' },
+    { label: '服务.API', detail: 'http_start_api(端口) — API 服务' },
+    { label: '服务.停止', detail: 'http_stop(端口) — 停止 HTTP 服务' },
+    // ── v0.5.0: ORM 框架 (@cp/orm) ──
+    { label: '模型', detail: '@cp/orm — ORM 框架' },
+    { label: '模型.定义', detail: '模型.定义(表名, 字段, 选项) — 定义数据模型（自动建表）' },
+    { label: '模型.创建', detail: '模型.创建(表名, 数据) — 插入记录' },
+    { label: '模型.查询', detail: '模型.查询(表名) — 创建查询构建器' },
+    { label: '模型.更新', detail: '模型.更新(表名, 数据).where().执行() — 更新记录' },
+    { label: '模型.删除', detail: '模型.删除(表名).where().执行() — 删除记录' },
+    { label: '模型.迁移', detail: '模型.迁移(表名, 新字段) — 添加列' },
+    { label: '模型.列出表', detail: '模型.列出表() — 列出所有表' },
+    // 查询构建器链式API
+    { label: '.where', detail: '.where(条件, 参数?) — 添加 WHERE 条件' },
+    { label: '.排序', detail: '.排序(字段, 方向?) — ORDER BY' },
+    { label: '.限制', detail: '.限制(数量) — LIMIT' },
+    { label: '.偏移', detail: '.偏移(数量) — OFFSET' },
+    { label: '.连表', detail: '.连表(表名, 条件) — JOIN' },
+    { label: '.全部', detail: '.全部() — 执行查询，返回所有结果' },
+    { label: '.首个', detail: '.首个() — 返回第一条结果' },
+    { label: '.计数', detail: '.计数() — 返回结果数量' },
+    { label: '.执行', detail: '.执行() — 执行 UPDATE/DELETE' },
+];
 
 const HOVER_DOCS = {};
 for (const k of [...KEYWORDS, ...BUILTINS]) {
@@ -401,10 +394,11 @@ function handle(msg) {
                         referencesProvider: true,
                         renameProvider: true,
                         documentSymbolProvider: true,
+                        workspaceSymbolProvider: true,
                         signatureHelpProvider: { triggerCharacters: ['('] },
                         documentFormattingProvider: true
                     },
-                    serverInfo: { name: 'cplsp.js', version: '0.4.0' }
+                    serverInfo: { name: 'cplsp.js', version: '0.5.0' }
                 }
             });
 
@@ -546,6 +540,36 @@ function handle(msg) {
                 }
             }
             return send({ jsonrpc: '2.0', id, result: symbols });
+        }
+
+        // ── 工作区符号搜索（v0.5.0）──
+        case 'workspace/symbol': {
+            const allSymbols = [];
+            for (const [uri, doc] of docs) {
+                const symbols = [];
+                const lines = doc.text.split('\n');
+                const re = /(?:函数|function|fn|类|class|结构体|struct|枚举|enum|接口|interface|变量|var|常量|const)\s+([\w一-鿿]+)/g;
+                for (let i = 0; i < lines.length; i++) {
+                    let m;
+                    while ((m = re.exec(lines[i])) !== null) {
+                        const kw = (lines[i].match(/(?:函数|function|fn|类|class|结构体|struct|枚举|enum|接口|interface|变量|var|常量|const)/) || [''])[0];
+                        const kindMap = { '函数': 12, 'function': 12, 'fn': 12, '类': 5, 'class': 5, '结构体': 22, 'struct': 22, '枚举': 10, 'enum': 10, '接口': 11, 'interface': 11, '变量': 13, 'var': 13, '常量': 14, 'const': 14 };
+                        symbols.push({
+                            name: m[1],
+                            kind: kindMap[kw] || 12,
+                            location: { uri, range: { start: { line: i, character: m.index }, end: { line: i, character: m.index + m[0].length } } }
+                        });
+                    }
+                }
+                // 按查询过滤
+                const query = (params.query || '').toLowerCase();
+                for (const s of symbols) {
+                    if (!query || s.name.toLowerCase().includes(query)) {
+                        allSymbols.push(s);
+                    }
+                }
+            }
+            return send({ jsonrpc: '2.0', id, result: allSymbols.slice(0, 50) });
         }
 
         // ── 签名帮助 ──

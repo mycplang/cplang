@@ -1,35 +1,11 @@
-# LLVM后端使用文档
+# LLVM IR 代码生成参考
 
 ## 概述
 
-CP语言编译器现已支持生成LLVM IR代码，可直接编译为机器码。
+CP语言编译器内部通过 LLVM 生成 IR 代码，供 ORC JIT 引擎编译为机器码执行。
 
-## 使用方法
-
-### 1. 生成LLVM IR
-
-```bash
-# 编译CP源文件为LLVM IR
-test_llvm.exe <source.cp>
-
-# 输出文件: source.cp.ll
-```
-
-### 2. 编译LLVM IR为可执行文件
-
-需要安装LLVM工具链（llc和clang）：
-
-```bash
-# 方法1: 使用LLVM官方安装包
-# 下载: https://github.com/llvm/llvm-project/releases
-
-# 方法2: 使用包管理器
-# winget install LLVM.LLVM
-
-# 编译步骤
-llc test.ll -o output.s        # LLVM IR → 汇编
-clang output.s -o output.exe   # 汇编 → 可执行文件
-```
+> 用户无需手动操作 LLVM 工具链；JIT 编译在运行时自动完成。
+> 需要发布独立可执行文件时，请使用 SFX 打包：`cplang -k 程序.cp -o 程序.exe`。
 
 ## 支持的功能
 
@@ -189,11 +165,11 @@ Parser (语法分析) → AST
     ↓
 LLVMCodegen (LLVM IR生成)
     ↓
-LLVM IR (.ll文件)
+LLVM IR
     ↓
-LLVM工具链 (llc/clang)
+ORC JIT (内存编译)
     ↓
-可执行文件 (.exe)
+机器码 (直接执行)
 ```
 
 ## 技术细节

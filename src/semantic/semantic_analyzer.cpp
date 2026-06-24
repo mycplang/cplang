@@ -118,6 +118,9 @@ bool SemanticAnalyzer::analyze(Shared<Program> program) {
             auto info = new ClassInfo();
             info->name = cls->name;
             info->type = TypeRegistry::instance().getCustomType(cls->name);
+            info->type->kind = BuiltinType::OBJECT;
+            info->typeParams = cls->typeParams;
+            info->isGeneric = !cls->typeParams.empty();
             if (cls->baseClass.has_value()) {
                 info->baseClass = getClassInfo(*cls->baseClass);
             }
@@ -159,6 +162,108 @@ bool SemanticAnalyzer::analyze(Shared<Program> program) {
             sym->node = stmt;
             defineSymbol(sym);
         }
+        else if (auto exp = std::dynamic_pointer_cast<ExportStmt>(stmt)) {
+            // export 声明：递归收集内部声明
+            if (exp->kind == ExportStmt::Kind::DECLARATION && exp->declaration) {
+                // 将内部声明作为当前语句重新处理
+                auto& innerStmt = exp->declaration;
+                if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(innerStmt)) {
+                    auto sym = new Symbol();
+                    sym->kind = Symbol::FUNC;
+                    sym->name = func->name;
+                    sym->node = func;
+                    sym->isStatic = func->isStatic;
+                    sym->returnType = func->returnType.has_value() 
+                        ? getTypeFromString(*func->returnType) 
+                        : Type::void_();
+                    sym->isVariadic = false;
+                    defineSymbol(sym);
+                }
+                else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(innerStmt)) {
+                    auto info = new ClassInfo();
+                    info->name = cls->name;
+                    info->type = TypeRegistry::instance().getCustomType(cls->name);
+                    info->type->kind = BuiltinType::OBJECT;
+                    info->typeParams = cls->typeParams;
+                    info->isGeneric = !cls->typeParams.empty();
+                    if (cls->baseClass.has_value()) {
+                        info->baseClass = getClassInfo(*cls->baseClass);
+                    }
+                    classTable_[cls->name] = info;
+                    
+                    auto sym = new Symbol();
+                    sym->kind = Symbol::CLASS;
+                    sym->name = cls->name;
+                    sym->node = innerStmt;
+                    sym->classType = info->type;
+                    defineSymbol(sym);
+                }
+                else if (auto st = std::dynamic_pointer_cast<StructDeclStmt>(innerStmt)) {
+                    auto info = new StructInfo();
+                    info->name = st->name;
+                    info->type = TypeRegistry::instance().getCustomType(st->name);
+                    info->type->kind = BuiltinType::STRUCT;
+                    structTable_[st->name] = info;
+                    
+                    auto sym = new Symbol();
+                    sym->kind = Symbol::TYPE_ALIAS;
+                    sym->name = st->name;
+                    sym->type = info->type;
+                    sym->node = innerStmt;
+                    defineSymbol(sym);
+                }
+                // 注意：变量声明不在 PASS 1 中收集，由 PASS 2 的 analyzeVarDecl 处理
+            }
+        }
+        else if (auto dec = std::dynamic_pointer_cast<DecoratorStmt>(stmt)) {
+            // 装饰器声明：穿透装饰器，收集内部声明
+            if (dec->declaration) {
+                auto& innerStmt = dec->declaration;
+                if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(innerStmt)) {
+                    auto sym = new Symbol();
+                    sym->kind = Symbol::FUNC;
+                    sym->name = func->name;
+                    sym->node = func;
+                    sym->isStatic = func->isStatic;
+                    sym->returnType = func->returnType.has_value() 
+                        ? getTypeFromString(*func->returnType) 
+                        : Type::void_();
+                    sym->isVariadic = false;
+                    defineSymbol(sym);
+                }
+                else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(innerStmt)) {
+                    auto info = new ClassInfo();
+                    info->name = cls->name;
+                    info->type = TypeRegistry::instance().getCustomType(cls->name);
+                    info->type->kind = BuiltinType::OBJECT;
+                    if (cls->baseClass.has_value()) {
+                        info->baseClass = getClassInfo(*cls->baseClass);
+                    }
+                    classTable_[cls->name] = info;
+                    
+                    auto sym = new Symbol();
+                    sym->kind = Symbol::CLASS;
+                    sym->name = cls->name;
+                    sym->node = innerStmt;
+                    sym->classType = info->type;
+                    defineSymbol(sym);
+                }
+                else if (auto st = std::dynamic_pointer_cast<StructDeclStmt>(innerStmt)) {
+                    auto info = new StructInfo();
+                    info->name = st->name;
+                    info->type = TypeRegistry::instance().getCustomType(st->name);
+                    info->type->kind = BuiltinType::STRUCT;
+                    structTable_[st->name] = info;
+                    
+                    auto sym = new Symbol();
+                    sym->kind = Symbol::TYPE_ALIAS;
+                    sym->name = st->name;
+                    sym->type = info->type;
+                    sym->node = innerStmt;
+                    defineSymbol(sym);
+                }
+            }
+        }
     }
     
     // === PASS 2: 分析声明和语句 ===
@@ -181,8 +286,60 @@ bool SemanticAnalyzer::analyze(Shared<Program> program) {
         else if (auto var = std::dynamic_pointer_cast<VarDeclStmt>(stmt)) {
             analyzeVarDecl(var);
         }
+        else if (auto dd = std::dynamic_pointer_cast<DestructuringDecl>(stmt)) {
+            analyzeDestructuringDecl(dd);
+        }
         else if (auto imp = std::dynamic_pointer_cast<ImportStmt>(stmt)) {
             // import 分析
+        }
+        else if (auto exp = std::dynamic_pointer_cast<ExportStmt>(stmt)) {
+            // export 分析：递归分析内部声明
+            if (exp->kind == ExportStmt::Kind::DECLARATION && exp->declaration) {
+                auto& innerStmt = exp->declaration;
+                if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(innerStmt)) {
+                    analyzeFuncDecl(func);
+                }
+                else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(innerStmt)) {
+                    analyzeClassDecl(cls);
+                }
+                else if (auto iface = std::dynamic_pointer_cast<InterfaceDeclStmt>(innerStmt)) {
+                    analyzeInterfaceDecl(iface);
+                }
+                else if (auto enm = std::dynamic_pointer_cast<EnumDeclStmt>(innerStmt)) {
+                    analyzeEnumDecl(enm);
+                }
+                else if (auto st = std::dynamic_pointer_cast<StructDeclStmt>(innerStmt)) {
+                    analyzeStructDecl(st);
+                }
+                else if (auto var = std::dynamic_pointer_cast<VarDeclStmt>(innerStmt)) {
+                    analyzeVarDecl(var);
+                }
+            }
+        }
+        else if (auto dec = std::dynamic_pointer_cast<DecoratorStmt>(stmt)) {
+            // 装饰器分析：递归分析内部声明
+            if (dec->declaration) {
+                auto& innerStmt = dec->declaration;
+                if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(innerStmt)) {
+                    analyzeFuncDecl(func);
+                }
+                else if (auto cls = std::dynamic_pointer_cast<ClassDeclStmt>(innerStmt)) {
+                    analyzeClassDecl(cls);
+                }
+                else if (auto iface = std::dynamic_pointer_cast<InterfaceDeclStmt>(innerStmt)) {
+                    analyzeInterfaceDecl(iface);
+                }
+                else if (auto enm = std::dynamic_pointer_cast<EnumDeclStmt>(innerStmt)) {
+                    analyzeEnumDecl(enm);
+                }
+                else if (auto st = std::dynamic_pointer_cast<StructDeclStmt>(innerStmt)) {
+                    analyzeStructDecl(st);
+                }
+                else if (auto var = std::dynamic_pointer_cast<VarDeclStmt>(innerStmt)) {
+                    analyzeVarDecl(var);
+                }
+            }
+            // 注意：装饰器函数本身的存在性检查在运行时进行（动态语言特性）
         }
     }
 
@@ -243,6 +400,32 @@ Type* SemanticAnalyzer::getTypeFromString(const String& typeStr) {
         return Type::unknown();
     }
     
+    // 联合类型（最低优先级，先检查）
+    if (typeStr.find(" | ") != String::npos) {
+        std::vector<String> parts;
+        size_t start = 0;
+        size_t pos = 0;
+        while ((pos = typeStr.find(" | ", start)) != String::npos) {
+            parts.push_back(typeStr.substr(start, pos - start));
+            start = pos + 3;  // skip " | "
+        }
+        parts.push_back(typeStr.substr(start));
+        
+        std::vector<Type*> memberTypes;
+        for (auto& p : parts) {
+            memberTypes.push_back(getTypeFromString(p));
+        }
+        return TypeRegistry::instance().getUnionType(memberTypes);
+    }
+    
+    // 可选类型（后缀 ?）
+    // 注意：只处理末尾的单个 ?，递归处理嵌套可选
+    if (!typeStr.empty() && typeStr.back() == '?') {
+        String innerStr = typeStr.substr(0, typeStr.size() - 1);
+        Type* innerType = getTypeFromString(innerStr);
+        return TypeRegistry::instance().getOptionalType(innerType);
+    }
+    
     // 整数类型
     if (typeStr == "int" || typeStr == "Int" || typeStr == "整数") return Type::int_();
     if (typeStr == "i8" || typeStr == "int8" || typeStr == "Int8") return Type::int8_();
@@ -268,7 +451,7 @@ Type* SemanticAnalyzer::getTypeFromString(const String& typeStr) {
         return TypeRegistry::instance().getArrayType(elemType);
     }
     
-    // 泛型（如 列表<整数>、字典<字符串, i64>）
+    // 泛型（如 列表<整数>、字典<字符串, i64>、栈<整数>）
     if (typeStr.find('<') != String::npos) {
         String baseName;
         std::vector<String> typeArgs;
@@ -289,13 +472,24 @@ Type* SemanticAnalyzer::getTypeFromString(const String& typeStr) {
                     }
                 }
             }
+            // 检查是否为泛型类，如果是则确保已实例化
+            auto classInfo = getClassInfo(baseName);
+            if (classInfo && classInfo->isGeneric) {
+                ClassInfo* instClass = ensureGenericClassInstantiated(typeStr, baseName, typeArgs);
+                if (instClass) {
+                    return instClass->type;
+                }
+            }
         }
         return TypeRegistry::instance().getCustomType(typeStr);
     }
     
     // 可能是自定义类型
     auto sym = lookup(typeStr);
-    if (sym && (sym->kind == Symbol::CLASS || sym->kind == Symbol::TYPE_ALIAS)) {
+    if (sym && sym->kind == Symbol::CLASS) {
+        return sym->classType ? sym->classType : sym->type;
+    }
+    if (sym && sym->kind == Symbol::TYPE_ALIAS) {
         return sym->type;
     }
     
@@ -331,6 +525,41 @@ bool SemanticAnalyzer::isAssignableTo(Type* from, Type* to) {
     if (isFromNumeric && isToNumeric) {
         return true;
     }
+    
+    // 可选类型赋值：T 可以赋值给 T?
+    if (to->kind == BuiltinType::OPTIONAL && to->innerType) {
+        if (isAssignableTo(from, to->innerType)) {
+            return true;
+        }
+        // from 也是可选类型，检查内部类型
+        if (from->kind == BuiltinType::OPTIONAL && from->innerType) {
+            return isAssignableTo(from->innerType, to->innerType);
+        }
+    }
+    
+    // 联合类型赋值：
+    // - 如果目标是联合类型，检查 from 是否是其中一个成员
+    if (to->kind == BuiltinType::UNION) {
+        for (auto* member : to->generics) {
+            if (isAssignableTo(from, member)) {
+                return true;
+            }
+        }
+    }
+    // - 如果 from 是联合类型，检查每个成员是否都能赋值给 to
+    if (from->kind == BuiltinType::UNION) {
+        bool allAssignable = true;
+        for (auto* member : from->generics) {
+            if (!isAssignableTo(member, to)) {
+                allAssignable = false;
+                break;
+            }
+        }
+        if (allAssignable) return true;
+    }
+    
+    // 同类型直接相等
+    if (from->equals(to)) return true;
     
     return false;
 }
@@ -379,7 +608,15 @@ void SemanticAnalyzer::analyzeFuncDecl(Shared<FuncDeclStmt> func) {
     
     // 分析函数体
     if (func->body) {
+        // 压入异步/生成器上下文标记
+        asyncFuncStack_.push_back(func->isAsync);
+        generatorFuncStack_.push_back(func->isGenerator);
+        
         Type* retType = analyzeBlock(func->body);
+        
+        // 弹出上下文标记
+        asyncFuncStack_.pop_back();
+        generatorFuncStack_.pop_back();
         
         // 如果没有显式返回类型，从函数体推导
         if (!func->returnType.has_value() && retType->kind != BuiltinType::VOID) {
@@ -405,10 +642,26 @@ void SemanticAnalyzer::analyzeClassDecl(Shared<ClassDeclStmt> cls) {
         info = new ClassInfo();
         info->name = cls->name;
         info->type = TypeRegistry::instance().getCustomType(cls->name);
+        info->type->kind = BuiltinType::OBJECT;
+        info->typeParams = cls->typeParams;
+        info->isGeneric = !cls->typeParams.empty();
+        info->interfaces = cls->interfaces;  // 填充实现的接口列表
         classTable_[cls->name] = info;
     }
     
     enterClass(info);
+    
+    // 为泛型类创建类型参数作用域
+    if (!cls->typeParams.empty()) {
+        pushScope(cls->name + "<type-params>");
+        for (const auto& tp : cls->typeParams) {
+            auto typeParamSym = new Symbol();
+            typeParamSym->kind = Symbol::TYPE_ALIAS;
+            typeParamSym->name = tp.name;
+            typeParamSym->type = Type::unknown();
+            defineSymbol(typeParamSym);
+        }
+    }
     
     // 分析成员
     for (auto& member : cls->members) {
@@ -420,7 +673,7 @@ void SemanticAnalyzer::analyzeClassDecl(Shared<ClassDeclStmt> cls) {
                 ? getTypeFromString(*var->type) 
                 : Type::unknown();
             fieldSym->isConst = var->isConst;
-            fieldSym->isStatic = false;
+            fieldSym->isStatic = var->isStatic;
             fieldSym->isPublic = true; // 默认公有
             info->fieldTable[var->name] = fieldSym;
             info->fields.push_back(fieldSym);
@@ -431,8 +684,7 @@ void SemanticAnalyzer::analyzeClassDecl(Shared<ClassDeclStmt> cls) {
             }
         }
         else if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(member)) {
-            analyzeFuncDecl(func);
-            
+            // 先创建方法符号并注册到作用域（analyzeFuncDecl 中需要通过 lookup 找到它）
             auto methodSym = new Symbol();
             methodSym->kind = Symbol::FUNC;
             methodSym->name = func->name;
@@ -446,18 +698,100 @@ void SemanticAnalyzer::analyzeClassDecl(Shared<ClassDeclStmt> cls) {
                     : Type::unknown();
                 methodSym->params.push_back({p.first, pt});
             }
+            defineSymbol(methodSym);
             info->methodTable[func->name] = methodSym;
             info->methods.push_back(methodSym);
+            
+            // 注入 self 参数（非静态方法），用于方法体内的类型推断
+            if (!func->isStatic) {
+                func->params.insert(func->params.begin(), {"self", info->name});
+            }
+            
+            // 再分析方法体
+            analyzeFuncDecl(func);
+            
+            // 移除注入的 self 参数（保持 AST 原样）
+            if (!func->isStatic) {
+                func->params.erase(func->params.begin());
+            }
         }
     }
+    
+    // 弹出泛型类型参数作用域
+    if (!cls->typeParams.empty()) {
+        popScope();
+    }
+    
+    // 检查接口实现
+    checkInterfaceImplementation(info);
     
     leaveClass();
 }
 
 void SemanticAnalyzer::analyzeInterfaceDecl(Shared<InterfaceDeclStmt> iface) {
+    // 创建接口信息
+    InterfaceInfo* info = getInterfaceInfo(iface->name);
+    if (!info) {
+        info = new InterfaceInfo();
+        info->name = iface->name;
+        info->typeParams = iface->typeParams;
+        info->isGeneric = !iface->typeParams.empty();
+        info->baseInterfaces = iface->baseInterfaces;  // 填充继承的接口
+        interfaceTable_[iface->name] = info;
+    }
+    
+    // 注册继承的接口方法（接口继承）
+    for (auto& baseName : iface->baseInterfaces) {
+        auto baseIface = getInterfaceInfo(baseName);
+        if (baseIface) {
+            // 继承基接口的所有方法
+            for (auto& method : baseIface->methods) {
+                if (info->methodTable.find(method->name) == info->methodTable.end()) {
+                    auto sym = new Symbol(*method);  // 复制方法符号
+                    info->methods.push_back(sym);
+                    info->methodTable[method->name] = sym;
+                }
+            }
+        }
+    }
+    
+    // 注册接口方法
     for (auto& method : iface->methods) {
         if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(method)) {
-            // 接口方法不需要分析体
+            auto sym = new Symbol();
+            sym->kind = Symbol::FUNC;  // METHOD not in Kind enum
+            sym->name = func->name;
+            sym->type = Type::void_();
+            
+            // 参数类型
+            for (auto& p : func->params) {
+                Type* pt = p.second.has_value() 
+                    ? getTypeFromString(*p.second) 
+                    : Type::unknown();
+                sym->params.push_back({p.first, pt});
+            }
+            
+            // 返回类型
+            if (func->returnType.has_value()) {
+                sym->returnType = getTypeFromString(*func->returnType);
+            }
+            
+            // 如果方法已存在（从基接口继承），则覆盖
+            auto it = info->methodTable.find(func->name);
+            if (it != info->methodTable.end()) {
+                // 找到并替换
+                for (auto it2 = info->methods.begin(); it2 != info->methods.end(); ++it2) {
+                    if ((*it2)->name == func->name) {
+                        delete *it2;
+                        *it2 = sym;
+                        break;
+                    }
+                }
+                info->methodTable[func->name] = sym;
+            } else {
+                info->methods.push_back(sym);
+                info->methodTable[func->name] = sym;
+            }
         }
     }
 }
@@ -618,6 +952,29 @@ void SemanticAnalyzer::analyzeVarDecl(Shared<VarDeclStmt> var) {
     defineSymbol(sym);
 }
 
+void SemanticAnalyzer::analyzeDestructuringDecl(Shared<DestructuringDecl> dd) {
+    // 分析右侧表达式
+    Type* initType = nullptr;
+    if (dd->init) {
+        initType = analyzeExpr(dd->init);
+    }
+    
+    // 为每个变量注册符号
+    for (const auto& name : dd->names) {
+        auto sym = new Symbol();
+        sym->kind = dd->isConst ? Symbol::CONST : Symbol::VAR;
+        sym->name = name;
+        // 如果是数组解构且知道元素类型，使用元素类型
+        if (initType && initType->kind == BuiltinType::ARRAY && initType->innerType) {
+            sym->type = initType->innerType;
+        } else {
+            sym->type = Type::unknown();
+        }
+        sym->isConst = dd->isConst;
+        defineSymbol(sym);
+    }
+}
+
 // === 语句分析 ===
 Type* SemanticAnalyzer::analyzeStmt(Shared<Stmt> stmt) {
     if (!stmt) return Type::void_();
@@ -639,6 +996,69 @@ Type* SemanticAnalyzer::analyzeStmt(Shared<Stmt> stmt) {
     }
     if (auto var = std::dynamic_pointer_cast<VarDeclStmt>(stmt)) {
         analyzeVarDecl(var);
+        return Type::void_();
+    }
+    if (auto typeAlias = std::dynamic_pointer_cast<TypeAliasStmt>(stmt)) {
+        // 类型别名声明
+        Type* targetType = getTypeFromString(typeAlias->targetType);
+        auto sym = new Symbol();
+        sym->kind = Symbol::TYPE_ALIAS;
+        sym->name = typeAlias->name;
+        sym->type = targetType;
+        sym->node = typeAlias;
+        defineSymbol(sym);
+        return Type::void_();
+    }
+    if (auto tryStmt = std::dynamic_pointer_cast<TryStmt>(stmt)) {
+        // 分析 try 块
+        if (tryStmt->tryBlock) {
+            analyzeStmt(tryStmt->tryBlock);
+        }
+        // B1: 分析 catch 块（支持类型化catch）
+        for (auto& cb : tryStmt->catchBlocks) {
+            pushScope();
+            if (!cb.varName.empty()) {
+                auto sym = new Symbol();
+                sym->kind = Symbol::VAR;
+                sym->name = cb.varName;
+                // 如果有异常类型，尝试获取该类型
+                if (!cb.exceptionType.empty()) {
+                    Type* exType = getTypeFromString(cb.exceptionType);
+                    sym->type = exType ? exType : Type::unknown();
+                } else {
+                    sym->type = Type::unknown();
+                }
+                sym->isConst = true;
+                defineSymbol(sym);
+            }
+            if (cb.body) {
+                analyzeStmt(cb.body);
+            }
+            popScope();
+        }
+        // 分析 finally 块
+        if (tryStmt->finallyBlock) {
+            analyzeStmt(tryStmt->finallyBlock);
+        }
+        return Type::void_();
+    }
+    if (auto withStmt = std::dynamic_pointer_cast<WithStmt>(stmt)) {
+        // 分析资源表达式
+        if (withStmt->expr) {
+            analyzeExpr(withStmt->expr);
+        }
+        // with 体在新作用域中分析，资源变量在该作用域内可见
+        pushScope();
+        auto sym = new Symbol();
+        sym->kind = Symbol::VAR;
+        sym->name = withStmt->varName;
+        sym->type = Type::unknown();
+        sym->isConst = false;
+        defineSymbol(sym);
+        if (withStmt->body) {
+            analyzeStmt(withStmt->body);
+        }
+        popScope();
         return Type::void_();
     }
     if (auto exprStmt = std::dynamic_pointer_cast<ExprStmt>(stmt)) {
@@ -664,6 +1084,25 @@ Type* SemanticAnalyzer::analyzeStmt(Shared<Stmt> stmt) {
     if (auto cont = std::dynamic_pointer_cast<ContinueStmt>(stmt)) {
         if (loopStack_.empty()) {
             reportError(cont->token.line, cont->token.column, "'continue' 必须在循环内使用");
+        }
+        return Type::void_();
+    }
+    if (auto yld = std::dynamic_pointer_cast<YieldStmt>(stmt)) {
+        // 检查：yield 只能在生成器函数内使用
+        if (!isInGeneratorFunc()) {
+            reportError(yld->token.line, yld->token.column,
+                "'产出' / 'yield' 只能在生成器函数内使用");
+        }
+        // 分析 yield 的值表达式
+        if (yld->value) {
+            analyzeExpr(yld->value);
+        }
+        return Type::void_();
+    }
+    if (auto go = std::dynamic_pointer_cast<GoStmt>(stmt)) {
+        // 分析 go 后面的表达式（通常是函数调用）
+        if (go->expr) {
+            analyzeExpr(go->expr);
         }
         return Type::void_();
     }
@@ -705,9 +1144,95 @@ Type* SemanticAnalyzer::analyzeIf(Shared<IfStmt> s) {
             "条件必须是布尔值，实际为 '" + condType->toString() + "'");
     }
     
-    analyzeStmt(s->thenBranch);
+    // ═══════════════════════════════════════════════════
+    //  类型窄化：if (x 属于 T) { ... }
+    // ═══════════════════════════════════════════════════
+    String narrowedVarName;
+    Type* narrowedVarOrigType = nullptr;
+    Symbol* narrowedSymbol = nullptr;
+    Type* narrowedType = nullptr;
+    bool didNarrow = false;
+    
+    // 检查是否是类型守卫表达式 (is / 属于)
+    if (auto isExpr = std::dynamic_pointer_cast<IsExpr>(s->condition)) {
+        // 检查左侧是否是标识符
+        if (auto idExpr = std::dynamic_pointer_cast<IdentifierExpr>(isExpr->expr)) {
+            narrowedVarName = idExpr->name;
+            narrowedSymbol = lookup(narrowedVarName);
+            if (narrowedSymbol && narrowedSymbol->type) {
+                narrowedVarOrigType = narrowedSymbol->type;
+                // 解析要窄化到的目标类型
+                narrowedType = getTypeFromString(isExpr->checkType);
+                
+                if (narrowedType) {
+                    // 执行类型窄化
+                    narrowedSymbol->type = narrowedType;
+                    didNarrow = true;
+                }
+            }
+        }
+    }
+    
+    Type* thenType = analyzeStmt(s->thenBranch);
+    
+    // 恢复窄化前的类型
+    if (didNarrow && narrowedSymbol) {
+        narrowedSymbol->type = narrowedVarOrigType;
+        didNarrow = false;
+    }
+    
+    Type* elseType = nullptr;
     if (s->elseBranch) {
-        analyzeStmt(s->elseBranch);
+        // else 分支的反向窄化：如果原类型是联合类型，排除检查的类型
+        if (narrowedSymbol && narrowedVarOrigType && narrowedType &&
+            narrowedVarOrigType->kind == BuiltinType::UNION) {
+            // 从联合类型中移除检查的类型
+            std::vector<Type*> remaining;
+            for (auto* member : narrowedVarOrigType->generics) {
+                if (!member->equals(narrowedType)) {
+                    remaining.push_back(member);
+                }
+            }
+            if (!remaining.empty()) {
+                Type* elseNarrowedType = nullptr;
+                if (remaining.size() == 1) {
+                    elseNarrowedType = remaining[0];
+                } else {
+                    elseNarrowedType = TypeRegistry::instance().getUnionType(remaining);
+                }
+                narrowedSymbol->type = elseNarrowedType;
+                didNarrow = true;
+            }
+        }
+        
+        elseType = analyzeStmt(s->elseBranch);
+        
+        // 恢复窄化前的类型
+        if (didNarrow && narrowedSymbol) {
+            narrowedSymbol->type = narrowedVarOrigType;
+        }
+    }
+    
+    // if-else 类型推导：如果有 else 分支，推导为两个分支的统一类型
+    if (s->elseBranch && elseType) {
+        // 如果两个分支类型相同，返回该类型
+        if (thenType && elseType && thenType->equals(elseType)) {
+            return thenType;
+        }
+        // 如果其中一个是 void，返回另一个（处理只有一个分支有值的情况）
+        if (thenType && thenType->kind != BuiltinType::VOID && 
+            elseType->kind == BuiltinType::VOID) {
+            return thenType;
+        }
+        if (elseType && elseType->kind != BuiltinType::VOID && 
+            thenType->kind == BuiltinType::VOID) {
+            return elseType;
+        }
+        // 类型不同，返回 unknown
+        if (thenType && elseType && thenType->kind != BuiltinType::VOID &&
+            elseType->kind != BuiltinType::VOID) {
+            return Type::unknown();
+        }
     }
     
     return Type::void_();
@@ -771,43 +1296,254 @@ Type* SemanticAnalyzer::analyzeMatch(Shared<MatchStmt> s) {
         enumSym = lookup(matchType->name);
     }
 
+    // 用于穷尽性检查：收集已覆盖的变体
+    std::unordered_map<String, bool> coveredVariants;
+    bool hasWildcard = false;
+    bool hasDefault = (s->defaultCase != nullptr);
+    
+    // 用于类型推导：收集所有分支的返回类型
+    Type* resultType = nullptr;
+    bool allSameType = true;
+    bool hasBodyType = false;
+
     // 分析每个分支
     for (auto& mc : s->cases) {
-        // 查找变体符号
-        Symbol* variantSym = lookup(mc.variantName);
-        if (!variantSym || variantSym->kind != Symbol::ENUM_VARIANT) {
-            reportError(s->token.line, s->token.column,
-                "未定义的枚举变体: '" + mc.variantName + "'");
-            continue;
-        }
+        Type* branchType = Type::void_();
+        
+        if (mc.kind == PatternKind::PATTERN_VARIANT) {
+            // 变体模式
+            // 查找变体符号
+            Symbol* variantSym = lookup(mc.variantName);
+            
+            // A1.1: 如果不是枚举变体且没有绑定参数，则降级为绑定模式
+            if ((!variantSym || variantSym->kind != Symbol::ENUM_VARIANT) && mc.bindings.empty()) {
+                // 降级为绑定模式
+                mc.kind = PatternKind::PATTERN_BINDING;
+                mc.bindingName = mc.variantName;
+                mc.variantName = "";
+                
+                // 按绑定模式处理
+                hasWildcard = true;
+                
+                // A1.3: 注册绑定变量到作用域
+                pushScope();
+                auto bindSym = new Symbol();
+                bindSym->kind = Symbol::VAR;
+                bindSym->name = mc.bindingName;
+                bindSym->type = matchType;
+                defineSymbol(bindSym);
+                
+                // A2.2: 分析守卫条件（可以引用绑定变量）
+                if (mc.guard) {
+                    Type* guardType = analyzeExpr(mc.guard);
+                    if (guardType && guardType->kind != BuiltinType::BOOL) {
+                        reportError(s->token.line, s->token.column,
+                            "守卫条件必须是布尔类型");
+                    }
+                }
+                
+                // 分析分支体
+                if (mc.body) {
+                    branchType = analyzeStmt(mc.body);
+                }
+                popScope();
+            }
+            else if (variantSym && variantSym->kind == Symbol::ENUM_VARIANT) {
+                // 真正的变体模式
+                // 标记已覆盖
+                coveredVariants[mc.variantName] = true;
 
-        // 检查绑定数量是否匹配变体字段数量
-        if (mc.bindings.size() != variantSym->params.size()) {
-            reportError(s->token.line, s->token.column,
-                "变体 '" + mc.variantName + "' 需要 " +
-                std::to_string(variantSym->params.size()) +
-                " 个绑定，但提供了 " + std::to_string(mc.bindings.size()));
-        }
+                // 检查绑定数量是否匹配变体字段数量
+                if (mc.bindings.size() != variantSym->params.size()) {
+                    reportError(s->token.line, s->token.column,
+                        "变体 '" + mc.variantName + "' 需要 " +
+                        std::to_string(variantSym->params.size()) +
+                        " 个绑定，但提供了 " + std::to_string(mc.bindings.size()));
+                }
 
-        // 在分支作用域中注册绑定变量
-        for (size_t i = 0; i < mc.bindings.size() && i < variantSym->params.size(); i++) {
+                // A1.3: 在分支作用域中注册绑定变量
+                pushScope();
+                for (size_t i = 0; i < mc.bindings.size() && i < variantSym->params.size(); i++) {
+                    auto bindSym = new Symbol();
+                    bindSym->kind = Symbol::VAR;
+                    bindSym->name = mc.bindings[i];
+                    bindSym->type = variantSym->params[i].second;
+                    defineSymbol(bindSym);
+                }
+
+                // A2.2: 分析守卫条件（可以引用绑定变量）
+                if (mc.guard) {
+                    Type* guardType = analyzeExpr(mc.guard);
+                    if (guardType && guardType->kind != BuiltinType::BOOL) {
+                        reportError(s->token.line, s->token.column,
+                            "守卫条件必须是布尔类型");
+                    }
+                }
+
+                // 分析分支体
+                if (mc.body) {
+                    branchType = analyzeStmt(mc.body);
+                }
+                popScope();
+            }
+            else {
+                // 有绑定参数但不是变体，报错
+                reportError(s->token.line, s->token.column,
+                    "未定义的枚举变体: '" + mc.variantName + "'");
+                continue;
+            }
+        }
+        else if (mc.kind == PatternKind::PATTERN_LITERAL) {
+            // 字面量模式：直接分析分支体
+            hasWildcard = true;  // 字面量模式也视为覆盖了可能的值
+            
+            pushScope();
+            
+            // A2.2: 分析守卫条件
+            if (mc.guard) {
+                Type* guardType = analyzeExpr(mc.guard);
+                if (guardType && guardType->kind != BuiltinType::BOOL) {
+                    reportError(s->token.line, s->token.column,
+                        "守卫条件必须是布尔类型");
+                }
+            }
+            
+            if (mc.body) {
+                branchType = analyzeStmt(mc.body);
+            }
+            popScope();
+        }
+        else if (mc.kind == PatternKind::PATTERN_WILDCARD) {
+            // 通配符模式：匹配所有值
+            hasWildcard = true;
+            
+            pushScope();
+            
+            // A2.2: 分析守卫条件
+            if (mc.guard) {
+                Type* guardType = analyzeExpr(mc.guard);
+                if (guardType && guardType->kind != BuiltinType::BOOL) {
+                    reportError(s->token.line, s->token.column,
+                        "守卫条件必须是布尔类型");
+                }
+            }
+            
+            if (mc.body) {
+                branchType = analyzeStmt(mc.body);
+            }
+            popScope();
+        }
+        else if (mc.kind == PatternKind::PATTERN_BINDING) {
+            // 绑定模式
+            hasWildcard = true;
+            // A1.3: 注册绑定变量到新作用域
+            pushScope();
             auto bindSym = new Symbol();
             bindSym->kind = Symbol::VAR;
-            bindSym->name = mc.bindings[i];
-            bindSym->type = variantSym->params[i].second;
-            // 暂时注册到当前作用域（分析分支体时会用到）
-            // 注意：在实际实现中，每个分支应该有独立作用域
+            bindSym->name = mc.bindingName;
+            bindSym->type = matchType;
+            defineSymbol(bindSym);
+            
+            // A2.2: 分析守卫条件（可以引用绑定变量）
+            if (mc.guard) {
+                Type* guardType = analyzeExpr(mc.guard);
+                if (guardType && guardType->kind != BuiltinType::BOOL) {
+                    reportError(s->token.line, s->token.column,
+                        "守卫条件必须是布尔类型");
+                }
+            }
+            
+            // 分析分支体
+            if (mc.body) {
+                branchType = analyzeStmt(mc.body);
+            }
+            popScope();
         }
-
-        // 分析分支体
-        if (mc.body) {
-            analyzeStmt(mc.body);
+        else if (mc.kind == PatternKind::PATTERN_ARRAY) {
+            // A3.1: 数组/元组模式
+            hasWildcard = true;
+            
+            pushScope();
+            
+            // 注册数组元素绑定变量
+            // 数组元素类型：如果匹配类型是数组，则用元素类型；否则用动态类型
+            Type* elemType = Type::int_();  // 默认，实际运行时确定
+            if (matchType->kind == BuiltinType::ARRAY) {
+                // 数组类型：获取元素类型
+                // elemType = matchType->elementType; // elementType not in Type
+            }
+            
+            for (auto& bindingName : mc.arrayBindings) {
+                if (bindingName != "_") {  // _ 是通配符，不绑定
+                    auto bindSym = new Symbol();
+                    bindSym->kind = Symbol::VAR;
+                    bindSym->name = bindingName;
+                    bindSym->type = elemType;
+                    defineSymbol(bindSym);
+                }
+            }
+            
+            // A2.2: 分析守卫条件
+            if (mc.guard) {
+                Type* guardType = analyzeExpr(mc.guard);
+                if (guardType && guardType->kind != BuiltinType::BOOL) {
+                    reportError(s->token.line, s->token.column,
+                        "守卫条件必须是布尔类型");
+                }
+            }
+            
+            // 分析分支体
+            if (mc.body) {
+                branchType = analyzeStmt(mc.body);
+            }
+            popScope();
+        }
+        
+        // 收集分支类型用于类型推导
+        if (branchType && branchType->kind != BuiltinType::VOID) {
+            if (!resultType) {
+                resultType = branchType;
+                hasBodyType = true;
+            } else if (!resultType->equals(branchType)) {
+                allSameType = false;
+            }
         }
     }
 
     // 分析默认分支
+    Type* defaultType = Type::void_();
     if (s->defaultCase) {
-        analyzeStmt(s->defaultCase);
+        defaultType = analyzeStmt(s->defaultCase);
+    }
+    
+    // 收集默认分支类型
+    if (defaultType && defaultType->kind != BuiltinType::VOID) {
+        if (!resultType) {
+            resultType = defaultType;
+            hasBodyType = true;
+        } else if (!resultType->equals(defaultType)) {
+            allSameType = false;
+        }
+    }
+
+    // 穷尽性检查（仅针对枚举类型）
+    if (enumSym && !hasWildcard && !hasDefault) {
+        // 检查是否覆盖了所有变体
+        // 获取枚举的所有变体
+        auto enumDecl = std::dynamic_pointer_cast<EnumDeclStmt>(enumSym->node);
+        if (enumDecl && enumDecl->isADT) {
+            for (const auto& variant : enumDecl->variants) {
+                if (coveredVariants.find(variant.name) == coveredVariants.end()) {
+                    reportError(s->token.line, s->token.column,
+                        "匹配不完整：未覆盖变体 '" + variant.name + "'");
+                }
+            }
+        }
+    }
+
+    // match 语句类型推导：如果所有分支类型相同且有默认分支或穷尽覆盖，推导为该类型
+    if (hasBodyType && allSameType && (hasDefault || hasWildcard)) {
+        return resultType;
     }
 
     return Type::void_();
@@ -823,8 +1559,20 @@ Type* SemanticAnalyzer::analyzeExpr(Shared<Expr> expr) {
         result = getExprType(expr);
     }
     else if (auto awaitExpr = std::dynamic_pointer_cast<AwaitExpr>(expr)) {
+        // 检查：await 只能在 async 函数内使用
+        if (!isInAsyncFunc()) {
+            reportError(awaitExpr->token.line, awaitExpr->token.column,
+                "'等待' / 'await' 只能在异步函数内使用");
+        }
         // await 表达式类型 = 目标操作的结果类型
         result = analyzeExpr(awaitExpr->target);
+    }
+    else if (auto isExpr = std::dynamic_pointer_cast<IsExpr>(expr)) {
+        // is / 属于 类型守卫：返回布尔类型
+        analyzeExpr(isExpr->expr);
+        // 验证目标类型是否有效
+        getTypeFromString(isExpr->checkType);
+        result = Type::bool_();
     }
     else if (auto thisExpr = std::dynamic_pointer_cast<ThisExpr>(expr)) {
         // this 表达式的类型为当前类的实例类型
@@ -838,22 +1586,42 @@ Type* SemanticAnalyzer::analyzeExpr(Shared<Expr> expr) {
         }
     }
     else if (auto superExpr = std::dynamic_pointer_cast<SuperExpr>(expr)) {
-        // super 调用：在父类中查找方法
+        // super 调用：在父类继承链中查找方法
         auto* cls = currentClass();
         if (!cls || !cls->baseClass) {
             reportError(expr->token.line, expr->token.column,
                        "'继承' 只能在有父类的类方法中使用");
             result = Type::unknown();
         } else {
-            // 查找父类方法
-            for (auto* m : cls->baseClass->methods) {
-                if (m->name == superExpr->method) {
-                    result = m->returnType;
+            // 沿继承链向上查找方法（从父类开始，不包含当前类）
+            Symbol* methodSym = nullptr;
+            ClassInfo* cur = cls->baseClass;
+            while (cur) {
+                auto it = cur->methodTable.find(superExpr->method);
+                if (it != cur->methodTable.end()) {
+                    methodSym = it->second;
                     break;
                 }
+                cur = cur->baseClass;
             }
-            if (!result || result->kind == BuiltinType::UNKNOWN) {
+            
+            if (!methodSym) {
+                reportError(expr->token.line, expr->token.column,
+                           "父类中找不到方法 '" + superExpr->method + "'");
                 result = Type::unknown();
+            } else {
+                result = methodSym->returnType ? methodSym->returnType : Type::unknown();
+                
+                // 检查参数数量（methodSym->params 不包含 self 参数）
+                // 临时禁用参数检查，先验证 super 基本功能
+                // size_t expectedArgs = methodSym->params.size();
+                // size_t actualArgs = superExpr->arguments.size();
+                // if (actualArgs != expectedArgs) {
+                //     String errMsg = "方法 '" + superExpr->method + "' 需要 " + 
+                //                    std::to_string(expectedArgs) + " 个参数，但提供了 " + 
+                //                    std::to_string(actualArgs) + " 个";
+                //     reportError(expr->token.line, expr->token.column, errMsg);
+                // }
             }
         }
     }
@@ -879,6 +1647,33 @@ Type* SemanticAnalyzer::analyzeExpr(Shared<Expr> expr) {
     }
     else if (auto index = std::dynamic_pointer_cast<IndexExpr>(expr)) {
         result = analyzeIndexExpr(index);
+    }
+    else if (auto arr = std::dynamic_pointer_cast<ArrayExpr>(expr)) {
+        // 数组字面量类型推导：
+        // 1. 如果数组为空，返回 unknown[]
+        // 2. 如果所有元素类型相同，返回该类型的数组
+        // 3. 如果元素类型不同，返回 unknown[]
+        Type* elemType = nullptr;
+        bool allSame = true;
+        
+        for (auto& elem : arr->elements) {
+            Type* t = analyzeExpr(elem);
+            if (!elemType) {
+                elemType = t;
+            } else if (t && elemType && !elemType->equals(t)) {
+                allSame = false;
+            }
+        }
+        
+        if (!elemType) {
+            // 空数组
+            result = TypeRegistry::instance().getArrayType(Type::unknown());
+        } else if (allSame) {
+            result = TypeRegistry::instance().getArrayType(elemType);
+        } else {
+            // 混合类型数组，降级为 unknown[]
+            result = TypeRegistry::instance().getArrayType(Type::unknown());
+        }
     }
     else if (auto structLit = std::dynamic_pointer_cast<StructLiteralExpr>(expr)) {
         // 匿名表/对象字面量（如 {} 或 {key: value}），无需结构体定义
@@ -919,6 +1714,44 @@ Type* SemanticAnalyzer::analyzeExpr(Shared<Expr> expr) {
     else if (auto lambda = std::dynamic_pointer_cast<LambdaExpr>(expr)) {
         result = analyzeLambda(lambda);
     }
+    else if (auto newExpr = std::dynamic_pointer_cast<NewExpr>(expr)) {
+        // new 类名(参数)：返回类的实例类型
+        for (auto& arg : newExpr->args) {
+            analyzeExpr(arg);
+        }
+        
+        // 如果是泛型类实例化，确保已实例化
+        if (!newExpr->typeArgs.empty()) {
+            // 构建完整的泛型类名
+            String fullName = newExpr->className + "<";
+            for (size_t i = 0; i < newExpr->typeArgs.size(); i++) {
+                if (i > 0) fullName += ", ";
+                fullName += newExpr->typeArgs[i];
+            }
+            fullName += ">";
+            
+            // 确保泛型类已实例化
+            auto baseCls = getClassInfo(newExpr->className);
+            if (baseCls && baseCls->isGeneric) {
+                ClassInfo* instCls = ensureGenericClassInstantiated(
+                    fullName, newExpr->className, newExpr->typeArgs);
+                if (instCls && instCls->type) {
+                    result = instCls->type;
+                } else {
+                    result = Type::unknown();
+                }
+            } else {
+                result = Type::unknown();
+            }
+        } else {
+            ClassInfo* cls = getClassInfo(newExpr->className);
+            if (cls && cls->type) {
+                result = cls->type;
+            } else {
+                result = Type::unknown();
+            }
+        }
+    }
     else {
         result = Type::unknown();
     }
@@ -945,12 +1778,10 @@ Type* SemanticAnalyzer::getExprType(Shared<Expr> expr) {
     
     // 2. LiteralExpr
     if (auto lit = std::dynamic_pointer_cast<LiteralExpr>(expr)) {
+        if (std::get_if<std::monostate>(&lit->value)) return Type::unknown();
         if (std::get_if<Int64>(&lit->value)) return Type::int_();
         if (std::get_if<Float64>(&lit->value)) return Type::float_();
-        if (auto* v = std::get_if<String>(&lit->value)) {
-            if (*v == "null") return Type::unknown();
-            return Type::string_();
-        }
+        if (std::get_if<String>(&lit->value)) return Type::string_();
         if (std::get_if<bool>(&lit->value)) return Type::bool_();
     }
     
@@ -980,6 +1811,24 @@ Type* SemanticAnalyzer::getExprType(Shared<Expr> expr) {
     // 5. UnaryExpr — propagate operand type
     if (auto una = std::dynamic_pointer_cast<UnaryExpr>(expr)) {
         return getExprType(una->operand);
+    }
+    
+    // 6. NewExpr — 返回类的实例类型
+    if (auto newExpr = std::dynamic_pointer_cast<NewExpr>(expr)) {
+        if (!newExpr->typeArgs.empty()) {
+            // 泛型类：构建完整类名并查找
+            String fullName = newExpr->className + "<";
+            for (size_t i = 0; i < newExpr->typeArgs.size(); i++) {
+                if (i > 0) fullName += ", ";
+                fullName += newExpr->typeArgs[i];
+            }
+            fullName += ">";
+            ClassInfo* cls = getClassInfo(fullName);
+            if (cls && cls->type) return cls->type;
+        } else {
+            ClassInfo* cls = getClassInfo(newExpr->className);
+            if (cls && cls->type) return cls->type;
+        }
     }
     
     return Type::unknown();
@@ -1151,7 +2000,7 @@ Type* SemanticAnalyzer::analyzeCallExpr(Shared<CallExpr> expr) {
     }
 
     // ════════════════════════════════════════════════════════
-    //  非泛型调用: 原有逻辑
+    //  非泛型调用: 原有逻辑 + 类型推断
     // ════════════════════════════════════════════════════════
     Type* calleeType = analyzeExpr(expr->callee);
 
@@ -1163,6 +2012,54 @@ Type* SemanticAnalyzer::analyzeCallExpr(Shared<CallExpr> expr) {
     if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(expr->callee)) {
         auto sym = lookup(id->name);
         if (sym && sym->returnType) {
+            // 检查是否是泛型函数，如果是，尝试类型推断
+            if (sym->node) {
+                auto genericFunc = std::dynamic_pointer_cast<FuncDeclStmt>(sym->node);
+                if (genericFunc && !genericFunc->typeParams.empty()) {
+                    // 尝试从参数推断类型参数
+                    std::vector<String> inferredArgs;
+                    if (inferTypeArgs(genericFunc, expr->arguments, inferredArgs)) {
+                        // 类型推断成功，使用推断的类型参数进行实例化
+                        String mangledName = buildMangledName(id->name, inferredArgs);
+                        
+                        // 检查缓存
+                        auto it = monomorphCache_.find(mangledName);
+                        if (it == monomorphCache_.end()) {
+                            // 检查类型参数约束
+                            checkTypeConstraints(genericFunc->typeParams, inferredArgs,
+                                id->name, expr->token.line, expr->token.column);
+                            
+                            // 实例化泛型函数
+                            auto instantiated = instantiateGenericFunc(genericFunc, inferredArgs);
+                            monomorphizedFunctions_.push_back(instantiated);
+                            
+                            auto newSym = new Symbol();
+                            newSym->kind = Symbol::FUNC;
+                            newSym->name = mangledName;
+                            newSym->node = instantiated;
+                            newSym->returnType = instantiated->returnType.has_value()
+                                ? getTypeFromString(*instantiated->returnType)
+                                : Type::void_();
+                            newSym->isStatic = instantiated->isStatic;
+                            defineSymbol(newSym);
+                            
+                            monomorphCache_[mangledName] = {mangledName, instantiated};
+                            
+                            analyzeFuncDecl(instantiated);
+                            
+                            auto analyzedSym = lookup(mangledName);
+                            if (analyzedSym && analyzedSym->returnType) {
+                                newSym->returnType = analyzedSym->returnType;
+                            }
+                        }
+                        
+                        auto& mf = monomorphCache_[mangledName];
+                        if (mf.funcDecl && mf.funcDecl->returnType.has_value())
+                            return getTypeFromString(*mf.funcDecl->returnType);
+                        return sym->returnType;
+                    }
+                }
+            }
             return sym->returnType;
         }
     }
@@ -1189,16 +2086,20 @@ Type* SemanticAnalyzer::analyzeMemberExpr(Shared<MemberExpr> expr) {
             }
         }
         
-        // 类成员访问
+        // 类成员访问（沿继承链向上查找）
         ClassInfo* classInfo = getClassInfo(objectType->name);
         if (classInfo) {
-            auto it = classInfo->fieldTable.find(expr->member);
-            if (it != classInfo->fieldTable.end()) {
-                return it->second->type;
-            }
-            auto mit = classInfo->methodTable.find(expr->member);
-            if (mit != classInfo->methodTable.end()) {
-                return mit->second->type;
+            ClassInfo* cur = classInfo;
+            while (cur) {
+                auto it = cur->fieldTable.find(expr->member);
+                if (it != cur->fieldTable.end()) {
+                    return it->second->type;
+                }
+                auto mit = cur->methodTable.find(expr->member);
+                if (mit != cur->methodTable.end()) {
+                    return mit->second->returnType;
+                }
+                cur = cur->baseClass;
             }
             reportError(expr->token.line, expr->token.column,
                 "类 '" + objectType->name + "' 没有成员 '" + expr->member + "'");
@@ -1329,6 +2230,74 @@ StructInfo* SemanticAnalyzer::getStructInfo(const String& name) {
     return nullptr;
 }
 
+InterfaceInfo* SemanticAnalyzer::getInterfaceInfo(const String& name) {
+    auto it = interfaceTable_.find(name);
+    if (it != interfaceTable_.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
+void SemanticAnalyzer::checkInterfaceImplementation(ClassInfo* cls) {
+    if (!cls) return;
+    
+    // 收集类的所有方法（包括继承的）
+    std::unordered_map<String, Symbol*> allMethods;
+    ClassInfo* current = cls;
+    while (current) {
+        for (auto& method : current->methods) {
+            if (allMethods.find(method->name) == allMethods.end()) {
+                allMethods[method->name] = method;
+            }
+        }
+        current = current->baseClass;
+    }
+    
+    // 检查每个接口
+    for (auto& ifaceName : cls->interfaces) {
+        auto iface = getInterfaceInfo(ifaceName);
+        if (!iface) {
+            // 接口不存在，可能是前向引用，暂时跳过
+            continue;
+        }
+        
+        // 检查接口的每个方法是否在类中实现
+        for (auto& ifaceMethod : iface->methods) {
+            auto it = allMethods.find(ifaceMethod->name);
+            if (it == allMethods.end()) {
+                // 方法未实现
+                reportError("Class '" + cls->name + "' does not implement interface method '" 
+                      + ifaceName + "::" + ifaceMethod->name + "'");
+                continue;
+            }
+            
+            // 检查方法签名是否匹配（参数数量和类型）
+            auto clsMethod = it->second;
+            if (clsMethod->params.size() != ifaceMethod->params.size()) {
+                reportError("Class '" + cls->name + "' method '" + ifaceMethod->name 
+                      + "' parameter count mismatch with interface '" + ifaceName + "'");
+                continue;
+            }
+        }
+    }
+}
+
+bool SemanticAnalyzer::interfaceImplementsTrait(const String& ifaceName, const String& traitName) {
+    if (ifaceName == traitName) return true;
+    
+    auto iface = getInterfaceInfo(ifaceName);
+    if (!iface) return false;
+    
+    // 递归检查基接口
+    for (auto& baseIface : iface->baseInterfaces) {
+        if (interfaceImplementsTrait(baseIface, traitName)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 void SemanticAnalyzer::registerStructType(const String& name, StructInfo* info) {
     structTable_[name] = info;
 }
@@ -1404,6 +2373,27 @@ bool SemanticAnalyzer::typeSatisfiesTrait(Type* type, const String& traitName) {
         return true;
     }
 
+    // 自定义接口/trait 检查：对于对象类型，检查是否实现了该接口
+    // v0.5.0 注：此段需要将 typeSatisfiesTrait 改为非静态才能访问 getClassInfo。
+    // 当前内置 trait（可比较/可哈希等）检查已完整覆盖。
+    // TODO: 将 typeSatisfiesTrait 改为非静态，或通过 SemanticAnalyzer* 参数传递实例
+#if 0
+    if (k == BuiltinType::OBJECT) {
+        String typeName = type->name;
+        if (!typeName.empty()) {
+            ClassInfo* cls = getClassInfo(typeName);
+            if (cls) {
+                for (auto& iface : cls->interfaces) {
+                    if (interfaceImplementsTrait(iface, traitName)) return true;
+                }
+                if (cls->baseClass) {
+                    if (typeSatisfiesTrait(cls->baseClass->type, traitName)) return true;
+                }
+            }
+        }
+    }
+#endif
+
     // 未知 trait — 默认允许（为未来扩展预留）
     return true;
 }
@@ -1416,11 +2406,23 @@ bool SemanticAnalyzer::checkTypeConstraints(
 {
     bool allOk = true;
     for (size_t i = 0; i < typeParams.size() && i < typeArgs.size(); i++) {
+        const String& concreteTypeStr = typeArgs[i];
+        Type* concreteType = getTypeFromString(concreteTypeStr);
+        
+        // 检查单约束（简写形式）
         if (typeParams[i].constraint.has_value()) {
             const String& constraint = typeParams[i].constraint.value();
-            const String& concreteTypeStr = typeArgs[i];
-            Type* concreteType = getTypeFromString(concreteTypeStr);
-
+            if (!typeSatisfiesTrait(concreteType, constraint)) {
+                String typeDisplay = concreteType ? concreteType->toString() : concreteTypeStr;
+                reportError(line, col,
+                    "类型 '" + typeDisplay + "' 不满足约束 '" + constraint +
+                    "' 在泛型 '" + contextName + "' 中");
+                allOk = false;
+            }
+        }
+        
+        // 检查多约束（where子句形式）
+        for (auto& constraint : typeParams[i].constraints) {
             if (!typeSatisfiesTrait(concreteType, constraint)) {
                 String typeDisplay = concreteType ? concreteType->toString() : concreteTypeStr;
                 reportError(line, col,
@@ -1431,6 +2433,58 @@ bool SemanticAnalyzer::checkTypeConstraints(
         }
     }
     return allOk;
+}
+
+bool SemanticAnalyzer::inferTypeArgs(Shared<FuncDeclStmt> genericFunc,
+                                     const std::vector<Shared<Expr>>& arguments,
+                                     std::vector<String>& inferredArgs) {
+    if (genericFunc->typeParams.empty()) return false;
+    
+    size_t numParams = genericFunc->typeParams.size();
+    inferredArgs.assign(numParams, "");
+    
+    bool allInferred = true;
+    
+    // 遍历函数参数，尝试推断类型参数
+    for (size_t i = 0; i < genericFunc->params.size() && i < arguments.size(); i++) {
+        auto& param = genericFunc->params[i];
+        auto& arg = arguments[i];
+        
+        // 参数类型名
+        String paramTypeStr = param.second.has_value() ? *param.second : "";
+        if (paramTypeStr.empty()) continue;
+        
+        // 实际参数类型
+        Type* argType = getExprType(arg);
+        if (!argType || argType->kind == BuiltinType::UNKNOWN) continue;
+        
+        // 检查参数类型是否是类型参数本身（如 T）
+        for (size_t j = 0; j < numParams; j++) {
+            if (paramTypeStr == genericFunc->typeParams[j].name) {
+                // 找到匹配的类型参数，用实参类型填充
+                String argTypeName = argType->name;
+                if (!argTypeName.empty()) {
+                    if (inferredArgs[j].empty()) {
+                        inferredArgs[j] = argTypeName;
+                    } else if (inferredArgs[j] != argTypeName) {
+                        // 类型冲突，推断失败
+                        return false;
+                    }
+                }
+                break;
+            }
+        }
+    }
+    
+    // 检查是否所有类型参数都被推断出来了
+    for (auto& arg : inferredArgs) {
+        if (arg.empty()) {
+            allInferred = false;
+            break;
+        }
+    }
+    
+    return allInferred;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1499,6 +2553,12 @@ void SemanticAnalyzer::substituteTypeInStmt(Shared<Stmt> stmt,
             substituteTypeInExpr(var->init, paramNames, typeArgs);
         }
     }
+    // DestructuringDecl: 替换 init 表达式中的类型
+    else if (auto dd = std::dynamic_pointer_cast<DestructuringDecl>(stmt)) {
+        if (dd->init) {
+            substituteTypeInExpr(dd->init, paramNames, typeArgs);
+        }
+    }
     // FuncDeclStmt: 替换参数类型和返回类型
     else if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(stmt)) {
         for (auto& param : func->params) {
@@ -1564,8 +2624,8 @@ void SemanticAnalyzer::substituteTypeInStmt(Shared<Stmt> stmt,
     // TryStmt
     else if (auto tryStmt = std::dynamic_pointer_cast<TryStmt>(stmt)) {
         if (tryStmt->tryBlock) substituteTypeInStmt(tryStmt->tryBlock, paramNames, typeArgs);
-        for (auto& catchBlock : tryStmt->catchBlocks) {
-            if (catchBlock.second) substituteTypeInStmt(catchBlock.second, paramNames, typeArgs);
+        for (auto& cb : tryStmt->catchBlocks) {
+            if (cb.body) substituteTypeInStmt(cb.body, paramNames, typeArgs);
         }
         if (tryStmt->finallyBlock) substituteTypeInStmt(tryStmt->finallyBlock, paramNames, typeArgs);
     }
@@ -1620,6 +2680,22 @@ void SemanticAnalyzer::substituteTypeInExpr(Shared<Expr> expr,
     }
     // NewExpr
     else if (auto newExpr = std::dynamic_pointer_cast<NewExpr>(expr)) {
+        // 替换类名中的类型参数（如果类名本身就是类型参数）
+        for (size_t i = 0; i < paramNames.size(); i++) {
+            if (newExpr->className == paramNames[i]) {
+                newExpr->className = typeArgs[i];
+                break;
+            }
+        }
+        // 替换类型参数中的类型参数
+        for (auto& ta : newExpr->typeArgs) {
+            for (size_t i = 0; i < paramNames.size(); i++) {
+                if (ta == paramNames[i]) {
+                    ta = typeArgs[i];
+                    break;
+                }
+            }
+        }
         for (auto& arg : newExpr->args) {
             substituteTypeInExpr(arg, paramNames, typeArgs);
         }
@@ -1633,6 +2709,17 @@ void SemanticAnalyzer::substituteTypeInExpr(Shared<Expr> expr,
     // AwaitExpr
     else if (auto awaitE = std::dynamic_pointer_cast<AwaitExpr>(expr)) {
         substituteTypeInExpr(awaitE->target, paramNames, typeArgs);
+    }
+    // IsExpr - 类型守卫表达式
+    else if (auto isE = std::dynamic_pointer_cast<IsExpr>(expr)) {
+        substituteTypeInExpr(isE->expr, paramNames, typeArgs);
+        // 检查类型字符串中是否包含泛型参数，如果有则替换
+        for (size_t i = 0; i < paramNames.size(); i++) {
+            if (isE->checkType == paramNames[i]) {
+                isE->checkType = typeArgs[i];
+                break;
+            }
+        }
     }
     // NewExpr
     else if (auto newE = std::dynamic_pointer_cast<NewExpr>(expr)) {
@@ -1815,6 +2902,169 @@ StructInfo* SemanticAnalyzer::ensureGenericStructInstantiated(
     // 注册到类型表
     structTable_[fullName] = instInfo;
     monomorphStructCache_[fullName] = instInfo;
+
+    return instInfo;
+}
+
+ClassInfo* SemanticAnalyzer::ensureGenericClassInstantiated(
+    const String& fullName,
+    const String& baseName,
+    const std::vector<String>& typeArgs)
+{
+    // 检查缓存
+    auto cacheIt = monomorphClassCache_.find(fullName);
+    if (cacheIt != monomorphClassCache_.end()) {
+        return cacheIt->second;
+    }
+
+    // 查找基础类信息
+    ClassInfo* baseInfo = getClassInfo(baseName);
+    if (!baseInfo) return nullptr;
+
+    // 查找基础类声明
+    auto baseSym = lookup(baseName);
+    if (!baseSym || !baseSym->node) return nullptr;
+    auto clsDecl = std::dynamic_pointer_cast<ClassDeclStmt>(baseSym->node);
+    if (!clsDecl) return nullptr;
+
+    // 检查类型参数约束
+    checkTypeConstraints(clsDecl->typeParams, typeArgs, baseName, 0, 0);
+
+    // 创建实例化后的 ClassInfo
+    ClassInfo* instInfo = new ClassInfo();
+    instInfo->name = fullName;
+    instInfo->type = TypeRegistry::instance().getCustomType(fullName);
+    instInfo->type->kind = BuiltinType::OBJECT;
+    instInfo->isGeneric = false;  // 实例化后不再是泛型
+
+    // 处理基类（如果基类也是泛型，需要实例化）
+    if (baseInfo->baseClass) {
+        // 简化：直接复用基类信息（复杂情况暂不处理）
+        instInfo->baseClass = baseInfo->baseClass;
+    }
+
+    // 收集类型参数名列表，用于替换
+    std::vector<String> paramNames;
+    for (const auto& tp : clsDecl->typeParams) {
+        paramNames.push_back(tp.name);
+    }
+
+    // 遍历成员，替换类型参数
+    for (auto& member : clsDecl->members) {
+        if (auto var = std::dynamic_pointer_cast<VarDeclStmt>(member)) {
+            // 字段：替换类型
+            auto fieldSym = new Symbol();
+            fieldSym->kind = Symbol::FIELD;
+            fieldSym->name = var->name;
+            fieldSym->isConst = var->isConst;
+            fieldSym->isStatic = var->isStatic;
+            fieldSym->isPublic = true;
+
+            if (var->type.has_value()) {
+                String fieldTypeStr = var->type.value();
+                // 替换类型参数（精确匹配）
+                for (size_t i = 0; i < typeArgs.size(); i++) {
+                    if (fieldTypeStr == paramNames[i]) {
+                        fieldTypeStr = typeArgs[i];
+                        break;
+                    }
+                }
+                fieldSym->type = getTypeFromString(fieldTypeStr);
+            } else {
+                fieldSym->type = Type::unknown();
+            }
+
+            instInfo->fieldTable[var->name] = fieldSym;
+            instInfo->fields.push_back(fieldSym);
+        }
+        else if (auto func = std::dynamic_pointer_cast<FuncDeclStmt>(member)) {
+            // 方法：替换参数类型和返回类型中的类型参数
+            auto methodSym = new Symbol();
+            methodSym->kind = Symbol::FUNC;
+            methodSym->name = func->name;
+            methodSym->isStatic = func->isStatic;
+
+            // 替换返回类型
+            if (func->returnType.has_value()) {
+                String retTypeStr = *func->returnType;
+                for (size_t i = 0; i < typeArgs.size(); i++) {
+                    if (retTypeStr == paramNames[i]) {
+                        retTypeStr = typeArgs[i];
+                        break;
+                    }
+                }
+                methodSym->returnType = getTypeFromString(retTypeStr);
+            } else {
+                methodSym->returnType = Type::void_();
+            }
+
+            // 替换参数类型
+            for (auto& p : func->params) {
+                Type* pt = Type::unknown();
+                if (p.second.has_value()) {
+                    String paramTypeStr = *p.second;
+                    for (size_t i = 0; i < typeArgs.size(); i++) {
+                        if (paramTypeStr == paramNames[i]) {
+                            paramTypeStr = typeArgs[i];
+                            break;
+                        }
+                    }
+                    pt = getTypeFromString(paramTypeStr);
+                }
+                methodSym->params.push_back({p.first, pt});
+            }
+
+            instInfo->methodTable[func->name] = methodSym;
+            instInfo->methods.push_back(methodSym);
+
+            // 如果方法有函数体，需要实例化函数体（替换类型参数）
+            // 简化版：先只处理签名，函数体在调用时再处理
+            // 完整实现需要 clone 函数体并 substituteTypeInStmt
+            if (func->body && !func->body->statements.empty()) {
+                // 创建实例化后的方法并加入 monomorphizedFunctions_
+                auto instFunc = std::make_shared<FuncDeclStmt>();
+                instFunc->name = fullName + "::" + func->name;
+                instFunc->params = func->params;
+                instFunc->returnType = func->returnType;
+                instFunc->body = cloneBlock(func->body);
+                instFunc->isStatic = func->isStatic;
+                instFunc->access = func->access;
+
+                // 替换参数类型中的类型参数
+                for (auto& p : instFunc->params) {
+                    if (p.second.has_value()) {
+                        String ptStr = *p.second;
+                        for (size_t i = 0; i < typeArgs.size(); i++) {
+                            if (ptStr == paramNames[i]) {
+                                p.second = typeArgs[i];
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // 替换返回类型
+                if (instFunc->returnType.has_value()) {
+                    String rtStr = *instFunc->returnType;
+                    for (size_t i = 0; i < typeArgs.size(); i++) {
+                        if (rtStr == paramNames[i]) {
+                            instFunc->returnType = typeArgs[i];
+                            break;
+                        }
+                    }
+                }
+
+                // 替换函数体内的类型参数
+                substituteTypeInStmt(instFunc->body, paramNames, typeArgs);
+
+                monomorphizedFunctions_.push_back(instFunc);
+            }
+        }
+    }
+
+    // 注册到类表和缓存
+    classTable_[fullName] = instInfo;
+    monomorphClassCache_[fullName] = instInfo;
 
     return instInfo;
 }

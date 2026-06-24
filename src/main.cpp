@@ -4,10 +4,6 @@
 #undef max
 #include <iostream>
 #include <fstream>
-#include <sstream>
-#include <vector>
-#include <cstdint>
-#include <cstring>
 #include "core/verbose.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
@@ -19,127 +15,18 @@
 #include "jit/jit_compiler.hpp"
 #include "jit/orc_jit.hpp"
 #include "jit/hybrid_jit.hpp"
+#include "codegen/llvm_codegen.hpp"
 #include "debug/debugger.hpp"
 #include "repl/repl.hpp"
-#include "platform/platform.hpp"
-#include "codegen/aot_compiler.hpp"
 
 #ifdef _WIN32
-#include <windows.h>
 #include <urlmon.h>
 #endif
+
 using namespace cplang;
 
-// ═══════════════════════════════════════════════════════════════════
-//  SFX 自解压嵌入 — 将 CP 源码打包进 .exe
-//  格式: [exe内容][源码][魔数16字节][源码长度4字节小端序]
-// ═══════════════════════════════════════════════════════════════════
-
-static const char  EMBED_MAGIC[]   = "\n---CPEMBED---\n";
-static const int   EMBED_MAGIC_LEN = 16;
-
-static std::string getOwnExePath() {
-    return cplang::platform::proc_exe_path();
-}
-
-// 检测自身 .exe 末尾是否包含嵌入的 CP 源码，有则返回源码内容
-static std::string checkEmbeddedSource() {
-    std::string exePath = getOwnExePath();
-    if (exePath.empty()) return "";
-    std::ifstream file(exePath, std::ios::binary | std::ios::ate);
-    if (!file.is_open()) return "";
-    std::streamsize fs = file.tellg();
-    if (fs < EMBED_MAGIC_LEN + 4) return "";
-
-    // 读末尾4字节 → 源码长度 (uint32_t LE)
-    file.seekg(-4, std::ios::end);
-    uint8_t lb[4]; file.read((char*)lb, 4);
-    uint32_t srclen = lb[0] | ((uint32_t)lb[1]<<8) | ((uint32_t)lb[2]<<16) | ((uint32_t)lb[3]<<24);
-    if (srclen == 0 || srclen > 100*1024*1024) return "";
-    size_t hdr = EMBED_MAGIC_LEN + 4;
-    if ((std::streamoff)(hdr + srclen) > fs) return "";
-
-    // 验证魔数
-    file.seekg(-((std::streamoff)hdr), std::ios::end);
-    std::vector<char> mb(EMBED_MAGIC_LEN);
-    file.read(mb.data(), EMBED_MAGIC_LEN);
-    if (std::memcmp(mb.data(), EMBED_MAGIC, EMBED_MAGIC_LEN) != 0) return "";
-
-    // 读源码
-    file.seekg(-((std::streamoff)(hdr + srclen)), std::ios::end);
-    std::vector<char> sb(srclen);
-    file.read(sb.data(), srclen);
-    return std::string(sb.data(), srclen);
-}
-
-// 将 CP 源码打包到独立 .exe
-static bool packSource(const char* srcFile, const char* outFile) {
-    // 读取源码
-    std::ifstream ifs(srcFile, std::ios::binary);
-    if (!ifs.is_open()) {
-        std::cerr << "打包错误: 无法打开源文件 '" << srcFile << "'\n";
-        return false;
-    }
-    std::stringstream ss; ss << ifs.rdbuf();
-    std::string src = ss.str();
-    ifs.close();
-    if (src.empty()) { std::cerr << "打包错误: 源文件为空\n"; return false; }
-    // 去 BOM
-    if (src.size()>=3 && (uint8_t)src[0]==0xEF && (uint8_t)src[1]==0xBB && (uint8_t)src[2]==0xBF)
-        src.erase(0, 3);
-
-    std::cout << "打包: " << srcFile << " -> " << outFile << "\n";
-    std::cout << "  源码: " << src.size() << " 字节\n";
-
-    // 复制自身到目标
-    std::string self = getOwnExePath();
-    if (self.empty()) { std::cerr << "打包错误: 无法获取自身路径\n"; return false; }
-    std::ifstream sself(self, std::ios::binary);
-    std::ofstream out(outFile, std::ios::binary | std::ios::trunc);
-    if (!sself.is_open() || !out.is_open()) {
-        std::cerr << "打包错误: 文件读写失败\n"; return false;
-    }
-    out << sself.rdbuf(); sself.close();
-
-    // 追加：源码 + 魔数 + 长度
-    out.write(src.data(), src.size());
-    out.write(EMBED_MAGIC, EMBED_MAGIC_LEN);
-    uint32_t sl = (uint32_t)src.size();
-    uint8_t lb2[4] = {(uint8_t)sl, (uint8_t)(sl>>8), (uint8_t)(sl>>16), (uint8_t)(sl>>24)};
-    out.write((const char*)lb2, 4);
-    out.close();
-
-    // 将输出 exe 的子系统改为 WINDOWS_GUI，双击不弹 cmd 窗口
-    {
-        std::fstream patch(outFile, std::ios::binary | std::ios::in | std::ios::out);
-        if (patch.is_open()) {
-            // 读 PE 签名偏移 (file[0x3C])
-            uint8_t buf[4];
-            patch.seekg(0x3C); patch.read((char*)buf, 4);
-            uint32_t sigOff = buf[0] | (buf[1]<<8) | (buf[2]<<16) | (buf[3]<<24);
-            // PE32+ 可选头开始 = sig + 4(PE) + 20(COFF)
-            uint32_t optHdrOff = sigOff + 24;
-            // 子系统在可选头 + 68 字节处 (1 WORD)
-            patch.seekg(optHdrOff + 68);
-            patch.read((char*)buf, 2);
-            uint16_t sub = buf[0] | (buf[1]<<8);
-            if (sub == 3) {  // CONSOLE → WINDOWS
-                buf[0] = 2; buf[1] = 0;
-                patch.seekp(optHdrOff + 68);
-                patch.write((char*)buf, 2);
-            }
-            patch.close();
-        }
-    }
-
-    std::cout << "  输出: " << (std::ifstream(outFile,std::ios::binary|std::ios::ate).tellg()/1024) << " KB\n";
-    std::cout << "打包成功!\n";
-    return true;
-}
-
-
 void printUsage(const char* program) {
-    std::cout << "CP语言编译器 v0.2.0-beta\n\n";
+    std::cout << "CP语言编译器 v0.5.0\n\n";
     std::cout << "用法: " << program << " [选项] <文件>\n\n";
     std::cout << "选项:\n";
     std::cout << "  -l, --lex      仅词法分析\n";
@@ -148,18 +35,14 @@ void printUsage(const char* program) {
     std::cout << "  -c --hotspot   字节码 VM + 热点 JIT\n";
     std::cout << "       --hotspot-threshold=N  热点阈值 (默认 100)\n";
     std::cout << "  -j, --jit      完整编译并执行（JIT 模式）\n";
-    std::cout << "  -a, --aot      AOT 编译为原生 .exe（LLVM，需模块包）\n";
-    std::cout << "  -k, --pack     AOT 编译打包为独立 .exe（原生机器码，推荐）\n";
-    std::cout << "  -o <file>      指定输出文件（配合 --aot/--pack 使用）\n";
+    std::cout << "  -k, --pack     SFX 自解压打包（源码嵌入 cplang.exe）\n";
+    std::cout << "  -o <file>      指定输出文件\n";
     std::cout << "  -O0/-O1/-O2/-O3 优化级别\n";
     std::cout << "  --no-bytecode-opt 禁用字节码优化\n";
     std::cout << "  -v, --verbose  详细输出（优化统计等调试信息）\n";
     std::cout << "  -r, --repl     交互式编程环境（REPL）\n";
     std::cout << "  --debug-server <port> 启动调试服务器（TCP），等待 IDE 连接\n";
     std::cout << "  -h, --help     显示帮助信息\n";
-    std::cout << "\n打包示例:\n";
-    std::cout << "  cplang -k 图书管理.cp -o 图书管理.exe\n";
-    std::cout << "  图书管理.exe          # 直接运行，无需安装 cplang\n";
 }
 
 bool readFile(const char* filename, String& content) {
@@ -210,7 +93,7 @@ bool runParser(const String& source) {
 }
 
 bool runFullCompile(const String& source, const char* filepath, bool useJit, bool useHotspot = false, int hotspotThreshold = 100, OptLevel optLevel = OptLevel::O2, bool useBytecodeOpt = true, int debugPort = 0) {
-    VERBOSE(std::cout << "编译中...\n");
+    std::cout << "编译中...\n";
     
     Compiler compiler;
     compiler.setOptLevel(optLevel);
@@ -222,7 +105,7 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
         return false;
     }
 
-    VERBOSE(std::cout << "编译成功\n");
+    std::cout << "编译成功\n";
     
     // 打印字节码优化统计（仅 verbose 模式）
     if (useBytecodeOpt && cplang::verboseEnabled()) {
@@ -245,9 +128,8 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
         return false;
     }
     
-    // 注册标准库（如果尚未注册）
-    // StdLib::registerAll 在 Compiler 构造函数中已调用
-    
+    // 注册标准库
+    StdLib::registerAll(vm);
     ModuleLoader loader;
     loader.addSearchPath(".");
     // 记录源文件所在目录（用于运行时导入解析）
@@ -261,7 +143,28 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
             sourceDir = dir;
         }
     }
+    // P0.4：循环依赖检测 - 维护当前正在加载的模块栈
+    static std::vector<std::string> loadingStack;
+    
     vm->importCallback = [&compiler, vm, sourceDir](const std::string& moduleName) -> bool {
+        // 循环依赖检测：检查模块是否正在加载中
+        for (const auto& m : loadingStack) {
+            if (m == moduleName) {
+                std::string errorMsg = "循环依赖检测: ";
+                for (size_t i = 0; i < loadingStack.size(); i++) {
+                    if (i > 0) errorMsg += " -> ";
+                    errorMsg += loadingStack[i];
+                }
+                errorMsg += " -> " + moduleName;
+                std::cerr << errorMsg << "\n";
+                vm->raiseError(errorMsg.c_str());
+                return false;
+            }
+        }
+        
+        // 入栈：标记模块正在加载
+        loadingStack.push_back(moduleName);
+        
         VMFunction* moduleFunc = nullptr;
         
         // 1. 源文件所在目录优先（解决跨目录运行时模块查找失败）
@@ -310,8 +213,8 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
                 }
             }
             if (valid) {
-                std::string importPath = cplang::platform::file_temp_dir()
-                    + "/_cp_import_" + std::to_string(cplang::platform::proc_getpid()) + ".cp";
+                std::string importPath = std::string(std::getenv("TEMP") ? std::getenv("TEMP") : "C:/Temp")
+                    + "/_cp_import_" + std::to_string(GetCurrentProcessId()) + ".cp";
 #ifdef _WIN32
                 // 使用 URLDownloadToFileA（urlmon.dll 无需额外链接，由 Windows 提供）
                 HRESULT hr = URLDownloadToFileA(NULL, moduleName.c_str(), importPath.c_str(), 0, NULL);
@@ -333,18 +236,100 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
         
         if (!moduleFunc) {
             std::cerr << "模块加载失败: " << moduleName << "\n";
+            loadingStack.pop_back();  // 出栈
             return false;
         }
-        
-        // 直接注册模块中的函数到全局槽，并JIT预热
+
+        // === P0.1：模块命名空间隔离 ===
+        // 创建一个 table 作为模块对象，容纳模块的函数和变量
+        // 同时保留旧行为：函数也直接注册到全局（向后兼容）
+        VMTable* moduleTable = VMTable::create();
+
+        // 1. 把模块中的函数注册到：
+        //    a) 模块 table（新方式：模块.函数() 调用）
+        //    b) 全局槽（旧方式：直接调用函数名）
         for (const auto& c : moduleFunc->constants) {
             if (c.isFunction()) {
                 auto* funcObj = c.asFunction();
                 if (funcObj && funcObj->name) {
                     std::string fname(funcObj->name->data, funcObj->name->length);
+                    // a) 注册到模块 table
+                    VMString* keyStr = VMString::create(fname.c_str(),
+                                                         static_cast<UInt32>(fname.length()));
+                    moduleTable->set(makeStringVal(keyStr), c);
+                    // b) 同时注册到全局（向后兼容）
                     vm->registerGlobal(fname.c_str(), c);
                 }
             }
+        }
+
+        // 2. 记录执行前的全局槽值快照（用于检测模块代码设置的全局变量）
+        //    注意：不能用名称检测，因为变量名在 codegen 阶段就已经注册到全局槽了
+        std::unordered_map<std::string, Value> globalValuesBefore;
+        auto slotNames = vm->getGlobalSlotNames();
+        for (const auto& name : slotNames) {
+            Int32 slot = vm->getGlobalSlot(name.c_str());
+            if (slot >= 0) {
+                Value* vPtr = vm->getGlobalBySlot(static_cast<UInt16>(slot));
+                if (vPtr) {
+                    globalValuesBefore[name] = *vPtr;
+                }
+            }
+        }
+
+        // 3. 执行被导入模块的顶层代码（执行全局变量赋值、模块初始化）
+        {
+            std::vector<Value> emptyArgs;
+            Value moduleFuncVal = makeFunctionVal(moduleFunc);
+            vm->callFunction(moduleFuncVal, emptyArgs);
+        }
+
+        // 4. 把模块顶层代码设置的全局变量也注册到模块 table 中
+        //    通过比较执行前后的值变化来检测（值不同的就是模块设置的变量）
+        slotNames = vm->getGlobalSlotNames();
+        for (const auto& name : slotNames) {
+            Int32 slot = vm->getGlobalSlot(name.c_str());
+            if (slot < 0) continue;
+            Value* vPtr = vm->getGlobalBySlot(static_cast<UInt16>(slot));
+            if (!vPtr) continue;
+
+            Value currentVal = *vPtr;
+            auto it = globalValuesBefore.find(name);
+            bool valueChanged = false;
+            if (it == globalValuesBefore.end()) {
+                // 新名称（理论上不会发生，因为 codegen 已注册所有名称）
+                valueChanged = !currentVal.isNil();
+            } else {
+                // 值发生了变化（不是同一个值）
+                valueChanged = !it->second.equals(currentVal);
+            }
+
+            if (valueChanged) {
+                // 检查是否已经作为函数注册（避免重复）
+                VMString* keyStr = VMString::create(name.c_str(),
+                                                     static_cast<UInt32>(name.length()));
+                Value existing = moduleTable->get(makeStringVal(keyStr));
+                if (existing.isNil()) {
+                    moduleTable->set(makeStringVal(keyStr), currentVal);
+                }
+            }
+        }
+
+        // 5. 以模块名把模块对象注册到全局
+        // 提取纯模块名（不含路径），如 "utils/math" → "math"（但这里优先用完整模块名）
+        std::string moduleKey = moduleName;
+        size_t slashPos = moduleName.find_last_of("/\\");
+        if (slashPos != std::string::npos) {
+            // 如果有路径，使用最后一段作为模块变量名
+            // 同时用全名注册，方便 import "path/module" 后 path.module.xxx()
+            std::string shortName = moduleName.substr(slashPos + 1);
+            Value tableVal = makeTableVal(moduleTable);
+            vm->registerGlobal(shortName.c_str(), tableVal);
+        }
+        // 无论如何都用原始模块名注册
+        {
+            Value tableVal = makeTableVal(moduleTable);
+            vm->registerGlobal(moduleName.c_str(), tableVal);
         }
         
         // JIT 预热：解析模块源码并编译所有函数
@@ -388,7 +373,8 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
         }
         
         // 标记导入成功（OP_IMPORT handler 不再执行模块字节码）
-        vm->setLastImportedFunc(nullptr);
+        vm->setLastImportedFunc(moduleFunc);
+        loadingStack.pop_back();  // 出栈
         return true;
     };
     
@@ -454,7 +440,7 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
     if (debugServer) { debugServer->stop(); delete debugServer; }
     if (debugger) delete debugger;
 
-    VERBOSE(std::cout << "\n执行完成，总指令数: " << vm->totalInstructions() << "\n");
+    std::cout << "\n执行完成，总指令数: " << vm->totalInstructions() << "\n";
     
     // 如果有热点检测，输出统计（仅 verbose 模式）
     if (useHotspot && cplang::verboseEnabled()) {
@@ -464,18 +450,14 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
     return true;
 }
 
+
+
 int main(int argc, char* argv[]) {
-    cplang::platform::console_set_utf8();
-    // ── SFX 检测：无参数时检查自身是否包含嵌入的 CP 源码 ──
-    if (argc <= 1) {
-        std::string embedded = checkEmbeddedSource();
-        if (!embedded.empty()) {
-            std::cout << "[SFX] 检测到嵌入源码 (" << embedded.size() << " 字节)\n\n";
-            // 将自身 exe 路径作为文件路径传递，用于模块导入解析
-            std::string exePath = getOwnExePath();
-            const char* path = exePath.empty() ? "embedded.cp" : exePath.c_str();
-            return runFullCompile(String(embedded), path, false, false, 100, OptLevel::O2, true, 0) ? 0 : 1;
-        }
+#ifdef _WIN32
+    // 设置控制台输出为 UTF-8，否则中文乱码
+    { HINSTANCE hK32 = LoadLibraryA("kernel32.dll"); if (hK32) { typedef BOOL (WINAPI *SetCP)(UINT); SetCP scp = (SetCP)GetProcAddress(hK32, "SetConsoleOutputCP"); if (scp) scp(65001); FreeLibrary(hK32); } }
+#endif
+    if (argc < 2) {
         printUsage(argv[0]);
         return 1;
     }
@@ -497,8 +479,7 @@ int main(int argc, char* argv[]) {
     if (argc < 3 && (mode == "-l" || mode == "--lex" || 
                      mode == "-p" || mode == "--parse" || 
                      mode == "-c" || mode == "--compile" ||
-                     mode == "-j" || mode == "--jit" ||
-                     mode == "-a" || mode == "--aot")) {
+                     mode == "-j" || mode == "--jit")) {
         std::cerr << "错误: 缺少输入文件\n";
         printUsage(argv[0]);
         return 1;
@@ -513,28 +494,6 @@ int main(int argc, char* argv[]) {
     const char* outputFile = nullptr;
     int  debugPort = 0;  // 0 = 禁用调试服务器
     
-    // 检查主模式
-    // ── 打包模式（SFX 自解压：嵌入 CP 源码到 exe 末尾）──
-    if (mode == "-k" || mode == "--pack") {
-        const char* pf = nullptr;
-        const char* po = nullptr;
-        for (int i = 2; i < argc; i++) {
-            if (strcmp(argv[i], "-o")==0 && i+1<argc) po = argv[++i];
-            else if (!pf) pf = argv[i];
-        }
-        if (!pf) { std::cerr << "错误: --pack 需要指定源文件\n"; return 1; }
-        if (!po) {
-            static std::string defout;
-            defout = std::string(pf);
-            size_t dot = defout.rfind('.');
-            if (dot != std::string::npos) defout = defout.substr(0, dot);
-            defout += ".exe";
-            po = defout.c_str();
-        }
-        if (packSource(pf, po)) return 0;
-        return 1;
-    }
-
     // 扫描参数（从第2个开始，跳过模式）
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--hotspot") == 0) {
@@ -578,19 +537,6 @@ int main(int argc, char* argv[]) {
         success = runFullCompile(source, filename, false, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt, debugPort);
     } else if (mode == "-j" || mode == "--jit") {
         success = runFullCompile(source, filename, true, useHotspot, hotspotThreshold, optLevel, useBytecodeOpt, debugPort);
-    } else if (mode == "-a" || mode == "--aot") {
-        AOTConfig aotCfg;
-        aotCfg.optLevel = optLevel;
-        if (outputFile) aotCfg.outputFile = outputFile;
-        AOTCompiler aot;
-        AOTResult res = aot.compileFile(filename, aotCfg);
-        if (res.success) {
-            VERBOSE(std::cout << "AOT 编译成功: " << res.outputFile << " (" << res.codeSize << " 字节 IR)" << std::endl);
-            success = true;
-        } else {
-            std::cerr << "AOT 编译失败: " << res.errorMessage << std::endl;
-            success = false;
-        }
     } else {
         std::cerr << "错误: 未知选项 '" << mode << "'\n";
         printUsage(argv[0]);

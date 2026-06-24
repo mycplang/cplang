@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(cplang
-    VERSION 1.0.0
+    VERSION 0.5.0
     DESCRIPTION "CP语言 — 中文编程语言编译器与虚拟机"
     LANGUAGES C CXX
 )
@@ -180,6 +180,7 @@ add_library(cplang_vm STATIC
     src/vm/vm_objects.cpp
     src/vm/vm_exec.cpp
     src/vm/value.cpp
+    src/vm/vm_loadmodule.cpp
 )
 
 # vm_opt.cpp 使用 computed goto（GNU 扩展），MSVC 不支持
@@ -207,14 +208,13 @@ endif()
 # ============================================================================
 add_library(cplang_codegen STATIC
     src/codegen/codegen.cpp
-    src/codegen/codegen_opt.cpp
     src/codegen/codegen_stmt.cpp
     src/codegen/codegen_match.cpp
     src/codegen/codegen_expr.cpp
     src/codegen/bytecode_optimizer.cpp
 )
 
-# AOT 编译器 + LLVM IR 生成器
+# LLVM IR 生成器（用于 JIT）
 if(CPLANG_USE_LLVM AND LLVM_FOUND)
     target_sources(cplang_codegen PRIVATE
         src/codegen/llvm_codegen.cpp
@@ -254,46 +254,43 @@ target_link_libraries(cplang_optimizer PUBLIC
 set_target_warnings(cplang_optimizer)
 
 # ============================================================================
-# 10. cplang_jit — JIT 编译（依赖 LLVM）
+# 10. cplang_jit — JIT 编译（依赖 LLVM，仅 LLVM 可用时才构建）
 # ============================================================================
-add_library(cplang_jit STATIC
-    src/jit/jit_compiler.cpp
-    src/jit/jit_runtime.cpp
-    src/jit/orc_jit.cpp
-    src/jit/jit_dispatch.cpp
-    src/jit/jit_dispatch.cpp
-    src/jit/hybrid_jit.cpp
-)
-target_include_directories(cplang_jit PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-target_link_libraries(cplang_jit PUBLIC
-    cplang_vm
-    cplang_codegen
-)
 if(CPLANG_USE_LLVM AND LLVM_FOUND)
+    add_library(cplang_jit STATIC
+        src/jit/jit_compiler.cpp
+        src/jit/jit_runtime.cpp
+        src/jit/orc_jit.cpp
+        src/jit/jit_dispatch.cpp
+        src/jit/hybrid_jit.cpp
+    )
+    target_include_directories(cplang_jit PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cplang_jit PUBLIC
+        cplang_vm
+        cplang_codegen
+    )
     target_include_directories(cplang_jit SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
     target_compile_definitions(cplang_jit PUBLIC CPLANG_HAS_LLVM=1)
+    set_target_warnings(cplang_jit)
+else()
+    # LLVM 不可用时使用 stub 提供所需符号
+    add_library(cplang_jit STATIC
+        src/jit/jit_dispatch.cpp
+        src/jit/hybrid_jit_stub.cpp
+    )
+    target_include_directories(cplang_jit PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cplang_jit PUBLIC
+        cplang_vm
+        cplang_codegen
+    )
+    set_target_warnings(cplang_jit)
 endif()
-set_target_warnings(cplang_jit)
 
-# ============================================================================
-# 10b. cplang_aot — AOT 编译器（LLVM IR → .obj → link → .exe）
-# ============================================================================
-add_library(cplang_aot STATIC
-    src/codegen/aot_compiler.cpp
-    src/aot/aot_vm_bridge.cpp
-)
-target_include_directories(cplang_aot PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-target_link_libraries(cplang_aot PUBLIC cplang_codegen cplang_vm cplang_stdlib)
-if(CPLANG_USE_LLVM AND LLVM_FOUND)
-    target_include_directories(cplang_aot SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
-    target_compile_definitions(cplang_aot PUBLIC CPLANG_HAS_LLVM=1)
-endif()
-target_compile_definitions(cplang_aot PRIVATE CPLANG_AOT_NO_RAYLIB=1)
-set_target_warnings(cplang_aot)
+
 
 # ============================================================================
 # 11. cplang_module — 模块系统
@@ -321,6 +318,11 @@ add_library(cplang_stdlib STATIC
     src/stdlib/stdlib_algo_bitwise.cpp
     src/stdlib/stdlib_algo_ext.cpp
     src/stdlib/stdlib_algo_missing.cpp
+    src/stdlib/stdlib_p5_algo.cpp
+    src/stdlib/stdlib_p11_algo.cpp
+    src/stdlib/stdlib_p11_graph.cpp
+    src/stdlib/stdlib_p11_ds.cpp
+    src/stdlib/stdlib_p11_utils.cpp
     src/stdlib/stdlib_array.cpp
     src/stdlib/stdlib_array_file_more.cpp
     src/stdlib/stdlib_bitset.cpp
@@ -343,6 +345,7 @@ add_library(cplang_stdlib STATIC
     src/stdlib/stdlib_matrix_color_path_console.cpp
     src/stdlib/stdlib_misc_modules.cpp
     src/stdlib/stdlib_net_ws_sql.cpp
+    src/stdlib/stdlib_tcp.cpp
     src/stdlib/stdlib_numeric_limits.cpp
     src/stdlib/stdlib_p1_enhance.cpp
     src/stdlib/stdlib_p2_more.cpp
@@ -361,29 +364,52 @@ add_library(cplang_stdlib STATIC
     src/stdlib/stdlib_variant_utils.cpp
     src/stdlib/stdlib_more_utils_extra.cpp
     src/stdlib/stdlib_iopoll.cpp
-    src/miniz.c
-    src/miniz_tdef.c
-    src/miniz_tinfl.c
+    src/stdlib/stdlib_image.cpp
+    src/stdlib/stdlib_compress.cpp
+    src/stdlib/stdlib_argparse.cpp
+    src/stdlib/stdlib_config.cpp
+    src/stdlib/stdlib_httpserver.cpp
+    src/stdlib/stdlib_audio.cpp
+    src/stdlib/stdlib_markdown.cpp
+    src/stdlib/stdlib_pdf.cpp
+    src/stdlib/stdlib_kvdb.cpp
+    src/stdlib/stdlib_testing.cpp
+    src/stdlib/stdlib_logging.cpp
+    src/stdlib/stdlib_lang.cpp
     src/crypto/md5_impl.cpp
-    src/sqlite/sqlite3.c
+    third_party/miniz/miniz.c
+    third_party/miniz/miniz_tdef.c
+    third_party/miniz/miniz_tinfl.c
+    third_party/miniz/miniz_zip.c
+    third_party/sqlite/sqlite3.c
     third_party/imgui/imgui.cpp
     third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp
     third_party/imgui/imgui_widgets.cpp
     third_party/imgui/imgui_demo.cpp
     third_party/imgui/rlImGui.cpp
+    # Raylib 核心源码（直接编译，避免 OBJECT 库在 NMake 下被跳过）
+    third_party/raylib/src/rcore.c
+    third_party/raylib/src/rshapes.c
+    third_party/raylib/src/rtextures.c
+    third_party/raylib/src/rtext.c
+    third_party/raylib/src/rmodels.c
+    third_party/raylib/src/raudio.c
+    third_party/raylib/src/rglfw.c
 )
 # Windows 专用模块
 if(WIN32)
     target_sources(cplang_stdlib PRIVATE
         src/stdlib/stdlib_db.cpp
         src/stdlib/stdlib_redis.cpp
+        src/stdlib/stdlib_mongo.cpp
         src/stdlib/stdlib_r10_r11.cpp
         src/stdlib/stdlib_http.cpp
         src/stdlib/stdlib_p3_util.cpp
     )
 endif()
 target_include_directories(cplang_stdlib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/external/glfw/include
@@ -396,7 +422,7 @@ target_link_libraries(cplang_stdlib PUBLIC cplang_vm cplang_platform)
 set_target_warnings(cplang_stdlib)
 
 # ============================================================================
-# 12b. cplang_stdlib_core — 核心标准库（AOT 最小运行时，不含图形/数据库等重模块）
+# 12b. cplang_stdlib_core — 核心标准库（轻量运行时，不含图形/数据库等重模块）
 # ============================================================================
 add_library(cplang_stdlib_core STATIC
     src/stdlib/stdlib_core.cpp
@@ -432,6 +458,39 @@ target_link_libraries(cplang_exception PUBLIC cplang_vm)
 set_target_warnings(cplang_exception)
 
 # ============================================================================
+# 14b. cplang_game_engine — 游戏引擎标准库 (v0.4.0，开箱即用)
+# ============================================================================
+add_library(cplang_game_engine OBJECT
+    # 核心引擎实现
+    src/game/game_config.cpp
+    # game_office.cpp -- xlsx needs amalgamated miniz
+    # 标准库注册层 (8个模块)
+    src/stdlib/stdlib_game_net.cpp
+    src/stdlib/stdlib_game_battle.cpp
+    src/stdlib/stdlib_game_map.cpp
+    src/stdlib/stdlib_game_item.cpp
+    src/stdlib/stdlib_game_role.cpp
+    src/stdlib/stdlib_game_sprite.cpp
+    src/stdlib/stdlib_game_db.cpp
+    src/stdlib/stdlib_game_config.cpp
+    src/stdlib/stdlib_web.cpp
+)
+target_include_directories(cplang_game_engine PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniz
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/external/glfw/include
+)
+target_link_libraries(cplang_game_engine INTERFACE
+    cplang_vm
+    cplang_platform
+    cplang_common
+    cplang_core
+    cplang_stdlib
+)
+set_target_warnings(cplang_game_engine)
+
+# ============================================================================
 # 共享库路径配置
 # ============================================================================
 # Raylib 库路径（分平台）
@@ -458,6 +517,34 @@ else()
 endif()
 
 # ============================================================================
+# 14c. Raylib 编译选项 — raylib 源码已移入 cplang_stdlib，此处配置编译抑制
+# ============================================================================
+# raylib C 源码需要特定的编译定义和警告抑制
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rcore.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rshapes.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rtextures.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rtext.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rmodels.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/raudio.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rglfw.c
+    PROPERTIES
+        COMPILE_DEFINITIONS "PLATFORM_DESKTOP;GRAPHICS_API_OPENGL_33;_DEFAULT_SOURCE;_GNU_SOURCE"
+)
+if(MSVC)
+    set_source_files_properties(
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rcore.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rshapes.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rtextures.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rtext.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rmodels.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/raudio.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/raylib/src/rglfw.c
+        PROPERTIES COMPILE_OPTIONS "/W0;/wd4201;/wd4100;/wd4189;/wd4244;/wd4267;/wd4456;/wd4457;/wd4458;/wd4459"
+    )
+endif()
+
+# ============================================================================
 # 15. cplang_cli — 命令行入口（可执行文件，main.cpp）
 # ============================================================================
 add_executable(cplang_cli
@@ -479,77 +566,22 @@ target_link_libraries(cplang_cli PRIVATE
     cplang_module
     cplang_optimizer
     cplang_jit
-    cplang_aot
-    cplang_debug
-    cplang_exception
-    ${LLVM_LIB_FILES}
-    ${RAYLIB_LIB}
-    ${SYSTEM_LIBS}
+     cplang_debug
+     cplang_exception
+     $<TARGET_OBJECTS:cplang_game_engine>
+     ${LLVM_LIB_FILES}
+     ${SYSTEM_LIBS}
 )
+# /OPT:NOREF keeps ALL code including raylib+game_engine (function-pointer registration needs this)
+# raylib 已移入 cplang_stdlib，不再需要单独 OBJECT 库
+if(MSVC)
+    target_link_options(cplang_cli PRIVATE "/OPT:NOREF")
+endif()
 set_target_warnings(cplang_cli)
 set_target_properties(cplang_cli PROPERTIES
     OUTPUT_NAME cplang
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-if(WIN32)
-    set_target_properties(cplang_cli PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
-endif()
-
-# ═══════════════════════════════════════════════════════════════════
-# AOT 运行时支持文件（由 cplang_cli 构建后自动生成）
-# ═══════════════════════════════════════════════════════════════════
-if(CPLANG_USE_LLVM AND LLVM_FOUND AND WIN32)
-    # aot_vm_bridge.obj — AOT 运行时桥接（无 raylib，纯数学/IO 模式）
-    set(AOT_BRIDGE_OBJ "${CMAKE_BINARY_DIR}/bin/aot_vm_bridge.obj")
-    add_custom_command(OUTPUT ${AOT_BRIDGE_OBJ}
-        COMMAND cl /c /EHsc /std:c++17 /O2 /nologo /utf-8 /MD
-                /I"${CMAKE_SOURCE_DIR}/include"
-                /DCPLANG_AOT_NO_RAYLIB=1
-                /Fo"${AOT_BRIDGE_OBJ}"
-                "${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp"
-        DEPENDS ${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp
-                ${CMAKE_SOURCE_DIR}/include/aot/aot_vm_bridge.hpp
-        COMMENT "Building aot_vm_bridge.obj for AOT linker (no raylib)"
-    )
-    
-    # aot_vm_bridge_gfx.obj — AOT 运行时桥接（带 raylib 图形支持）
-    set(AOT_BRIDGE_GFX_OBJ "${CMAKE_BINARY_DIR}/bin/aot_vm_bridge_gfx.obj")
-    add_custom_command(OUTPUT ${AOT_BRIDGE_GFX_OBJ}
-        COMMAND cl /c /EHsc /std:c++17 /O2 /nologo /utf-8 /MD
-                /I"${CMAKE_SOURCE_DIR}/include"
-                /I"${CMAKE_SOURCE_DIR}/third_party/raylib/src"
-                /I"${CMAKE_SOURCE_DIR}/third_party/raylib/src/external/glfw/include"
-                /DGRAPHICS_API_OPENGL_21 /DPLATFORM_DESKTOP
-                /Fo"${AOT_BRIDGE_GFX_OBJ}"
-                "${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp"
-        DEPENDS ${CMAKE_SOURCE_DIR}/src/aot/aot_vm_bridge.cpp
-                ${CMAKE_SOURCE_DIR}/include/aot/aot_vm_bridge.hpp
-        COMMENT "Building aot_vm_bridge_gfx.obj for AOT linker (with raylib)"
-    )
-    
-    # jit_runtime_standalone.obj → jit_runtime.lib — AOT 独立运行时
-    set(JIT_RT_OBJ "${CMAKE_BINARY_DIR}/bin/jit_runtime_standalone.obj")
-    set(JIT_RT_LIB "${CMAKE_BINARY_DIR}/bin/jit_runtime.lib")
-    add_custom_command(OUTPUT ${JIT_RT_OBJ}
-        COMMAND cl /c /EHsc /std:c++17 /O2 /nologo /utf-8 /MD
-                /I"${CMAKE_SOURCE_DIR}/include"
-                /Fo"${JIT_RT_OBJ}"
-                "${CMAKE_SOURCE_DIR}/src/jit/jit_runtime_standalone.cpp"
-        DEPENDS ${CMAKE_SOURCE_DIR}/src/jit/jit_runtime_standalone.cpp
-        COMMENT "Building jit_runtime_standalone.obj for AOT linker"
-    )
-    add_custom_command(OUTPUT ${JIT_RT_LIB}
-        COMMAND lib /OUT:"${JIT_RT_LIB}" "${JIT_RT_OBJ}"
-        DEPENDS ${JIT_RT_OBJ}
-        COMMENT "Building jit_runtime.lib for AOT linker"
-    )
-    
-    # cplang_aot_utils — 组合目标，生成 AOT 需要的所有支持文件
-    add_custom_target(cplang_aot_utils ALL
-        DEPENDS ${AOT_BRIDGE_OBJ} ${JIT_RT_LIB}
-        COMMENT "AOT support files: aot_vm_bridge.obj + jit_runtime.lib"
-    )
-endif()
 
 # ============================================================================
 # 15b. cplang_cpkg — 包管理器（独立 exe）
@@ -568,9 +600,7 @@ set_target_properties(cplang_cpkg PROPERTIES
     OUTPUT_NAME cpkg
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-if(WIN32)
-    set_target_properties(cplang_cpkg PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
-endif()
+# cpkg 只链接 SYSTEM_LIBS，无重复符号，/FORCE:MULTIPLE 不需要
 
 # ============================================================================
 # 15c. cplang_repl — 交互式 REPL（repl.cpp，独立入口）
@@ -594,18 +624,22 @@ target_link_libraries(cplang_repl PRIVATE
     cplang_jit
     cplang_debug
     cplang_exception
-    ${LLVM_LIB_FILES}
-    ${RAYLIB_LIB}
-    ${SYSTEM_LIBS}
+     $<TARGET_OBJECTS:cplang_game_engine>
+     ${LLVM_LIB_FILES}
+     ${SYSTEM_LIBS}
 )
+# /OPT:NOREF keeps ALL code in OBJECT files (raylib+game_engine need this for function-pointer registration)
+# raylib 已移入 cplang_stdlib，不再需要单独 OBJECT 库
+if(MSVC)
+    target_link_options(cplang_repl PRIVATE "/OPT:NOREF")
+endif()
 set_target_warnings(cplang_repl)
+target_compile_definitions(cplang_repl PRIVATE CPLANG_REPL_STANDALONE)
 set_target_properties(cplang_repl PROPERTIES
     OUTPUT_NAME cplang_repl
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-if(WIN32)
-    set_target_properties(cplang_repl PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
-endif()
+# P0修复: repl.cpp standalone main 已条件编译保护，移除 /FORCE:MULTIPLE
 
 # ============================================================================
 # 16. cplang_android — Android NativeActivity 共享库（仅 Android）
@@ -711,16 +745,232 @@ if (CPLANG_BUILD_TESTS)
     # 注册测试（CTest 直接运行可执行文件）
     add_test(NAME cplang_unit_tests COMMAND cplang_tests)
 
-    # 添加 CP 语言集成测试（直接运行 cplang.exe 执行 .cp 测试文件）
-    add_test(NAME test_stdlib_new
-        COMMAND cplang_cli -c "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_new_stdlib.cp"
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>
-    )
+    # ================================================================
+    #  CP 语言集成测试 — 自动注册 tests/ 目录下的核心 .cp 测试
+    # ================================================================
+    set(CP_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    set(CP_TEST_WORKDIR "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 
-    message(STATUS "测试构建已启用 (Google Test 已集成)")
+    # 核心语言特性测试
+    set(CP_CORE_TESTS
+        test_stdlib_new      test_all           test_bool
+        test_cfg             test_cfg2          test_cfg3
+        test_debug           test_debug2        test_final
+        test_full_flow       test_game          test_hello
+        test_int             test_integrated    test_items
+        test_lang            test_load          test_map
+        test_map_arr         test_map2          test_map3
+        test_map4            test_map5          test_minimal
+        test_rect            test_role          test_simple
+        test_summary         test_table         test_v3_quick
+        test_v4              test_v4_step       test_xproc
+        test_alias           test_client        test_csv
+        test_db              test_loopback
+    )
+    foreach(T ${CP_CORE_TESTS})
+        add_test(NAME ${T}
+            COMMAND cplang_cli -c "${CP_TEST_DIR}/${T}.cp"
+            WORKING_DIRECTORY ${CP_TEST_WORKDIR}
+        )
+    endforeach()
+
+    # 泛型测试
+    set(CP_GENERIC_TESTS
+        generic_test         generic_test2      generic_struct
+        generic_struct_simple generic_pair       generic_constraint_test
+        generic_constraint_test2 generic_constraint_comprehensive
+        generic_nested_test   generic_struct_comprehensive
+    )
+    foreach(T ${CP_GENERIC_TESTS})
+        add_test(NAME ${T}
+            COMMAND cplang_cli -c "${CP_TEST_DIR}/${T}.cp"
+            WORKING_DIRECTORY ${CP_TEST_WORKDIR}
+        )
+    endforeach()
+
+    # JIT 测试（LLVM 可用时）
+    if(CPLANG_USE_LLVM AND LLVM_FOUND)
+        set(CP_JIT_TESTS
+            jit_minimal    jit_pure_test    jit_pure_fib
+            jit_bench      jit_step2        jit_while
+            jit_simple_while jit_prime_test jit_fib_print
+        )
+        foreach(T ${CP_JIT_TESTS})
+            add_test(NAME ${T}
+                COMMAND cplang_cli -c "${CP_TEST_DIR}/${T}.cp"
+                WORKING_DIRECTORY ${CP_TEST_WORKDIR}
+            )
+        endforeach()
+    endif()
+
+    # 扩展：更多语言/标准库测试（避免与 CP_CORE_TESTS/CP_GENERIC_TESTS 重复）
+    set(CP_EXTRA_TESTS
+        test_step1 test_step2 test_step3 test_step4 test_step5 test_step6
+        test_ret_no_print test_print_inside test_println
+        test_tostr test_v5_util test_transform_ret
+        test_tail_rec test_switch test_loop_unroll test_inline
+        test_func_basic test_func_check
+        test_full test_generic2 test_generic_struct
+        test_nested test_nested_struct test_nested_struct_cn
+        test_for_each_main test_for_each_fn5 test_for_each_simple
+        test_for_each_only test_for_each_sep
+        test_jit test_jit_fib test_jit_loop test_jit_simple test_jit_mini
+        test_jit_hotspot test_jit_fib20
+        test_simple_fn test_simple_call test_simple_ret
+        test_for_simple test_for_nested test_for_both
+        test_num test_numstr
+        test_inc test_inc_dec
+        test_ternary test_match_def test_match_int test_match_tok
+        test_global_var test_global_var2
+        test_simple_import
+        test_stdlib test_stdlib_cn test_stdlib_ext
+        test_new_features test_new_util
+        test_no_import test_no_native
+        test_array test_array_index
+        test_forEach_simple
+        test_fn_return test_fn_call_arr test_fn_with_arr
+        test_struct test_struct_access test_struct_access_cn
+        test_struct_array test_struct_array_cn
+        test_struct_cn test_struct_simple test_struct_simple2
+        test_struct_infer test_struct_lit_simple test_struct_literal
+        test_struct_literal_cn test_simple_generic_struct
+        two_field_struct access_field circular_a circular_b
+        test_bilingual test_bilingual_symbols
+        test_md5_check test_aes test_crypto
+        test_dns_min test_dns_min2 test_http test_websocket
+        test_channel test_channel2 test_threading
+        test_matrix test_json test_json_proc_env
+        test_repl_ops test_src
+        test_render_t test_render_full
+        test_raylib test_raylib_basics test_raylib_debug
+        test_raylib_english test_raylib_minimal
+        test_raylib_probe test_raylib_single
+        test_rl_bare_loop test_rl_loop_min
+        test_rl_min test_llvm test_optimizer
+        test_shapeonly test_color_text
+        test_min_font test_text_diag
+        test_fib test_fib20 test_perf
+        test_p0p1 test_p2 test_p2_more test_p3
+        test_basic test_basic_cn
+        test_enum test_enum2 test_enum3 test_enum_basic test_enum_only
+        test_class test_class2
+        test_break test_break_only test_break_fixed
+        test_continue_mod test_continue_simple test_continue_if
+        test_div test_ft test_while_int
+        test_while_bare test_defer test_dynamic_type
+        test_exception test_escape test_fe
+        test_ftest test_chinese test_let test_neg
+        test_dbg test_qt
+        test_bench_fib test_bench_fib38
+        test_bench_primes test_gtest
+        test_sqlite test_sqlite_advanced
+    )
+    foreach(T ${CP_EXTRA_TESTS})
+        if(EXISTS "${CP_TEST_DIR}/${T}.cp")
+            add_test(NAME ${T}
+                COMMAND cplang_cli -c "${CP_TEST_DIR}/${T}.cp"
+                WORKING_DIRECTORY ${CP_TEST_WORKDIR}
+            )
+        endif()
+    endforeach()
+
+    # Python 端到端测试（需要 Python 3）
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(NAME py_test_cases
+            COMMAND ${Python3_EXECUTABLE} "${CP_TEST_DIR}/test_cases.py"
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+        add_test(NAME py_test_features
+            COMMAND ${Python3_EXECUTABLE} "${CP_TEST_DIR}/test_features.py"
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+        message(STATUS "Python 测试已启用 (${Python3_EXECUTABLE}): py_test_cases, py_test_features")
+    else()
+        message(STATUS "未找到 Python3，跳过 Python 端到端测试")
+    endif()
+
+    message(STATUS "测试构建已启用 (C++单元测试 + CP集成测试 + Python端到端测试)")
 endif()
 
 # ============================================================================
+# PGO (Profile-Guided Optimization) — 支持 MSVC/GCC/Clang 三种工具链
+# ============================================================================
+if(CPLANG_USE_LLVM AND LLVM_FOUND)
+    if(MSVC)
+        # MSVC: /GENPROFILE + /USEPROFILE
+        add_executable(cplang_pgo_train EXCLUDE_FROM_ALL
+            src/main.cpp src/repl.cpp
+        )
+        target_compile_options(cplang_pgo_train PRIVATE /GL- /O2)
+        target_link_options(cplang_pgo_train PRIVATE /GENPROFILE)
+        target_link_libraries(cplang_pgo_train PRIVATE
+            cplang_core cplang_lexer cplang_parser cplang_semantic
+            cplang_vm cplang_codegen cplang_stdlib cplang_platform
+            cplang_llvm_codegen cplang_jit cplang_optimizer
+            cplang_module cplang_exception $<TARGET_OBJECTS:cplang_game_engine>
+            ${LLVM_LIB_FILES} ${SYSTEM_LIBS}
+        )
+
+        add_custom_target(cplang_pgo_merge
+            COMMAND ${CMAKE_COMMAND} -E echo "Merging PGO profiles..."
+            COMMAND "${LLVM_TOOLS_BINARY_DIR}/llvm-profdata" merge -o
+                    "${CMAKE_BINARY_DIR}/cplang.profdata"
+                    "${CMAKE_BINARY_DIR}/*.profraw"
+            COMMENT "PGO: merge .profraw -> cplang.profdata"
+        )
+
+        add_executable(cplang_pgo_optimized EXCLUDE_FROM_ALL
+            src/main.cpp src/repl.cpp
+        )
+        target_compile_options(cplang_pgo_optimized PRIVATE /GL /O2)
+        target_link_options(cplang_pgo_optimized PRIVATE /LTCG
+            "/USEPROFILE:${CMAKE_BINARY_DIR}/cplang.profdata")
+        target_link_libraries(cplang_pgo_optimized PRIVATE
+            cplang_core cplang_lexer cplang_parser cplang_semantic
+            cplang_vm cplang_codegen cplang_stdlib cplang_platform
+            cplang_llvm_codegen cplang_jit cplang_optimizer
+            cplang_module cplang_exception $<TARGET_OBJECTS:cplang_game_engine>
+            ${LLVM_LIB_FILES} ${SYSTEM_LIBS}
+        )
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        # GCC/Clang: -fprofile-generate + -fprofile-use
+        add_executable(cplang_pgo_train EXCLUDE_FROM_ALL
+            src/main.cpp src/repl.cpp
+        )
+        target_compile_options(cplang_pgo_train PRIVATE -O2 -fprofile-generate="${CMAKE_BINARY_DIR}/pgo_data")
+        target_link_options(cplang_pgo_train PRIVATE -fprofile-generate="${CMAKE_BINARY_DIR}/pgo_data")
+        target_link_libraries(cplang_pgo_train PRIVATE
+            cplang_core cplang_lexer cplang_parser cplang_semantic
+            cplang_vm cplang_codegen cplang_stdlib cplang_platform
+            cplang_llvm_codegen cplang_jit cplang_optimizer
+            cplang_module cplang_exception $<TARGET_OBJECTS:cplang_game_engine>
+            ${LLVM_LIB_FILES} ${SYSTEM_LIBS}
+        )
+
+        add_custom_target(cplang_pgo_merge
+            COMMAND ${CMAKE_COMMAND} -E echo "使用 GCC/Clang 自动合并 profile（-fprofile-use 时编译器自动读取）"
+            COMMENT "PGO: GCC/Clang 自动处理 profile 数据"
+        )
+
+        add_executable(cplang_pgo_optimized EXCLUDE_FROM_ALL
+            src/main.cpp src/repl.cpp
+        )
+        target_compile_options(cplang_pgo_optimized PRIVATE -O3 -fprofile-use="${CMAKE_BINARY_DIR}/pgo_data" -fprofile-correction)
+        target_link_options(cplang_pgo_optimized PRIVATE -fprofile-use="${CMAKE_BINARY_DIR}/pgo_data" -fprofile-correction)
+        target_link_libraries(cplang_pgo_optimized PRIVATE
+            cplang_core cplang_lexer cplang_parser cplang_semantic
+            cplang_vm cplang_codegen cplang_stdlib cplang_platform
+            cplang_llvm_codegen cplang_jit cplang_optimizer
+            cplang_module cplang_exception $<TARGET_OBJECTS:cplang_game_engine>
+            ${LLVM_LIB_FILES} ${SYSTEM_LIBS}
+        )
+    endif()
+
+    if(MSVC OR CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        message(STATUS "PGO 已启用: cplang_pgo_train -> cplang_pgo_merge -> cplang_pgo_optimized")
+    endif()
+endif()
 # 安装规则
 # ============================================================================
 include(GNUInstallDirs)
@@ -733,6 +983,7 @@ install(TARGETS
     cplang_lexer cplang_parser cplang_semantic cplang_vm
     cplang_codegen cplang_optimizer cplang_jit
     cplang_module cplang_stdlib cplang_debug cplang_exception
+    cplang_game_engine
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
@@ -761,81 +1012,6 @@ set_target_properties(cplang_module PROPERTIES FOLDER "cplang/04-runtime")
 set_target_properties(cplang_stdlib PROPERTIES FOLDER "cplang/04-runtime")
 set_target_properties(cplang_debug  PROPERTIES FOLDER "cplang/04-runtime")
 set_target_properties(cplang_exception PROPERTIES FOLDER "cplang/04-runtime")
+set_target_properties(cplang_game_engine PROPERTIES FOLDER "cplang/05-game")
 set_target_properties(cplang_cli    PROPERTIES FOLDER "cplang/99-cli")
 set_target_properties(cplang_repl   PROPERTIES FOLDER "cplang/99-cli")
-
-# ============================================================================
-# 模块化包（独立编译为 .lib，可通过 cpkg 分发）
-# ============================================================================
-option(CPLANG_BUILD_MODULES "构建可拆分模块包" ON)
-if(CPLANG_BUILD_MODULES)
-    # @cp/graphics — Raylib + ImGui
-    add_subdirectory(modules/graphics ${CMAKE_BINARY_DIR}/modules/graphics)
-    set_target_properties(cplang_graphics PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/graphics/win-x64"
-    )
-
-    # @cp/database — SQLite + MySQL + Redis
-    add_subdirectory(modules/database ${CMAKE_BINARY_DIR}/modules/database)
-    set_target_properties(cplang_database PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/database/win-x64"
-    )
-
-    # @cp/crypto — AES + SHA + MD5 + Base64
-    add_subdirectory(modules/crypto ${CMAKE_BINARY_DIR}/modules/crypto)
-    set_target_properties(cplang_crypto PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/crypto/win-x64"
-    )
-
-    # @cp/ffi — 外部函数接口
-    add_subdirectory(modules/ffi ${CMAKE_BINARY_DIR}/modules/ffi)
-    set_target_properties(cplang_ffi PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/ffi/win-x64"
-    )
-
-    # @cp/net — 网络（HTTP + JSON）
-    add_subdirectory(modules/network ${CMAKE_BINARY_DIR}/modules/network)
-    set_target_properties(cplang_net PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/network/win-x64"
-    )
-
-    # @cp/container — 高级容器
-    add_subdirectory(modules/container ${CMAKE_BINARY_DIR}/modules/container)
-    set_target_properties(cplang_container PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/container/win-x64"
-    )
-
-    # @cp/concurrent — 并发
-    add_subdirectory(modules/concurrent ${CMAKE_BINARY_DIR}/modules/concurrent)
-    set_target_properties(cplang_concurrent PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/concurrent/win-x64"
-    )
-
-    # @cp/string_ext — 字符串高级
-    add_subdirectory(modules/string_ext ${CMAKE_BINARY_DIR}/modules/string_ext)
-    set_target_properties(cplang_string_ext PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/string_ext/win-x64"
-    )
-
-    # @cp/charset — 字符集转换
-    add_subdirectory(modules/charset ${CMAKE_BINARY_DIR}/modules/charset)
-    set_target_properties(cplang_charset PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/charset/win-x64"
-    )
-
-    # @cp/algorithm — 算法
-    add_subdirectory(modules/algorithm ${CMAKE_BINARY_DIR}/modules/algorithm)
-    set_target_properties(cplang_algorithm PROPERTIES
-        FOLDER "modules"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/algorithm/win-x64"
-    )
-endif()
