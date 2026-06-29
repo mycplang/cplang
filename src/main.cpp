@@ -492,6 +492,25 @@ int main(int argc, char* argv[]) {
             self.seekg(total - tailSz);
             std::string tail(tailSz, 0);
             self.read(&tail[0], tailSz); self.close();
+            // CPSRC: source code bundle (self-compile at runtime)
+            const char* sm = "CPSRC\x00\x00\x00";
+            size_t sp = tail.rfind(sm);
+            if (sp != std::string::npos) {
+                const char* dp = tail.data() + sp + 8;
+                uint32_t sl = *(uint32_t*)dp; dp += 4;
+                std::string src(dp, sl);
+                Compiler comp;
+                comp.setOptLevel(OptLevel::O2);
+                comp.setEnableBytecodeOpt(true);
+                auto* fn = comp.compile(src, "<bundle>");
+                if (!fn || comp.hasError()) { std::cerr << "bundle compile err\n"; return 1; }
+                VM* v = comp.vm();
+                StdLib::registerAll(v);
+                std::vector<Value> ea;
+                v->callFunction(makeFunctionVal(fn), ea);
+                return v->hasError() ? 1 : 0;
+            }
+            // CPBC: bytecode bundle (fallback)
             const char* mag = "CPBC\x00\x00\x00\x00";
             size_t pos = tail.rfind(mag);
             if (pos != std::string::npos) {
@@ -536,36 +555,22 @@ int main(int argc, char* argv[]) {
     
     if (mode == "build" && argc >= 3) {
         const char* outFile = argc > 4 ? argv[4] : nullptr;
-        VM* vm = new VM();
-        Compiler compiler(vm);
-        StdLib::registerAll(vm);
-        compiler.setOptLevel(OptLevel::O2);
-        compiler.setEnableBytecodeOpt(true);
-        auto* modFunc = compiler.compileFile(argv[2]);
-        if (compiler.hasError()) { std::cerr << compiler.errorMessage() << "\n"; delete vm; return 1; }
+        // Embed SOURCE (not bytecode) - bypasses all slot/constant issues
+        std::ifstream ifs(argv[2]);
+        if (!ifs) { std::cerr << "Cannot open " << argv[2] << "\n"; return 1; }
+        std::string srcCode((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         char selfPath[MAX_PATH]; GetModuleFileNameA(NULL, selfPath, MAX_PATH);
         std::string out = outFile ? outFile : "a.exe";
-        std::ifstream src(selfPath, std::ios::binary);
+        std::ifstream selfBin(selfPath, std::ios::binary);
         std::ofstream dst(out, std::ios::binary);
-        dst << src.rdbuf(); src.close();
-        const char MAGIC[] = "CPBC\x00\x00\x00\x00";
+        dst << selfBin.rdbuf(); selfBin.close();
+        const char MAGIC[] = "CPSRC\x00\x00\x00";
         dst.write(MAGIC, 8);
-        uint32_t cs = (uint32_t)modFunc->code.size();
-        uint32_t ks = (uint32_t)modFunc->constants.size();
-        uint32_t el = 0;
-        dst.write((char*)&cs, 4); dst.write((char*)&ks, 4); dst.write((char*)&el, 4);
-        dst.write((char*)modFunc->code.data(), cs);
-        for (auto& v : modFunc->constants) { uint64_t raw = v.raw(); dst.write((char*)&raw, 8); }
-        uint32_t sc = (uint32_t)vm->getSlotCount();
-        dst.write((char*)&sc, 4);
-        for (auto& kv : vm->getSlotMap()) {
-            uint32_t nl = (uint32_t)kv.first.size(); dst.write((char*)&nl, 4);
-            dst.write(kv.first.data(), nl);
-            uint32_t ss = (uint32_t)kv.second; dst.write((char*)&ss, 4);
-        }
+        uint32_t sl = (uint32_t)srcCode.size();
+        dst.write((char*)&sl, 4);
+        dst.write(srcCode.data(), sl);
         dst.close();
-        std::cout << "Built: " << out << " (" << cs << "B)\n";
-        delete vm;
+        std::cout << "Built: " << out << " (" << sl << "B source)\n";
         return 0;
     }
     
