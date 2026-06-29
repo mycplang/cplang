@@ -186,7 +186,7 @@ case OP_LOADFLT: {
                 // 16-byte format: [op][a][0][0][imm0][imm1][imm2][imm3][pad8]
                 // After op fetch, pc points to a. imm32 starts at pc+3
                 Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
-                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
+                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
                     RA(a) = ctx->func->constants[bx];
                 } else {
                     RA(a) = Value::Float(0.0f);
@@ -199,7 +199,7 @@ case OP_LOADSTR: {
                 // 16-byte format: [op][a][0][0][imm0][imm1][imm2][imm3][pad8]
                 // After op fetch, pc points to a. imm32 starts at pc+3
                 Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
-                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
+                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
                     const Value& kv = ctx->func->constants[bx];
                     if (kv.isString()) {
                         RA(a) = kv;
@@ -217,7 +217,7 @@ case OP_LOADCONST: {
                 // 8-byte format: [op][a][b][c][imm0][imm1][imm2][imm3]
                 Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
 
-                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
+                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
                     const Value& v = ctx->func->constants[bx];
 
                     RA(a) = v;
@@ -815,6 +815,17 @@ case OP_GETELEM: {
                 break;
             }
 
+case OP_APPENDARRAY: {
+                Value srcArr = RB(b);
+                if (srcArr.isArray() && RA(a).isArray()) {
+                    VMArray* src = srcArr.asArray();
+                    VMArray* dst = RA(a).asArray();
+                    for (auto& elem : src->data) dst->data.push_back(elem);
+                }
+                ctx->pc += 3;
+                break;
+            }
+
 case OP_SETELEM: {
                 // SETELEM: a=元素值, b=数组, c=索引
                 Value elem = RA(a);
@@ -1020,7 +1031,7 @@ case OP_IMPORT: {
                                 // emitInt格式: [op][a][0][0][imm32(4)][padding(8)]
                                 Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
                                 if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
-                                    modStack[a] = ctx->func->constants[idx];
+                                    modStack[a] = ctx->func->constants[bx];
                                 } else {
                                     modStack[a] = Value::Float(0.0f);
                                 }
@@ -1030,7 +1041,7 @@ case OP_IMPORT: {
                             case OP_LOADCONST: {
                                 Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
                                 if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
-                                    modStack[a] = ctx->func->constants[idx];
+                                    modStack[a] = ctx->func->constants[bx];
                                 }
                                 break;
                             }
@@ -1047,15 +1058,15 @@ case OP_IMPORT: {
                                 Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
                                 if (ctx->func->hasSlots) {
                                     // Slot 模式：idx 直接是 slot 编号
-                                    if (idx >= 0) {
-                                        if (idx >= static_cast<Int32>(globalSlots_.size()))
-                                            globalSlots_.resize(idx + 1);
-                                        globalSlots_[idx] = modStack[a];
+                                    if (bx >= 0) {
+                                        if (bx >= static_cast<Int32>(globalSlots_.size()))
+                                            globalSlots_.resize(bx + 1);
+                                        globalSlots_[bx] = modStack[a];
                                     }
                                 } else {
                                     // 非slot模式：idx 是常数池索引，需通过名字查找/创建slot
-                                    if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
-                                        const Value& nameVal = ctx->func->constants[idx];
+                                    if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
+                                        const Value& nameVal = ctx->func->constants[bx];
                                         if (nameVal.isString()) {
                                             std::string name(nameVal.asString()->data, nameVal.asString()->length);
                                             Int32 slot = getOrCreateGlobalSlot(name.c_str());
@@ -1074,14 +1085,14 @@ case OP_IMPORT: {
                                 Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
                                 if (ctx->func->hasSlots) {
                                     // Slot 模式：idx 直接是 slot 编号
-                                    if (idx >= 0 && idx < static_cast<Int32>(globalSlots_.size()))
-                                        modStack[a] = globalSlots_[idx];
+                                    if (bx >= 0 && bx < static_cast<Int32>(globalSlots_.size()))
+                                        modStack[a] = globalSlots_[bx];
                                     else
                                         modStack[a] = Value::nil();
                                 } else {
                                     // 非slot模式：通过名字查找slot
-                                    if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
-                                        const Value& nameVal = ctx->func->constants[idx];
+                                    if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
+                                        const Value& nameVal = ctx->func->constants[bx];
                                         if (nameVal.isString()) {
                                             std::string name(nameVal.asString()->data, nameVal.asString()->length);
                                             auto it = globalNameToSlot_.find(name);

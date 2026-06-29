@@ -146,11 +146,22 @@ int Codegen::compileArray(Shared<ArrayExpr> expr) {
     emit(OP_NEWARRAY, arrReg, count, 0);
 
     // 填充元素: SETELEM a=值, b=数组, c=索引
+    int idxReg = allocReg();
+    emitInt(OP_LOADINT, idxReg, 0);
     for (int i = 0; i < count; i++) {
-        int elemReg = compileExpr(expr->elements[i]);
-        int idxReg = allocReg();
-        emitInt(OP_LOADINT, idxReg, i);  // 直接写入索引值
-        emit(OP_SETELEM, elemReg, arrReg, idxReg);
+        if (auto spread = std::dynamic_pointer_cast<SpreadExpr>(expr->elements[i])) {
+            int srcReg = compileExpr(spread->array);
+            emit(OP_APPENDARRAY, arrReg, srcReg, 0);
+            int lenReg = allocReg();
+            emit(OP_GETLEN, lenReg, srcReg, 0);
+            emit(OP_ADD, idxReg, idxReg, lenReg);
+        } else {
+            int elemReg = compileExpr(expr->elements[i]);
+            emit(OP_SETELEM, elemReg, arrReg, idxReg);
+            int oneReg = allocReg();
+            emitInt(OP_LOADINT, oneReg, 1);
+            emit(OP_ADD, idxReg, idxReg, oneReg);
+        }
     }
 
     return arrReg;
