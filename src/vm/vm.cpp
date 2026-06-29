@@ -117,6 +117,16 @@ Value* VM::getGlobalBySlot(UInt16 slot) {
 }
 
 void VM::refreshGlobalSlots() {
+    // Create missing slots for globals that don't have one yet
+    for (auto& [name, val] : globals_) {
+        if (globalNameToSlot_.find(name) == globalNameToSlot_.end()) {
+            UInt16 slot = nextGlobalSlot_++;
+            globalNameToSlot_[name] = slot;
+            if (slot >= globalSlots_.size()) globalSlots_.resize(slot + 1);
+            globalSlots_[slot] = val;
+        }
+    }
+    // Refresh existing slots
     for (auto& [name, slot] : globalNameToSlot_) {
         auto it = globals_.find(name);
         if (it != globals_.end() && slot < globalSlots_.size()) {

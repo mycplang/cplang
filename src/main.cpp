@@ -492,24 +492,6 @@ int main(int argc, char* argv[]) {
             self.seekg(total - tailSz);
             std::string tail(tailSz, 0);
             self.read(&tail[0], tailSz); self.close();
-            // CPSRC: source code bundle (self-compile at runtime)
-            const char* sm = "CPSRC\x00\x00\x00";
-            size_t sp = tail.rfind(sm);
-            if (sp != std::string::npos) {
-                const char* dp = tail.data() + sp + 8;
-                uint32_t sl = *(uint32_t*)dp; dp += 4;
-                std::string src(dp, sl);
-                Compiler comp;
-                comp.setOptLevel(OptLevel::O2);
-                comp.setEnableBytecodeOpt(true);
-                auto* fn = comp.compile(src, "<bundle>");
-                if (!fn || comp.hasError()) { std::cerr << "bundle compile err\n"; return 1; }
-                VM* v = comp.vm();
-                StdLib::registerAll(v);
-                std::vector<Value> ea;
-                v->callFunction(makeFunctionVal(fn), ea);
-                return v->hasError() ? 1 : 0;
-            }
             // CPBC: bytecode bundle (fallback)
             const char* mag = "CPBC\x00\x00\x00\x00";
             size_t pos = tail.rfind(mag);
@@ -524,24 +506,24 @@ int main(int argc, char* argv[]) {
                     func->code.assign(p, p + cs);
                     const uint8_t* cp = (const uint8_t*)p + cs;
                     for (uint32_t i = 0; i < ks; i++) {
-                        uint64_t raw; memcpy(&raw, cp + i*8, 8);
-                        func->constants.push_back(Value(raw));
+                        uint8_t tag = *cp; cp++;
+                        if (tag == 1) {
+                            uint32_t len = *(uint32_t*)cp; cp += 4;
+                            auto* s = VMString::create(std::string((const char*)cp, len).c_str());
+                            cp += len;
+                            func->constants.push_back(makeStringVal(s));
+                        } else {
+                            uint64_t raw; memcpy(&raw, cp, 8); cp += 8;
+                            func->constants.push_back(Value(raw));
+                        }
                     }
-                    const uint8_t* sp = cp + ks * 8;
-                    uint32_t sc = 0;
-                    if (sp + 4 <= (const uint8_t*)tail.data()+tail.size()) sc = *(uint32_t*)sp; sp += 4;
-                    for (uint32_t i = 0; i < sc; i++) {
-                        uint32_t nl = *(uint32_t*)sp; sp += 4;
-                        std::string nm((const char*)sp, nl); sp += nl;
-                        uint32_t ss = *(uint32_t*)sp; sp += 4;
-                        vm.prepareSlot(nm, (UInt16)ss);
-                    }
+                    func->maxStack = 256;
+                    // hasSlots=false: name-based LOADGLOBAL (no slot table needed)
                     StdLib::registerAll(&vm);
                     vm.refreshGlobalSlots();
-                    func->maxStack = 256;
-                    vm.loadModule(func);
                     std::vector<Value> args;
                     Value funcVal = makeFunctionVal(func);
+                    std::cerr << "[CPBC] calling..." << std::endl;
                     vm.callFunction(funcVal, args);
                     return vm.hasError() ? 1 : 0;
                 }
@@ -555,25 +537,67 @@ int main(int argc, char* argv[]) {
     
     if (mode == "build" && argc >= 3) {
         const char* outFile = argc > 4 ? argv[4] : nullptr;
-        // Embed SOURCE (not bytecode) - bypasses all slot/constant issues
-        std::ifstream ifs(argv[2]);
-        if (!ifs) { std::cerr << "Cannot open " << argv[2] << "\n"; return 1; }
-        std::string srcCode((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        // BYTECODE AOT: compile, rewrite LOADGLOBAL slot->name, serialize
+        Compiler comp;
+        comp.setOptLevel(OptLevel::O2);
+        comp.setEnableBytecodeOpt(true);
+        auto* modFunc = comp.compileFile(argv[2]);
+        if (comp.hasError()) { std::cerr << comp.errorMessage() << "\n"; return 1; }
+        VM* cvm = comp.vm();
+        // Rewrite LOADGLOBAL: slot index -> constant pool name index
+        modFunc->hasSlots = false;  // use name-based LOADGLOBAL
+        for (size_t pc = 0; pc + 3 < modFunc->code.size(); ) {
+            UInt8 op = modFunc->code[pc];
+            UInt8 a  = modFunc->code[pc+1];
+            if (op == OP_LOADGLOBAL || op == OP_STOREGLOBAL) {
+                UInt16 slot = ((UInt16)modFunc->code[pc+2] << 8) | modFunc->code[pc+3];
+                // Find name for this slot
+                std::string fname;
+                for (auto& kv : cvm->getSlotMap()) {
+                    if (kv.second == slot) { fname = kv.first; break; }
+                }
+                if (!fname.empty()) {
+                    UInt16 poolIdx = (UInt16)modFunc->constants.size();
+                    modFunc->constants.push_back(makeStringVal(VMString::create(fname.c_str())));
+                    // Replace slot index with pool index (big-endian)
+                    modFunc->code[pc+2] = (UInt8)(poolIdx >> 8);
+                    modFunc->code[pc+3] = (UInt8)(poolIdx & 0xFF);
+                }
+            }
+            pc += 4;
+        }
+        // Serialize
         char selfPath[MAX_PATH]; GetModuleFileNameA(NULL, selfPath, MAX_PATH);
         std::string out = outFile ? outFile : "a.exe";
-        std::ifstream selfBin(selfPath, std::ios::binary);
+        std::ifstream src(selfPath, std::ios::binary);
         std::ofstream dst(out, std::ios::binary);
-        dst << selfBin.rdbuf(); selfBin.close();
-        const char MAGIC[] = "CPSRC\x00\x00\x00";
+        dst << src.rdbuf(); src.close();
+        const char MAGIC[] = "CPBC\x00\x00\x00\x00";
         dst.write(MAGIC, 8);
-        uint32_t sl = (uint32_t)srcCode.size();
-        dst.write((char*)&sl, 4);
-        dst.write(srcCode.data(), sl);
+        uint32_t cs = (uint32_t)modFunc->code.size();
+        uint32_t ks = (uint32_t)modFunc->constants.size();
+        uint32_t el = 0;
+        dst.write((char*)&cs, 4); dst.write((char*)&ks, 4); dst.write((char*)&el, 4);
+        dst.write((char*)modFunc->code.data(), cs);
+        // Serialize constants: tag=1 for string (len+data), tag=0 for raw Value
+        for (auto& v : modFunc->constants) {
+            if (v.isString()) {
+                uint8_t tag = 1; dst.write((char*)&tag, 1);
+                auto* s = v.asString();
+                uint32_t len = (uint32_t)s->length;
+                dst.write((char*)&len, 4);
+                dst.write(s->data, len);
+            } else {
+                uint8_t tag = 0; dst.write((char*)&tag, 1);
+                uint64_t raw = v.raw(); dst.write((char*)&raw, 8);
+            }
+        }
         dst.close();
-        std::cout << "Built: " << out << " (" << sl << "B source)\n";
+        delete modFunc;
+        std::cout << "Built: " << out << " (code=" << cs << "B consts=" << ks << ")\n";
         return 0;
     }
-    
+
     if (mode == "-h" || mode == "--help") {
         printUsage(argv[0]);
         return 0;
