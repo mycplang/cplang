@@ -831,7 +831,8 @@ case OP_APPENDARRAY: {
                 break;
             }
 
-case OP_SETELEM: {
+
+            case OP_SETELEM: {
                 // SETELEM: a=元素值, b=数组, c=索引
                 Value elem = RA(a);
                 Value arr = RB(b);
@@ -1024,11 +1025,8 @@ case OP_IMPORT: {
                             case OP_LOADINT: {
                                 // emitInt格式: [op][a][0][0][imm32(4)][padding(8)]
                                 // 立即数在startPc+4位置
-                                Int32 imm = (Int32)ctx->code[startPc+4] |
-                                           ((Int32)ctx->code[startPc+5] << 8) |
-                                           ((Int32)ctx->code[startPc+6] << 16) |
-                                           ((Int32)ctx->code[startPc+7] << 24);
-                                modStack[a] = Value::Int(imm);
+                                Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
+                                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) modStack[a] = ctx->func->constants[bx]; else modStack[a] = Value::Int(0);
                                 break;
                             }
                                 
