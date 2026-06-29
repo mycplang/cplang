@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(cplang
-    VERSION 0.5.0
+    VERSION 0.9.0
     DESCRIPTION "CP语言 — 中文编程语言编译器与虚拟机"
     LANGUAGES C CXX
 )
@@ -19,6 +19,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 if(MSVC)
     add_compile_definitions(_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH=1)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+    # UTF-8 源码编码：确保中文别名等字符串字面量按 UTF-8 编译
+    # 与 .cp 源码的词法分析器编码保持一致，防止函数名匹配失败
+    add_compile_options("/utf-8")
 endif()
 
 # Linux 特定配置
@@ -179,8 +182,8 @@ add_library(cplang_vm STATIC
     src/vm/vm_containers.cpp
     src/vm/vm_objects.cpp
     src/vm/vm_exec.cpp
+    src/vm/event_loop.cpp
     src/vm/value.cpp
-    src/vm/vm_loadmodule.cpp
 )
 
 # vm_opt.cpp 使用 computed goto（GNU 扩展），MSVC 不支持
@@ -371,11 +374,14 @@ add_library(cplang_stdlib STATIC
     src/stdlib/stdlib_httpserver.cpp
     src/stdlib/stdlib_audio.cpp
     src/stdlib/stdlib_markdown.cpp
+        src/stdlib/stdlib_template.cpp
     src/stdlib/stdlib_pdf.cpp
     src/stdlib/stdlib_kvdb.cpp
     src/stdlib/stdlib_testing.cpp
     src/stdlib/stdlib_logging.cpp
     src/stdlib/stdlib_lang.cpp
+    src/stdlib/stdlib_async.cpp
+    src/stdlib/stdlib_binary.cpp
     src/crypto/md5_impl.cpp
     third_party/miniz/miniz.c
     third_party/miniz/miniz_tdef.c
@@ -640,6 +646,33 @@ set_target_properties(cplang_repl PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 # P0修复: repl.cpp standalone main 已条件编译保护，移除 /FORCE:MULTIPLE
+
+# ============================================================================
+# 15d. cplsp — LSP 语言服务器（语义级补全/跳转/悬停）
+# ============================================================================
+add_executable(cplsp
+    tools/cplsp/cplsp_main.cpp
+    tools/cplsp/main.cpp
+    tools/cplsp/document_manager.cpp
+    tools/cplsp/lsp_diagnostics.cpp
+    tools/cplsp/lsp_completion.cpp
+    tools/cplsp/lsp_definition.cpp
+    tools/cplsp/lsp_hover.cpp
+    tools/cplsp/lsp_references.cpp
+)
+target_include_directories(cplsp PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/cplsp
+)
+target_link_libraries(cplsp PRIVATE
+    cplang_lexer cplang_parser cplang_semantic cplang_ast cplang_token cplang_common
+)
+target_compile_features(cplsp PRIVATE cxx_std_17)
+set_target_warnings(cplsp)
+set_target_properties(cplsp PROPERTIES
+    OUTPUT_NAME cplsp
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
 
 # ============================================================================
 # 16. cplang_android — Android NativeActivity 共享库（仅 Android）

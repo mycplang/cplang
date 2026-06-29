@@ -621,6 +621,52 @@ static std::vector<std::string> getWideArgs() {
     return args;
 }
 
+static bool publishPackage(const Config& cfg) {
+    std::string pkgJson = readFile("package.json");
+    if (pkgJson.empty()) { std::cerr << "  x package.json not found" << std::endl; return false; }
+    size_t pos = 0;
+    auto meta = jsonParseFlatObject(pkgJson, pos);
+    std::string name = meta["name"], entry = meta["entry"];
+    if (name.empty()) { std::cerr << "  x missing name" << std::endl; return false; }
+    if (entry.empty()) entry = "index.cp";
+    if (!fs::exists(utf8ToWstr(entry))) { std::cerr << "  x entry file not found" << std::endl; return false; }
+    std::cout << "publish: " << name << std::endl;
+    if (cfg.registryUrl.find("file://") == 0) {
+        std::string basePath = cfg.registryUrl.substr(7);
+        ensureDir(basePath + "/packages/" + name);
+        fs::copy_file(utf8ToWstr(entry), utf8ToWstr(basePath + "/packages/" + name + "/index.cp"), fs::copy_options::overwrite_existing);
+        if (fs::exists(utf8ToWstr("package.json")))
+            fs::copy_file(utf8ToWstr("package.json"), utf8ToWstr(basePath + "/packages/" + name + "/package.json"), fs::copy_options::overwrite_existing);
+        std::string indexFile = basePath + "/index.json";
+        std::string oldIndex = readFile(indexFile);
+        std::unordered_map<std::string, std::unordered_map<std::string, std::string>> registry;
+        if (!oldIndex.empty()) registry = parseRegistryIndex(oldIndex);
+        registry[name] = meta;
+        registry[name]["url"] = "file:///" + basePath + "/packages/" + name + "/index.cp";
+        std::ostringstream oss;
+        oss << "{\n";
+        bool first = true;
+        for (auto& kv : registry) {
+            if (!first) oss << ",\n";
+            first = false;
+            oss << "  \"" << kv.first << "\": {\n";
+            bool ff = true;
+            for (auto& f : kv.second) {
+                if (!ff) oss << ",\n";
+                ff = false;
+                oss << "    \"" << f.first << "\": \"" << f.second << "\"";
+            }
+            oss << "\n  }";
+        }
+        oss << "\n}\n";
+        writeFile(indexFile, oss.str());
+        std::cout << "  OK " << name << " published" << std::endl;
+        return true;
+    }
+    std::cerr << "  x unsupported registry type" << std::endl;
+    return false;
+}
+
 int main() {
     // 设置控制台输出为 UTF-8
     SetConsoleOutputCP(CP_UTF8);
@@ -635,7 +681,7 @@ int main() {
     Config cfg = loadConfig();
     std::string cmd = args[1];
 
-    if (cmd == "install" || cmd == "i" || cmd == "安装") {
+    if (cmd == "publish" || cmd == "pub") { return publishPackage(cfg) ? 0 : 1; } else if (cmd == "install" || cmd == "i" || cmd == "安装") {
         if (args.size() < 3) { std::cerr << "用法: cpkg install <包名>  或  包 安装 <包名>" << std::endl; return 1; }
         return installPackage(args[2], cfg) ? 0 : 1;
     }

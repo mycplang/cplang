@@ -26,7 +26,7 @@
 using namespace cplang;
 
 void printUsage(const char* program) {
-    std::cout << "CP语言编译器 v0.5.0\n\n";
+    std::cout << "CP语言编译器 v0.9.3\n\n";
     std::cout << "用法: " << program << " [选项] <文件>\n\n";
     std::cout << "选项:\n";
     std::cout << "  -l, --lex      仅词法分析\n";
@@ -40,8 +40,10 @@ void printUsage(const char* program) {
     std::cout << "  -O0/-O1/-O2/-O3 优化级别\n";
     std::cout << "  --no-bytecode-opt 禁用字节码优化\n";
     std::cout << "  -v, --verbose  详细输出（优化统计等调试信息）\n";
+    std::cout << "  -e, --exec <代码>  直接执行代码字符串（WebIDE模式）\n";
     std::cout << "  -r, --repl     交互式编程环境（REPL）\n";
     std::cout << "  --debug-server <port> 启动调试服务器（TCP），等待 IDE 连接\n";
+    std::cout << "  --headless      无头模式：禁用GUI，仅文本输出\n";
     std::cout << "  -h, --help     显示帮助信息\n";
 }
 
@@ -143,10 +145,22 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
             sourceDir = dir;
         }
     }
+    // v0.9.0
+    std::string projectRoot;
+    if (!sourceDir.empty()) {
+        std::string probe = sourceDir;
+        while (true) {
+            std::ifstream f(probe + "/CMakeLists.txt");
+            if (f.good()) { projectRoot = probe; break; }
+            size_t s = probe.find_last_of("/\\");
+            if (s == size_t(-1) || s == 0) break;
+            probe = probe.substr(0, s);
+        }
+    }
     // P0.4：循环依赖检测 - 维护当前正在加载的模块栈
     static std::vector<std::string> loadingStack;
     
-    vm->importCallback = [&compiler, vm, sourceDir](const std::string& moduleName) -> bool {
+    vm->importCallback = [&compiler, vm, &projectRoot, sourceDir](const std::string& moduleName) -> bool {
         // 循环依赖检测：检查模块是否正在加载中
         for (const auto& m : loadingStack) {
             if (m == moduleName) {
@@ -167,30 +181,41 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
         
         VMFunction* moduleFunc = nullptr;
         
-        // 1. 源文件所在目录优先（解决跨目录运行时模块查找失败）
+        // 1. @前缀 = 明确指定 cpkg 包导入（不搜索本地）
+        if (moduleName.size() > 1 && moduleName[0] == '@') {
+            std::string pkgName = moduleName.substr(1);
+            const char* home = getenv("HOME");
+            if (!home) home = getenv("USERPROFILE");
+            if (home) {
+                moduleFunc = compiler.compileFile(std::string(home) + "/.cpkg/packages/" + pkgName + "/index.cp");
+            }
+            // @包找不到就不回退 —— 直接跳到报错
+            if (!moduleFunc) {
+                std::cerr << "包未找到: " << pkgName << "\n";
+                loadingStack.pop_back();
+                return false;
+            }
+        } else {
+        
+        // 2. 源文件所在目录（本地文件）
         if (!sourceDir.empty()) {
             moduleFunc = compiler.compileFile(sourceDir + "/" + moduleName + ".cp");
+            if (!moduleFunc) moduleFunc = compiler.compileFile(sourceDir + "/" + moduleName + "/index.cp");
         }
         // 2. 本地同名文件 (cwd)
         if (!moduleFunc) {
             moduleFunc = compiler.compileFile(moduleName + ".cp");
         }
         
-        // 3. 本地 packages/ 注册表
+        // 3. 项目内 packages/ 目录
         if (!moduleFunc) {
             std::string pkgPath = "packages/" + moduleName + "/index.cp";
             moduleFunc = compiler.compileFile(pkgPath);
+        if (!moduleFunc && !projectRoot.empty()) {
+            moduleFunc = compiler.compileFile(projectRoot + "/packages/" + moduleName + "/index.cp");
         }
-        
-        // 4. 用户安装目录 ~/.cpkg/packages/
-        if (!moduleFunc) {
-            const char* home = getenv("HOME");
-            if (home) {
-                std::string installedPath = std::string(home) + "/.cpkg/packages/" + moduleName + "/index.cp";
-                moduleFunc = compiler.compileFile(installedPath);
-            }
         }
-        
+
         // 5. tests/ 目录
         if (!moduleFunc) {
             std::string altPath = "tests/" + moduleName + ".cp";
@@ -233,7 +258,8 @@ bool runFullCompile(const String& source, const char* filepath, bool useJit, boo
                 std::remove(importPath.c_str());
             }
         }
-        
+        }
+
         if (!moduleFunc) {
             std::cerr << "模块加载失败: " << moduleName << "\n";
             loadingStack.pop_back();  // 出栈
@@ -474,6 +500,71 @@ int main(int argc, char* argv[]) {
         ReplEngine repl(true);
         repl.run();
         return 0;
+    }
+
+    // -e/--exec 模式：直接执行代码字符串（WebIDE）
+    if (mode == "-e" || mode == "--exec") {
+        if (argc < 3) {
+            std::cerr << "错误: 缺少代码参数\n";
+            printUsage(argv[0]);
+            return 1;
+        }
+        String codeStr = argv[2];
+#ifdef _WIN32
+        // Windows 命令行参数使用系统代码页（GBK），需转换为 UTF-8
+        // 以便 CP 语言的 UTF-8 词法分析器正确处理中文代码
+        {
+            int wlen = MultiByteToWideChar(CP_ACP, 0, codeStr.c_str(), -1, nullptr, 0);
+            if (wlen > 0) {
+                std::wstring wstr(wlen, L'\0');
+                MultiByteToWideChar(CP_ACP, 0, codeStr.c_str(), -1, &wstr[0], wlen);
+                int ulen = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+                if (ulen > 0) {
+                    std::string ustr(ulen, '\0');
+                    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &ustr[0], ulen, nullptr, nullptr);
+                    // 去掉末尾 null terminator
+                    if (!ustr.empty() && ustr.back() == '\0') ustr.pop_back();
+                    codeStr = ustr;
+                }
+            }
+        }
+#endif
+        bool headless = false;
+        int  debugPort = 0;
+        OptLevel optLevel = OptLevel::O2;
+        bool useBytecodeOpt = true;
+
+        // 扫描额外参数
+        for (int i = 3; i < argc; i++) {
+            if (strcmp(argv[i], "--headless") == 0) {
+                headless = true;
+            } else if (strcmp(argv[i], "-O0") == 0) {
+                optLevel = OptLevel::None;
+            } else if (strcmp(argv[i], "-O1") == 0) {
+                optLevel = OptLevel::O1;
+            } else if (strcmp(argv[i], "-O2") == 0) {
+                optLevel = OptLevel::O2;
+            } else if (strcmp(argv[i], "-O3") == 0) {
+                optLevel = OptLevel::O3;
+            } else if (strcmp(argv[i], "--no-bytecode-opt") == 0) {
+                useBytecodeOpt = false;
+            } else if (strcmp(argv[i], "--debug-server") == 0 && i + 1 < argc) {
+                debugPort = atoi(argv[++i]);
+            } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
+                cplang::setVerbose(true);
+            }
+        }
+
+        if (headless) {
+            // 设置环境变量，让 stdlib 跳过图形初始化
+#ifdef _WIN32
+            _putenv("CPLANG_HEADLESS=1");
+#else
+            setenv("CPLANG_HEADLESS", "1", 1);
+#endif
+        }
+
+        return runFullCompile(codeStr, "<stdin>", false, false, 100, optLevel, useBytecodeOpt, debugPort) ? 0 : 1;
     }
 
     if (argc < 3 && (mode == "-l" || mode == "--lex" || 

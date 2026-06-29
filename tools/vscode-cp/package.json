@@ -1,13 +1,13 @@
 {
   "name": "cp-language",
   "displayName": "CP Language Support",
-  "version": "0.5.6",
+  "version": "0.10.0",
   "publisher": "cplang",
   "description": "CP语言 — 中文编程语言：语法高亮、代码补全、跳转定义、引用查找、重命名、格式化、悬停提示、语义诊断、调试运行",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cplang/cplang"
+    "url": "https://gitee.com/cplang/cplang"
   },
   "engines": {"vscode": "^1.80.0"},
   "categories": ["Programming Languages", "Linters"],

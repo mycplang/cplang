@@ -1,4 +1,4 @@
-// 标准库实现
+// 鏍囧噯搴撳疄鐜?
 
 #include "stdlib/stdlib.hpp"
 #include <vector>
@@ -29,110 +29,101 @@
 
 namespace cplang {
 
-// ═══════════════════════════════════════════════════════════════════
-//  StdLib 实现
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  StdLib 瀹炵幇
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 void StdLib::registerAll(VM* vm) {
     registerMath(vm);
-    registerString(vm);
     registerArray(vm);
+    registerString(vm);       // 需在 array 之后，统一 find 函数
     registerTable(vm);
-    // @cp/container: 以下高级容器已拆分为独立模块包
     registerSet(vm);
-    registerStack(vm);
-    registerQueue(vm);
-    registerDeque(vm);
-    registerPriorityQueue(vm);
-    registerLinkedList(vm);
-    registerSLinkedList(vm);
-    registerMultiSet(vm);
-    registerMultiMap(vm);
-    registerUnorderedSet(vm);
-    registerUnorderedMultiSet(vm);
-    registerUnorderedMap(vm);
-    registerUnorderedMultiMap(vm);
-    registerBitset(vm);
-    registerComplex(vm);
-    registerPair(vm);
-    registerIO(vm);
-    registerTime(vm);
-    registerSystem(vm);
-    registerReflection(vm);
-    registerFile(vm);
-    registerNetwork(vm);
-    // registerJSON(vm);    // → @cp/net 模块
-    registerTypes(vm);
-    // @cp/algorithm: 以下算法函数已拆分
-    registerBitwise(vm);
-    registerAlgorithms(vm);
-    registerRandom(vm);
-    // @cp/string_ext: 以下高级字符串功能已拆分
-    registerRegex(vm);
-    registerStringExt(vm);
-    // registerCrypto(vm);    // → @cp/crypto 模块
-    // registerEncoding(vm);  // → @cp/crypto 模块
-    registerStringMore(vm);
-    registerArrayMore(vm);
-    registerFileMore(vm);
-    registerTimeMore(vm);
-    registerSystemMore(vm);
-    registerProcess(vm);
-    registerMathMore(vm);
-    registerStatistics(vm);   // → 同上 @cp/string_ext
-    registerUtils(vm);         // → 同上 @cp/string_ext
-    registerStringCase(vm);    // → 同上 @cp/string_ext
-    registerMoreUtils(vm);     // → 同上 @cp/string_ext
-    // registerHTTP(vm);       // → @cp/net 模块
-    registerMatrix(vm);
-    registerColor(vm);
-    registerPath(vm);
-    registerConsole(vm);
-    registerOptional(vm);
-    registerVariant(vm);
-    registerAny(vm);
-    registerTuple(vm);
-    registerNumericLimits(vm);
-    registerHeap(vm);
-    registerStringSearch(vm);  // → @cp/string_ext
-    registerAlgoExt(vm);       // → @cp/algorithm
-    registerMathConst(vm);
-    registerFormat(vm);
-    registerResult(vm);
-    registerFunctional(vm);
-    registerSpan(vm);
-    registerIterator(vm);
-    registerCharconv(vm);
-    registerSourceLoc(vm);
-    registerMemory(vm);
-    registerThreading(vm);     // → @cp/concurrent
+     registerStack(vm);
+     registerQueue(vm);
+     registerDeque(vm);
+     registerPriorityQueue(vm);
+     registerLinkedList(vm);
+     registerSLinkedList(vm);
+     registerMultiSet(vm);
+     registerMultiMap(vm);
+     registerUnorderedSet(vm);
+     registerUnorderedMultiSet(vm);
+     registerUnorderedMap(vm);
+     registerUnorderedMultiMap(vm);
+     registerBitset(vm);
+     registerComplex(vm);
+     registerPair(vm);
+     registerIO(vm);
+     registerTime(vm);
+     registerSystem(vm);
+     registerReflection(vm);
+     registerFile(vm);
+     registerNetwork(vm);
+     registerJSON(vm);
+     registerTypes(vm);
+     registerBitwise(vm);
+     registerAlgorithms(vm);
+     registerRandom(vm);
+     registerRegex(vm);
+     registerStringExt(vm);
+     registerCrypto(vm);
+     registerEncoding(vm);
+     registerStringMore(vm);
+     registerArrayMore(vm);
+     registerFileMore(vm);
+     registerTimeMore(vm);
+     registerSystemMore(vm);
+     registerProcess(vm);
+     registerMathMore(vm);
+     registerStatistics(vm);
+     registerUtils(vm);
+     registerStringCase(vm);
+     registerMoreUtils(vm);
+     registerHTTP(vm);
+     registerMatrix(vm);
+     registerColor(vm);
+     registerPath(vm);
+     registerConsole(vm);
+     registerOptional(vm);
+     registerVariant(vm);
+     registerAny(vm);
+     registerTuple(vm);
+     registerNumericLimits(vm);
+     registerHeap(vm);
+     registerStringSearch(vm);
+     registerAlgoExt(vm);
+     registerP5Algo(vm);
+     registerMathConst(vm);
+     registerFormat(vm);
+     registerResult(vm);
+     registerFunctional(vm);
+     registerSpan(vm);
+     registerIterator(vm);
+      registerAsync(vm);      // 原生异步（P9.3）
+     registerCharconv(vm);
+     registerSourceLoc(vm);
+     registerMemory(vm);
+     registerThreading(vm);
 
-    // ── 以下已拆分为独立模块包，VM 模式仍全量注册 ──
-    // @cp/database: registerSqlite + registerMysql + registerPg + registerRedis + registerWebSocket
-    registerWebSocket(vm);
-    registerSqlite(vm);
-    registerMysql(vm);
-    registerPg(vm);
-    registerRedis(vm);
-    // @cp/net: registerJSON + registerHTTP + registerHttp
-    registerJSON(vm);
-    registerHTTP(vm);
-    registerHttp(vm);
-    // @cp/graphics: registerImGui + registerRaylib
-    registerImGui(vm);
-    registerRaylib(vm);
-    // @cp/crypto: registerCrypto + registerCryptoPlus + registerAes + registerEncoding
-    registerCrypto(vm);
-    registerCryptoPlus(vm);
-    registerAes(vm);
-    registerEncoding(vm);
-    // @cp/ffi: registerFFI
-    registerFFI(vm);
+     registerWebSocket(vm);
+     registerSqlite(vm);
+     registerMysql(vm);
+     registerPg(vm);
+     registerRedis(vm);
+     registerMongo(vm);
+     registerHttp(vm);
+     registerImGui(vm);
+     registerTCP(vm);
+     registerRaylib(vm);
+     registerCryptoPlus(vm);
+     registerAes(vm);
+     registerFFI(vm);
 
     registerR10Misc(vm);
     registerR11Misc(vm);
     registerMathSpecial(vm);
-    registerAlgoMissing(vm);   // → @cp/algorithm
+    registerAlgoMissing(vm);
     registerCharconvFloat(vm);
     registerSpanEnhance(vm);
     registerResultMonad(vm);
@@ -140,7 +131,7 @@ void StdLib::registerAll(VM* vm) {
     registerBinaryIO(vm);
     registerCallOnce(vm);
     registerMap(vm);
-    registerCharset(vm);        // → @cp/charset
+    registerCharset(vm);
     registerFileSeek(vm);
     registerFileWalk(vm);
     registerLogger(vm);
@@ -150,66 +141,98 @@ void StdLib::registerAll(VM* vm) {
     registerDir(vm);
     registerCsvWrite(vm);
     registerLogPlus(vm);
-    registerStrCi(vm);          // → @cp/string_ext
+    registerStrCi(vm);
     registerFixMissing(vm);
     registerIOPoll(vm);
-        registerColors(vm);  // 临时注释，排查问题
+    registerImage(vm);          // 图片处理
+    registerCompress(vm);       // ZIP压缩 (自写格式)
+    registerArgparse(vm);       // 命令行参数
+    registerConfig(vm);         // 配置文件
+    registerHTTPServer(vm);     // HTTP服务端
+    registerTemplate(vm);       // 模板引擎
+    registerAudio(vm);          // 音频 (raylib API)
+    registerMarkdown(vm);       // Markdown转换
+    registerPDF(vm);            // PDF生成
+    registerKVDB(vm);           // 键值数据库
+    registerTesting(vm);        // 测试框架
+    registerLogging(vm);        // 日志框架
+    registerLangEnhance(vm);    // 函数式+子进程
+
+    // P11 标准库生态增强
+    registerBinary(vm);         // 二进制数据（字节数组）
+    registerP11Algo(vm);
+    registerP11Graph(vm);
+    registerP11DS(vm);
+    registerP11Utils(vm);
+
+    // 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+    //  娓告垙寮曟搸妯″潡 (v0.4.0 鈥?寮€绠卞嵆鐢紝闆跺鍏?
+    // 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+    registerGameNet(vm);
+    registerGameBattle(vm);
+    registerGameMap(vm);
+    registerGameItem(vm);
+    registerGameRole(vm);
+    registerGameSprite(vm);
+    registerGameDb(vm);
+    registerGameConfig(vm);
+    registerWeb(vm);
+
+        registerColors(vm);  // 涓存椂娉ㄩ噴锛屾帓鏌ラ棶棰?
 }
 
-// registerFunction / registerAlias 已内联至 include/stdlib/stdlib_fwd.hpp，
-// 方便模块独立编译。此处不再重复定义。
-
-// ═══════════════════════════════════════════════════════════════════
-//  核心注册（AOT 模式使用，只注册绝对必要的基础模块）
-//  这些模块任何 CP 程序都需要，体积小（~3000行），保留在 core 中
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  鏍稿績娉ㄥ唽锛堟渶灏忚繍琛屾椂锛屽彧娉ㄥ唽缁濆蹇呰鐨勫熀纭€妯″潡锛?
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 void StdLib::registerCore(VM* vm) {
     registerIO(vm);           // 打印/输入/类型转换/数组基础/表基础
     registerMath(vm);         // 基础数学运算
-    registerString(vm);       // 基础字符串操作
     registerArray(vm);        // 数组操作
+    registerString(vm);       // 基础字符串操作（需在 array 之后，统一 find 函数）
     registerTable(vm);        // 表操作
-    registerTypes(vm);        // 类型判断(isNil/isBool等)
-    registerReflection(vm);   // 反射
-    registerTime(vm);         // 时间
-    registerSystem(vm);       // 系统
-    registerFile(vm);         // 基础文件操作
-    registerNetwork(vm);      // 基础网络(network.h中的同文件)
-    registerFormat(vm);       // 格式化
-    registerPath(vm);         // 路径处理
-    registerMemory(vm);       // 内存
-    registerFixMissing(vm);   // 修复缺失
-    registerIOPoll(vm);       // IO轮询
+    registerTypes(vm);        // 绫诲瀷鍒ゆ柇(isNil/isBool绛?
+    registerReflection(vm);   // 鍙嶅皠
+    registerTime(vm);         // 鏃堕棿
+    registerSystem(vm);       // 绯荤粺
+    registerFile(vm);         // 鍩虹鏂囦欢鎿嶄綔
+    registerNetwork(vm);      // 鍩虹缃戠粶(network.h涓殑鍚屾枃浠?
+    registerFormat(vm);       // 鏍煎紡鍖?
+    registerPath(vm);         // 璺緞澶勭悊
+    registerMemory(vm);       // 鍐呭瓨
+    registerFixMissing(vm);   // 淇缂哄け
+    registerIOPoll(vm);       // IO杞
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  按需注册（AOT 模式使用，仅注册指定模块）
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  鎸夐渶娉ㄥ唽锛堜粎娉ㄥ唽鎸囧畾妯″潡锛?
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 void StdLib::registerModules(VM* vm, const std::vector<std::string>& modules) {
     for (const auto& m : modules) {
-        if (m == "graphics" || m == "@cp/graphics" || m == "图形" || m == "@cp/图形") {
-            registerRaylib(vm);
+        if (m == "graphics" || m == "@cp/graphics" || m == "鍥惧舰" || m == "@cp/鍥惧舰") {
+            registerTCP(vm);
+     registerRaylib(vm);
             registerImGui(vm);
-        } else if (m == "database" || m == "@cp/database" || m == "数据库" || m == "@cp/数据库") {
+        } else if (m == "database" || m == "@cp/database") {
             registerSqlite(vm);
             registerMysql(vm);
             registerPg(vm);
             registerRedis(vm);
+            registerMongo(vm);
             registerWebSocket(vm);
-        } else if (m == "crypto" || m == "@cp/crypto" || m == "加密" || m == "@cp/加密") {
+        } else if (m == "crypto" || m == "@cp/crypto" || m == "鍔犲瘑" || m == "@cp/鍔犲瘑") {
             registerCrypto(vm);
             registerCryptoPlus(vm);
             registerAes(vm);
             registerEncoding(vm);
-        } else if (m == "ffi" || m == "@cp/ffi" || m == "外部接口" || m == "@cp/外部接口") {
+        } else if (m == "ffi" || m == "@cp/ffi" || m == "澶栭儴鎺ュ彛" || m == "@cp/澶栭儴鎺ュ彛") {
             registerFFI(vm);
-        } else if (m == "net" || m == "@cp/net" || m == "网络" || m == "@cp/网络") {
+        } else if (m == "net" || m == "@cp/net" || m == "缃戠粶" || m == "@cp/缃戠粶") {
             registerJSON(vm);
             registerHTTP(vm);
             registerHttp(vm);
-        } else if (m == "container" || m == "@cp/container" || m == "容器" || m == "@cp/容器") {
+        } else if (m == "container" || m == "@cp/container" || m == "瀹瑰櫒" || m == "@cp/瀹瑰櫒") {
             registerSet(vm);
             registerStack(vm);
             registerQueue(vm);
@@ -227,9 +250,9 @@ void StdLib::registerModules(VM* vm, const std::vector<std::string>& modules) {
             registerHeap(vm);
             registerComplex(vm);
             registerPair(vm);
-        } else if (m == "concurrent" || m == "@cp/concurrent" || m == "并发" || m == "@cp/并发") {
+        } else if (m == "concurrent" || m == "@cp/concurrent") {
             registerThreading(vm);
-        } else if (m == "string_ext" || m == "@cp/string_ext" || m == "字符串扩展" || m == "@cp/字符串扩展") {
+        } else if (m == "string_ext" || m == "@cp/string_ext") {
             registerStringExt(vm);
             registerStringMore(vm);
             registerStringSearch(vm);
@@ -239,32 +262,28 @@ void StdLib::registerModules(VM* vm, const std::vector<std::string>& modules) {
             registerStatistics(vm);
             registerUtils(vm);
             registerMoreUtils(vm);
-        } else if (m == "charset" || m == "@cp/charset" || m == "字符集" || m == "@cp/字符集") {
+        } else if (m == "charset" || m == "@cp/charset") {
             registerCharset(vm);
-        } else if (m == "algorithm" || m == "@cp/algorithm" || m == "算法" || m == "@cp/算法") {
+        } else if (m == "algorithm" || m == "@cp/algorithm") {
             registerAlgorithms(vm);
             registerAlgoExt(vm);
             registerAlgoMissing(vm);
+            registerP5Algo(vm);
             registerBitwise(vm);
             registerRandom(vm);
         }
     }
 }
-
-// ═══════════════════════════════════════════════════════════════════
-//  各模块的实现已提取到独立 .cpp 文件，由 CMake 统一编译链接
-//  拆分出去的模块见 modules/ 目录，可通过 cpkg 安装
-// ═══════════════════════════════════════════════════════════════════
-
-// 非 Windows 平台的空壳实现（链接用）
+// ========== 各模块实现已提取到独立 .cpp 文件 ==========
+// 非 Windows 平台空实现（链接用）
 #ifndef _WIN32
 static void registerMysql(cplang::VM*) {}
 static void registerPg(cplang::VM*) {}
 static void registerRedis(cplang::VM*) {}
+static void registerMongo(cplang::VM*) {}
 static void registerHttp(cplang::VM*) {}
 static void registerLogPlus(cplang::VM*) {}
 #endif
-
 
 void StdLib::registerColors(VM* vm) {
     struct ColorDef { const char* name; uint8_t r, g, b, a; };
@@ -278,7 +297,7 @@ void StdLib::registerColors(VM* vm) {
         {"黑色",    0,   0,   0, 255},
         {"绿色",   80, 220,  80, 255},
         {"酸橙色",  0, 255,   0, 255},
-        {"天蓝色",  135, 206, 235, 255},
+        {"天蓝",  135, 206, 235, 255},
         {"粉色",  255, 182, 193, 255},
         {"紫色",  160,  32, 240, 255},
         {"橙色",  255, 165,   0, 255},
@@ -304,4 +323,8 @@ void StdLib::registerColors(VM* vm) {
     }
 }
 
+// ========== Web 框架注册 ==========
+void StdLib::registerWeb(VM* vm) {
+    registerFunction(vm, "web_serve",   cplang::web::serve);
+}
 } // namespace cplang

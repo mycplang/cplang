@@ -375,6 +375,7 @@ struct VMFunction : VMObject {
     bool isVararg = false;
     Int32 upvalueCount = 0;
     bool hasSlots = false;
+    bool isGenerator = false;  // 是否为生成器函数（P9.1）
     std::vector<UInt8> code;
     std::vector<Value> constants;
     std::vector<Int32> lineInfo;
@@ -436,6 +437,84 @@ struct VMUpvalue : VMObject {
     Value  closed = Value::nil();
     VMUpvalue* next = nullptr;
     static VMUpvalue* create(Value* slot);
+};
+
+// 生成器对象（P9.1）
+struct VMGenerator : VMObject {
+    VMGenerator() { typeTag = TAG_GENERATOR; }
+    VMFunction* func = nullptr;
+    VMClosure* closure = nullptr;
+    std::vector<Value> stack;     // 保存的栈/寄存器数据
+    Int32 pcOffset = 0;           // 当前执行位置（字节码偏移）
+    Int32 baseOffset = 0;         // 基址偏移
+    Int32 yieldReg = 0;           // yield 指令的目标寄存器（恢复时写入发送值）
+    bool isDone = false;          // 是否执行完毕
+    bool isClosed = false;        // 是否已关闭
+    Value sentValue;              // 通过send发送的值
+    bool hasSentValue = false;    // 是否有待处理的发送值
+    std::vector<VMUpvalue*> upvalues;  // 闭包上值（如果是闭包生成器）
+    
+    static VMGenerator* create(VMFunction* f, VMClosure* cl = nullptr);
+    
+    // 恢复执行，返回产出值；执行完毕返回nil
+    Value resume(VM* vm, const Value& sendValue = Value::nil());
+};
+
+// 承诺/期约对象（P9.3 原生协程）
+struct VMPromise : VMObject {
+    enum State {
+        PENDING = 0,
+        FULFILLED = 1,
+        REJECTED = 2
+    };
+    
+    VMPromise() { typeTag = TAG_PROMISE; }
+    State state = PENDING;
+    Value result;           // 完成值或拒绝原因
+    std::vector<Value> thenCallbacks;   // then 回调函数列表
+    std::vector<Value> catchCallbacks;  // catch 回调函数列表
+    std::vector<VMGenerator*> waitingCoroutines;  // 等待此承诺的协程
+    
+    static VMPromise* create();
+    
+    // 解决承诺（成功）
+    void resolve(const Value& value);
+    // 拒绝承诺（失败）
+    void reject(const Value& reason);
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  VMByteArray — 字节数组（二进制数据缓冲区）
+// ═══════════════════════════════════════════════════════════════════
+struct VMByteArray : VMObject {
+    VMByteArray() { typeTag = TAG_BYTEARRAY; data = nullptr; }
+    ~VMByteArray() { delete[] data; }
+    
+    UInt8*  data     = nullptr;  // 堆分配的原始字节缓冲区
+    UInt32  length   = 0;        // 已用长度（逻辑视图）
+    UInt32  capacity = 0;        // 分配容量
+    
+    // 切片支持（零拷贝视图）
+    VMByteArray* parent = nullptr; // 如果是切片，指向父对象
+    UInt32       offset = 0;       // 切片在父对象中的偏移
+    
+    /// 创建指定大小的零填充字节数组
+    static VMByteArray* create(UInt32 size);
+    /// 创建切片（零拷贝，指向父对象的数据）
+    static VMByteArray* createSlice(VMByteArray* parent, UInt32 offset, UInt32 len);
+    
+    /// 确保容量至少为 newCap
+    void ensure(UInt32 newCap);
+    /// 调整大小（保留已有数据，新空间未初始化）
+    void resize(UInt32 newSize);
+    /// 获取实际数据指针（考虑切片偏移）
+    UInt8* ptr() { return parent ? (parent->data + offset) : data; }
+    const UInt8* ptr() const { return parent ? (parent->data + offset) : data; }
+    
+    UInt8  get(UInt32 index) const;
+    void   set(UInt32 index, UInt8 value);
+    /// 纯数据视图（不含GC可达Value子对象）
+    bool hasValueChildren() const { return parent != nullptr; }
 };
 
 struct VMNativeFunc : VMObject {

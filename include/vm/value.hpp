@@ -49,9 +49,12 @@ struct VMOrderedSet;
 struct VMOrderedMap;
 struct VMFunction;
 struct VMClosure;
+struct VMGenerator;  // 生成器（P9.1）
+struct VMPromise;    // 承诺（P9.3）
 struct VMClass;
 struct VMInstance;
 struct VMUpvalue;
+struct VMByteArray;  // 字节数组（二进制数据）
 
 // ═══════════════════════════════════════════════════════════════════
 //  NaN-boxing Value (64-bit)
@@ -264,6 +267,9 @@ public:
     bool isAtomicInt() const;
     bool isChannel() const;
     bool isWebSocket() const;
+    bool isGenerator() const;  // 生成器（P9.1）
+    bool isPromise() const;    // 承诺（P9.3）
+    bool isByteArray() const;  // 字节数组
     
     // 对象 as*() 访问器
     VMString*   asString() const;
@@ -286,6 +292,9 @@ public:
     VMOrderedMap*          asOrderedMap() const;
     VMFunction* asFunction() const;
     VMClosure*  asClosure() const;
+    VMGenerator* asGenerator() const;
+    VMPromise* asPromise() const;
+    VMByteArray* asByteArray() const;
     VMObject*   asUserData() const;
     
     // ── 取值 ──

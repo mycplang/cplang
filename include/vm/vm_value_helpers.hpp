@@ -9,6 +9,9 @@ inline Value makeStringVal(VMString* s) { return Value::Ptr(reinterpret_cast<VMO
 inline Value makeArrayVal(VMArray* a)   { return Value::Ptr(reinterpret_cast<VMObject*>(a)); }
 inline Value makeTableVal(VMTable* t)   { return Value::Ptr(reinterpret_cast<VMObject*>(t)); }
 inline Value makeFunctionVal(VMFunction* f) { return Value::Ptr(reinterpret_cast<VMObject*>(f)); }
+inline Value makeGeneratorVal(VMGenerator* g) { return Value::Ptr(reinterpret_cast<VMObject*>(g)); }
+inline Value makePromiseVal(VMPromise* p) { return Value::Ptr(reinterpret_cast<VMObject*>(p)); }
+inline Value makeByteArrayVal(VMByteArray* b) { return Value::Ptr(reinterpret_cast<VMObject*>(b)); }
 inline Value makePtrVal(VMObject* o)    { return Value::Ptr(o); }
 
 // 对象类型检测
@@ -19,6 +22,7 @@ inline bool isFunctionVal(const Value& v){ return v.isPtr() && v.asPtr() && v.as
 inline bool isSetVal(const Value& v)     { return v.isPtr() && v.asPtr() && v.asPtr()->typeTag == ObjectHeader::TAG_SET; }
 inline bool isStackVal(const Value& v)   { return v.isPtr() && v.asPtr() && v.asPtr()->typeTag == ObjectHeader::TAG_STACK; }
 inline bool isQueueVal(const Value& v)   { return v.isPtr() && v.asPtr() && v.asPtr()->typeTag == ObjectHeader::TAG_QUEUE; }
+inline bool isByteArrayVal(const Value& v) { return v.isPtr() && v.asPtr() && v.asPtr()->typeTag == ObjectHeader::TAG_BYTEARRAY; }
 
 inline VMString*  asStringVal(const Value& v)  { return reinterpret_cast<VMString*>(v.asPtr()); }
 inline VMArray*   asArrayVal(const Value& v)   { return reinterpret_cast<VMArray*>(v.asPtr()); }
@@ -28,6 +32,7 @@ inline VMSet*     asSetVal(const Value& v)     { return reinterpret_cast<VMSet*>
 inline VMStack*   asStackVal(const Value& v)   { return reinterpret_cast<VMStack*>(v.asPtr()); }
 inline VMQueue*   asQueueVal(const Value& v)   { return reinterpret_cast<VMQueue*>(v.asPtr()); }
 inline VMObject*  asObjectVal(const Value& v)  { return v.asPtr(); }
+inline VMByteArray* asByteArrayVal(const Value& v) { return reinterpret_cast<VMByteArray*>(v.asPtr()); }
 
 // 宏定义 Value::is*() 方法
 #define DEF_VALUE_IS(NAME, TAG_CONST) \
@@ -59,6 +64,9 @@ DEF_VALUE_IS(Upvalue,     TAG_UPVALUE)
 DEF_VALUE_IS(CFunction,   TAG_NATIVE)
 DEF_VALUE_IS(UserData,    TAG_USERDATA)
 DEF_VALUE_IS(WebSocket,   TAG_WEBSOCKET)
+DEF_VALUE_IS(Generator,   TAG_GENERATOR)  // 生成器（P9.1）
+DEF_VALUE_IS(Promise,     TAG_PROMISE)    // 承诺（P9.3）
+DEF_VALUE_IS(ByteArray,   TAG_BYTEARRAY)  // 字节数组
 
 #undef DEF_VALUE_IS
 
@@ -105,7 +113,10 @@ DEF_VALUE_AS(UnorderedMap,        VMUnorderedMap)
 DEF_VALUE_AS(UnorderedMultiMap,   VMUnorderedMultiMap)
 DEF_VALUE_AS(Function,  VMFunction)
 DEF_VALUE_AS(Closure,   VMClosure)
+DEF_VALUE_AS(Generator, VMGenerator)  // 生成器（P9.1）
+DEF_VALUE_AS(Promise,   VMPromise)    // 承诺（P9.3）
 DEF_VALUE_AS(UserData,  VMObject)
+DEF_VALUE_AS(ByteArray, VMByteArray)  // 字节数组
 
 #undef DEF_VALUE_AS
 

@@ -4,8 +4,11 @@
 #include <unordered_set>
 #include <string>
 #include <functional>
+#include <memory>
+#include "vm/event_loop.hpp"
 
 namespace cplang { class HybridJIT; }
+namespace cplang { class EventLoop; }
 
 namespace cplang {
 
@@ -15,7 +18,9 @@ class VM {
 public:
     static constexpr int MAX_REGISTERS = 256;
     static constexpr int MAX_STACK    = 65536;
-    static constexpr int GC_THRESHOLD  = 1024 * 1024;
+    static constexpr int NURSERY_THRESHOLD  = 256 * 1024;      // 256KB minor GC
+    static constexpr int GC_THRESHOLD       = 8 * 1024 * 1024; // 8MB major GC
+    static constexpr int PROMOTE_AFTER      = 2;               // promote after 2 minor GC survivals
 
     VM();
     ~VM();
@@ -42,6 +47,7 @@ public:
     void raiseError(const std::string& msg);
     void raiseError(const char* msg);
     bool hasError() const { return !error_.empty(); }
+    void resetExecutionState();  // 重置执行状态（REPL错误恢复用）
     Int64 totalInstructions() const { return instructionCount_; }
     Int64 gcCount() const { return gcCount_; }
     void setTraceExec(bool v) { traceExec_ = v; }
@@ -72,6 +78,35 @@ public:
 
     Value callFunction(Value func, std::vector<Value>& args);
     static VM* current() { return currentVM_; }
+    
+    // 生成器支持（P9.1）
+    Value resumeGenerator(VMGenerator* gen, const Value& sendValue = Value::nil());
+    
+    // ===== 协程/异步 支持（P9.3） =====
+    
+    // 创建新承诺
+    VMPromise* createPromise();
+    
+    // 解决承诺
+    void resolvePromise(VMPromise* promise, const Value& value);
+    
+    // 拒绝承诺
+    void rejectPromise(VMPromise* promise, const Value& reason);
+    
+    // 等待承诺（暂停当前协程，承诺完成后恢复）
+    Value awaitPromise(VMPromise* promise);
+    
+    // 调度器：微任务队列
+    std::vector<std::pair<Value, Value>> microtaskQueue_;  // (callback, arg)
+    
+    // 调度器：运行所有微任务
+    void runMicrotasks();
+    
+    // 调度器：添加微任务
+    void enqueueMicrotask(const Value& callback, const Value& arg = Value::nil());
+    
+    // 当前运行的协程（用于 await 时暂停）
+    VMGenerator* currentCoroutine_ = nullptr;
 
     // 获取当前执行上下文的信息（供 source_location 标准库使用）
     int getCurrentLine() const;
@@ -81,16 +116,35 @@ public:
 
     std::function<bool(const std::string&)> importCallback;
     void trackGC(VMObject* obj);
+    
+    // 分代GC写入屏障：当old对象存储young引用时调用
+    void gcWriteBarrier(VMObject* container, const Value& newVal);
+
+    // 事件循环
+    EventLoop* getEventLoop();
+    void startEventLoop();
+    void stopEventLoop();
 
 private:
     bool run(ExecContext* ctx);
     bool callNative(VMNativeFunc* nf, int argc, Value* argv, Value* result);
+    
+    // 旧GC（全堆标记-清除，升级为 major GC）
     void gc();
+    // 新生代GC（仅回收young gen）
+    void gcMinor();
+    // 全堆GC（回收所有代）
+    void gcMajor();
+    
     void gcMarkRoots();
     void gcMarkObject(VMObject* obj);
     void gcMarkValue(const Value& v);
     void gcSweepPhase();
+    void gcSweepYoungPhase();  // 仅清扫新生代
     void gcCleanup();
+    
+    // 帮助函数
+    bool isPointerToYoung(const Value& v) const;
 
     std::vector<Value>               stack_;
     Value*                          top_ = nullptr;
@@ -100,9 +154,12 @@ private:
     std::unordered_map<std::string, UInt16> globalNameToSlot_;
     UInt16                          nextGlobalSlot_ = 0;
     std::unordered_map<std::string, Value> globals_;
-    VMObject*                       allObjects_ = nullptr;
+    VMObject*                       allObjects_   = nullptr;  // 所有对象链表（old gen）
+    VMObject*                       youngObjects_ = nullptr;  // 新生代链表
     std::unordered_map<std::string, VMString*> stringTable_;
-    size_t                          gcAllocated_ = 0;
+    size_t                          gcAllocated_   = 0;      // old gen已分配
+    size_t                          youngAllocated_= 0;      // young gen已分配
+    std::unordered_set<VMObject*>   rememberedSet_;          // 写屏障记录集
     Int64                           gcCount_ = 0;
     bool                            gcRunning_ = false;
     bool                            traceExec_ = false;
@@ -120,6 +177,7 @@ private:
 
     std::unordered_set<int>         breakpoints_;
     bool                            debugPaused_ = false;
+    std::unique_ptr<EventLoop>      eventLoop_;
     bool                            debugStepMode_ = false;
     int                             debugStepDepth_ = 0;
     bool                            debugStop_ = false;

@@ -128,7 +128,7 @@ bool VM::run(ExecContext* ctx) {
 
         // ── 调试器断点检查 ──
         if (!breakpoints_.empty() || debugStepMode_ || debugServer_) {
-            size_t instrIdx = (ctx->pc - 1) / 16;
+            size_t instrIdx = (ctx->pc - 1) / 4;
             if (instrIdx < ctx->func->lineInfo.size()) {
                 debugCurrentLine_ = ctx->func->lineInfo[instrIdx];
                 if (debugStop_) { debugPaused_ = false; debugStop_ = false; return false; }
@@ -159,28 +159,25 @@ bool VM::run(ExecContext* ctx) {
         switch (op) {
 #endif
 
-case OP_NOP: { ctx->pc += 15; break; }
+case OP_NOP: { ctx->pc += 3; break; }
 
-case OP_LOADNIL: { RA(a) = Value::nil();                 ctx->pc += 15;
+case OP_LOADNIL: { RA(a) = Value::nil();                 ctx->pc += 3;
             DISPATCH_NEXT(); }
 
 case OP_LOADBOOL: {
                 RA(a) = b ? Value::Bool(true) : Value::Bool(false);
-                ctx->pc += 15;
-                if (c) ctx->pc += 16;  // skip next 16-byte instruction
+                ctx->pc += 3;
+                if (c) ctx->pc += 4;  // skip next 16-byte instruction
                 break;
             }
 
 case OP_LOADINT: {
                 // 16-byte format: [op][a][0][0][imm0][imm1][imm2][imm3][pad8]
                 // After op fetch, pc points to a. imm32 starts at pc+3 (byte offset 4 from instruction start)
-                Int32 imm = (Int32)ctx->code[ctx->pc+3] |
-                           ((Int32)ctx->code[ctx->pc+4] << 8) |
-                           ((Int32)ctx->code[ctx->pc+5] << 16) |
-                           ((Int32)ctx->code[ctx->pc+6] << 24);
+                Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
 
-                RA(a) = Value::Int(imm);
-                ctx->pc += 15;
+                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) RA(a) = ctx->func->constants[bx]; else RA(a) = Value::Int(0);
+                ctx->pc += 3;
 
                 break;
             }
@@ -188,28 +185,22 @@ case OP_LOADINT: {
 case OP_LOADFLT: {
                 // 16-byte format: [op][a][0][0][imm0][imm1][imm2][imm3][pad8]
                 // After op fetch, pc points to a. imm32 starts at pc+3
-                Int32 idx = (Int32)ctx->code[ctx->pc+3] |
-                           ((Int32)ctx->code[ctx->pc+4] << 8) |
-                           ((Int32)ctx->code[ctx->pc+5] << 16) |
-                           ((Int32)ctx->code[ctx->pc+6] << 24);
-                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
-                    RA(a) = ctx->func->constants[idx];
+                Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
+                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
+                    RA(a) = ctx->func->constants[bx];
                 } else {
-                    RA(a) = Value::fromFloat(idx);
+                    RA(a) = Value::Float(0.0f);
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
 case OP_LOADSTR: {
                 // 16-byte format: [op][a][0][0][imm0][imm1][imm2][imm3][pad8]
                 // After op fetch, pc points to a. imm32 starts at pc+3
-                Int32 idx = (Int32)ctx->code[ctx->pc+3] |
-                           ((Int32)ctx->code[ctx->pc+4] << 8) |
-                           ((Int32)ctx->code[ctx->pc+5] << 16) |
-                           ((Int32)ctx->code[ctx->pc+6] << 24);
-                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
-                    const Value& kv = ctx->func->constants[idx];
+                Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
+                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
+                    const Value& kv = ctx->func->constants[bx];
                     if (kv.isString()) {
                         RA(a) = kv;
                     } else {
@@ -218,36 +209,30 @@ case OP_LOADSTR: {
                 } else {
                     RA(a) = Value::nil();
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
 case OP_LOADCONST: {
                 // 8-byte format: [op][a][b][c][imm0][imm1][imm2][imm3]
-                Int32 idx = (Int32)ctx->code[ctx->pc+3] |
-                           ((Int32)ctx->code[ctx->pc+4] << 8) |
-                           ((Int32)ctx->code[ctx->pc+5] << 16) |
-                           ((Int32)ctx->code[ctx->pc+6] << 24);
+                Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
 
-                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
-                    const Value& v = ctx->func->constants[idx];
+                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
+                    const Value& v = ctx->func->constants[bx];
 
                     RA(a) = v;
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
-case OP_MOVE: { RA(a) = RB(b);                 ctx->pc += 15;
+case OP_MOVE: { RA(a) = RB(b);                 ctx->pc += 3;
             DISPATCH_NEXT(); }
 
 case OP_LOADGLOBAL: {
                 // 16-byte format: [op][a][0][0][slot0][slot1][slot2][slot3][pad8]
-                Int32 idx = (Int32)ctx->code[ctx->pc+3] |
-                            ((Int32)ctx->code[ctx->pc+4] << 8) |
-                            ((Int32)ctx->code[ctx->pc+5] << 16) |
-                            ((Int32)ctx->code[ctx->pc+6] << 24);
-                ctx->pc += 15;
+                Int32 idx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
+                ctx->pc += 3;
                 
                 if (ctx->func->hasSlots) {
                     // Slot 优化：idx 直接是 slot 编号
@@ -285,11 +270,8 @@ case OP_LOADGLOBAL: {
 
 case OP_STOREGLOBAL: {
                 // 16-byte format: [op][a][0][0][slot0][slot1][slot2][slot3][pad8]
-                Int32 idx = (Int32)ctx->code[ctx->pc+3] |
-                            ((Int32)ctx->code[ctx->pc+4] << 8) |
-                            ((Int32)ctx->code[ctx->pc+5] << 16) |
-                            ((Int32)ctx->code[ctx->pc+6] << 24);
-                ctx->pc += 15;
+                Int32 idx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
+                ctx->pc += 3;
 
                 if (ctx->func->hasSlots) {
                     // Slot 优化：idx 直接是 slot 编号
@@ -320,41 +302,41 @@ case OP_STOREGLOBAL: {
 
 case OP_LOADLOCAL: {
 
-                RA(a) = base[b];                 ctx->pc += 15;
+                RA(a) = base[b];                 ctx->pc += 3;
             DISPATCH_NEXT(); }
-case OP_STORELOCAL: { base[b] = RA(a);                 ctx->pc += 15;
+case OP_STORELOCAL: { base[b] = RA(a);                 ctx->pc += 3;
             DISPATCH_NEXT(); }
 
 // ═══════════════════════════════════════════════════════════════════
 //  类型化算术指令（零运行时开销，编译期保证类型正确）
 // ═══════════════════════════════════════════════════════════════════
 
-case OP_IADD: { RA(a) = Value::Int(RB(b).asInt() + RC(c).asInt()); ctx->pc += 15; break; }
-case OP_ISUB: { RA(a) = Value::Int(RB(b).asInt() - RC(c).asInt()); ctx->pc += 15; break; }
-case OP_IMUL: { RA(a) = Value::Int(RB(b).asInt() * RC(c).asInt()); ctx->pc += 15; break; }
-case OP_IDIV2:{ Int64 d = RC(c).asInt(); if (d==0) { EMIT_ERR("除零错误"); break; } RA(a) = Value::Int(RB(b).asInt() / d); ctx->pc += 15; break; }
-case OP_IMOD: { Int64 d = RC(c).asInt(); if (d==0) { EMIT_ERR("除零错误"); break; } RA(a) = Value::Int(RB(b).asInt() % d); ctx->pc += 15; break; }
-case OP_INEG: { RA(a) = Value::Int(-RB(b).asInt()); ctx->pc += 15; break; }
+case OP_IADD: { RA(a) = Value::Int(RB(b).asInt() + RC(c).asInt()); ctx->pc += 3; break; }
+case OP_ISUB: { RA(a) = Value::Int(RB(b).asInt() - RC(c).asInt()); ctx->pc += 3; break; }
+case OP_IMUL: { RA(a) = Value::Int(RB(b).asInt() * RC(c).asInt()); ctx->pc += 3; break; }
+case OP_IDIV2:{ Int64 d = RC(c).asInt(); if (d==0) { EMIT_ERR("除零错误"); break; } RA(a) = Value::Int(RB(b).asInt() / d); ctx->pc += 3; break; }
+case OP_IMOD: { Int64 d = RC(c).asInt(); if (d==0) { EMIT_ERR("除零错误"); break; } RA(a) = Value::Int(RB(b).asInt() % d); ctx->pc += 3; break; }
+case OP_INEG: { RA(a) = Value::Int(-RB(b).asInt()); ctx->pc += 3; break; }
 
-case OP_FADD: { RA(a) = Value::fromFloat(RB(b).asFloat() + RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FSUB: { RA(a) = Value::fromFloat(RB(b).asFloat() - RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FMUL: { RA(a) = Value::fromFloat(RB(b).asFloat() * RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FDIV: { RA(a) = Value::fromFloat(RB(b).asFloat() / RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FNEG: { RA(a) = Value::fromFloat(-RB(b).asFloat()); ctx->pc += 15; break; }
+case OP_FADD: { RA(a) = Value::fromFloat(RB(b).asFloat() + RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FSUB: { RA(a) = Value::fromFloat(RB(b).asFloat() - RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FMUL: { RA(a) = Value::fromFloat(RB(b).asFloat() * RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FDIV: { RA(a) = Value::fromFloat(RB(b).asFloat() / RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FNEG: { RA(a) = Value::fromFloat(-RB(b).asFloat()); ctx->pc += 3; break; }
 
-case OP_ICMPEQ: { RA(a) = Value::Bool(RB(b).asInt() == RC(c).asInt()); ctx->pc += 15; break; }
-case OP_ICMPNE: { RA(a) = Value::Bool(RB(b).asInt() != RC(c).asInt()); ctx->pc += 15; break; }
-case OP_ICMPLT: { RA(a) = Value::Bool(RB(b).asInt() <  RC(c).asInt()); ctx->pc += 15; break; }
-case OP_ICMPLE: { RA(a) = Value::Bool(RB(b).asInt() <= RC(c).asInt()); ctx->pc += 15; break; }
-case OP_ICMPGT: { RA(a) = Value::Bool(RB(b).asInt() >  RC(c).asInt()); ctx->pc += 15; break; }
-case OP_ICMPGE: { RA(a) = Value::Bool(RB(b).asInt() >= RC(c).asInt()); ctx->pc += 15; break; }
+case OP_ICMPEQ: { RA(a) = Value::Bool(RB(b).asInt() == RC(c).asInt()); ctx->pc += 3; break; }
+case OP_ICMPNE: { RA(a) = Value::Bool(RB(b).asInt() != RC(c).asInt()); ctx->pc += 3; break; }
+case OP_ICMPLT: { RA(a) = Value::Bool(RB(b).asInt() <  RC(c).asInt()); ctx->pc += 3; break; }
+case OP_ICMPLE: { RA(a) = Value::Bool(RB(b).asInt() <= RC(c).asInt()); ctx->pc += 3; break; }
+case OP_ICMPGT: { RA(a) = Value::Bool(RB(b).asInt() >  RC(c).asInt()); ctx->pc += 3; break; }
+case OP_ICMPGE: { RA(a) = Value::Bool(RB(b).asInt() >= RC(c).asInt()); ctx->pc += 3; break; }
 
-case OP_FCMPEQ: { RA(a) = Value::Bool(RB(b).asFloat() == RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FCMPNE: { RA(a) = Value::Bool(RB(b).asFloat() != RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FCMPLT: { RA(a) = Value::Bool(RB(b).asFloat() <  RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FCMPLE: { RA(a) = Value::Bool(RB(b).asFloat() <= RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FCMPGT: { RA(a) = Value::Bool(RB(b).asFloat() >  RC(c).asFloat()); ctx->pc += 15; break; }
-case OP_FCMPGE: { RA(a) = Value::Bool(RB(b).asFloat() >= RC(c).asFloat()); ctx->pc += 15; break; }
+case OP_FCMPEQ: { RA(a) = Value::Bool(RB(b).asFloat() == RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FCMPNE: { RA(a) = Value::Bool(RB(b).asFloat() != RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FCMPLT: { RA(a) = Value::Bool(RB(b).asFloat() <  RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FCMPLE: { RA(a) = Value::Bool(RB(b).asFloat() <= RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FCMPGT: { RA(a) = Value::Bool(RB(b).asFloat() >  RC(c).asFloat()); ctx->pc += 3; break; }
+case OP_FCMPGE: { RA(a) = Value::Bool(RB(b).asFloat() >= RC(c).asFloat()); ctx->pc += 3; break; }
 
 // ═══════════════════════════════════════════════════════════════════
 case OP_I8ADD: case OP_I16ADD: case OP_F32ADD:
@@ -438,7 +420,7 @@ case OP_ADD: {
                     double y = isNum(right) ? right.asFloat() : 0;
                     RA(a) = Value::fromFloat(x + y);
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 DISPATCH_NEXT();
             }
 
@@ -451,7 +433,7 @@ case OP_SUB: {
                     double y = isNum(RC(c)) ? RC(c).asFloat() : 0;
                     RA(a) = Value::fromFloat(x - y);
                 }
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -464,7 +446,7 @@ case OP_MUL: {
                     double y = isNum(RC(c)) ? RC(c).asFloat() : 0;
                     RA(a) = Value::fromFloat(x * y);
                 }
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -476,7 +458,7 @@ case OP_I8DIV: case OP_I16DIV: case OP_F32DIV:
 	                double y = isNum(RC(c)) ? RC(c).asFloat() : 0;
 	                if (y == 0) EMIT_ERR("除零错误");
 	                RA(a) = Value::fromFloat(x / y);
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -485,7 +467,7 @@ case OP_I8DIV: case OP_I16DIV: case OP_F32DIV:
 	                Int64 y = isNum(RC(c)) ? RC(c).asInt() : 0;
 	                if (y == 0) EMIT_ERR("除零错误");
 	                RA(a) = Value::Int(RB(b).asInt() / y);
-                ctx->pc += 15;
+                ctx->pc += 3;
                 DISPATCH_NEXT();
             }
 
@@ -495,7 +477,7 @@ case OP_MOD: {
 	                Int64 y = isNum(RC(c)) ? RC(c).asInt() : 0;
 	                if (y == 0) EMIT_ERR("除零错误");
 	                RA(a) = Value::Int(RB(b).asInt() % y);
-                ctx->pc += 15;
+                ctx->pc += 3;
                 DISPATCH_NEXT();
             }
 
@@ -504,7 +486,7 @@ case OP_POW: {
                 double x = isNum(RB(b)) ? RB(b).asFloat() : 0;
                 double y = isNum(RC(c)) ? RC(c).asFloat() : 0;
                 RA(a) = Value::fromFloat(std::pow(x, y));
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -513,7 +495,7 @@ case OP_NEG: {
                 if (RB(b).isInt() || RB(b).isInt64()) RA(a) = Value::Int(-RB(b).asInt());
                 else if (RB(b).isFloat()) RA(a) = Value::fromFloat(-RB(b).asFloat());
                 else RA(a) = Value::nil();
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -521,7 +503,7 @@ case OP_BAND: {
                 if ((RB(b).isInt() || RB(b).isInt64()) && (RC(c).isInt() || RC(c).isInt64())) {
                     RA(a) = Value::Int(RB(b).asInt() & RC(c).asInt());
                 } else RA(a) = Value::nil();
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -529,7 +511,7 @@ case OP_BOR: {
                 if ((RB(b).isInt() || RB(b).isInt64()) && (RC(c).isInt() || RC(c).isInt64())) {
                     RA(a) = Value::Int(RB(b).asInt() | RC(c).asInt());
                 } else RA(a) = Value::nil();
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -537,7 +519,7 @@ case OP_BXOR: {
                 if ((RB(b).isInt() || RB(b).isInt64()) && (RC(c).isInt() || RC(c).isInt64())) {
                     RA(a) = Value::Int(RB(b).asInt() ^ RC(c).asInt());
                 } else RA(a) = Value::nil();
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -545,7 +527,7 @@ case OP_BSHL: {
                 if ((RB(b).isInt() || RB(b).isInt64()) && (RC(c).isInt() || RC(c).isInt64())) {
                     RA(a) = Value::Int(RB(b).asInt() << RC(c).asInt());
                 } else RA(a) = Value::nil();
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -553,28 +535,28 @@ case OP_BSHR: {
                 if ((RB(b).isInt() || RB(b).isInt64()) && (RC(c).isInt() || RC(c).isInt64())) {
                     RA(a) = Value::Int(static_cast<UInt64>(RB(b).asInt()) >> RC(c).asInt());
                 } else RA(a) = Value::nil();
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
 case OP_BNOT: {
                 if (RB(b).isInt() || RB(b).isInt64()) RA(a) = Value::Int(~RB(b).asInt());
                 else RA(a) = Value::nil();
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
 case OP_NOT: {
                 RA(a) = Value::Bool(!RB(b).isTrue());
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
 case OP_I8CMPEQ: case OP_I16CMPEQ: case OP_F32CMPEQ:
-case OP_CMPEQ: { RA(a) = Value::Bool(RB(b).equals(RC(c)));                 ctx->pc += 15;
+case OP_CMPEQ: { RA(a) = Value::Bool(RB(b).equals(RC(c)));                 ctx->pc += 3;
             DISPATCH_NEXT(); }
 case OP_I8CMPNE: case OP_I16CMPNE: case OP_F32CMPNE:
-case OP_CMPNE: { RA(a) = Value::Bool(!RB(b).equals(RC(c)));                 ctx->pc += 15;
+case OP_CMPNE: { RA(a) = Value::Bool(!RB(b).equals(RC(c)));                 ctx->pc += 3;
             DISPATCH_NEXT(); }
 
 case OP_I8CMPLT: case OP_I16CMPLT: case OP_F32CMPLT:
@@ -584,7 +566,7 @@ case OP_CMPLT: {
                     double x = RB(b).asFloat(); double y = RC(c).asFloat();
                     RA(a) = Value::Bool(x < y);
                 } else RA(a) = Value::Bool(false);
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -595,7 +577,7 @@ case OP_CMPLE: {
                     double x = RB(b).asFloat(); double y = RC(c).asFloat();
                     RA(a) = Value::Bool(x <= y);
                 } else RA(a) = Value::Bool(false);
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -606,7 +588,7 @@ case OP_CMPGT: {
                     double x = RB(b).asFloat(); double y = RC(c).asFloat();
                     RA(a) = Value::Bool(x > y);
                 } else RA(a) = Value::Bool(false);
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -617,43 +599,34 @@ case OP_CMPGE: {
                     double x = RB(b).asFloat(); double y = RC(c).asFloat();
                     RA(a) = Value::Bool(x >= y);
                 } else RA(a) = Value::Bool(false);
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
 case OP_JUMP: {
                 // 16-byte format: [op][0][0][0][offset32] (relative offset from next instruction)
                 // After reading op, pc points to a (pc+1), so offset is at pc+3
-                Int32 offset = (Int32)ctx->code[ctx->pc+3] |
-                             ((Int32)ctx->code[ctx->pc+4] << 8) |
-                             ((Int32)ctx->code[ctx->pc+5] << 16) |
-                             ((Int32)ctx->code[ctx->pc+6] << 24);
-                ctx->pc = ctx->pc + 15 + offset;  // pc after opcode + 15 + offset
+                Int16 offset = (Int16)((ctx->code[ctx->pc+1] << 8) | ctx->code[ctx->pc+2]);
+                ctx->pc = ctx->pc + 3 + offset;  // pc after opcode + 15 + offset
                 break;
             }
 
 case OP_JUMPIF: {
                 // 16-byte format: [op][a][0][0][offset32] (relative offset)
                 // After reading op, pc points to a (pc+1), so offset is at pc+3
-                Int32 offset = (Int32)ctx->code[ctx->pc+3] |
-                             ((Int32)ctx->code[ctx->pc+4] << 8) |
-                             ((Int32)ctx->code[ctx->pc+5] << 16) |
-                             ((Int32)ctx->code[ctx->pc+6] << 24);
-                if (RA(a).isTrue()) ctx->pc = ctx->pc + 15 + offset;
-                else ctx->pc += 15;
+                Int16 offset = (Int16)((ctx->code[ctx->pc+1] << 8) | ctx->code[ctx->pc+2]);
+                if (RA(a).isTrue()) ctx->pc = ctx->pc + 3 + offset;
+                else ctx->pc += 3;
                 break;
             }
 
 case OP_JUMPNIF: {
                 // 16-byte format: [op][a][0][0][offset32] (relative offset)
                 // After reading op, pc points to a (pc+1), so offset is at pc+3
-                Int32 offset = (Int32)ctx->code[ctx->pc+3] |
-                             ((Int32)ctx->code[ctx->pc+4] << 8) |
-                             ((Int32)ctx->code[ctx->pc+5] << 16) |
-                             ((Int32)ctx->code[ctx->pc+6] << 24);
+                Int16 offset = (Int16)((ctx->code[ctx->pc+1] << 8) | ctx->code[ctx->pc+2]);
                 bool cond = RA(a).isTrue();
-                if (!cond) ctx->pc = ctx->pc + 15 + offset;
-                else ctx->pc += 15;
+                if (!cond) ctx->pc = ctx->pc + 3 + offset;
+                else ctx->pc += 3;
                 break;
             }
 
@@ -670,10 +643,10 @@ case OP_CALLMETHOD: {
                     if (func->typeTag == ObjectHeader::TAG_NATIVE) {
                         VMNativeFunc* nf = reinterpret_cast<VMNativeFunc*>(func);
                         RA(a) = nf ? nf->fn(args) : Value::nil();
-                        ctx->pc += 15; break;
+                        ctx->pc += 3; break;
                     }
                     RA(a) = callFunction(callee, args);
-                    ctx->pc += 15; break;
+                    ctx->pc += 3; break;
                 }
                 EMIT_ERR("不可调用：该值不是函数");
             }
@@ -692,7 +665,7 @@ case OP_CALLMETHOD: {
                     if (callMethod.isFunction() || callMethod.isCFunction()) {
                         args.insert(args.begin(), callee);
                         RA(a) = callFunction(callMethod, args);
-                        ctx->pc += 15; break;
+                        ctx->pc += 3; break;
                     }
                 }
 
@@ -711,7 +684,7 @@ case OP_CALLMETHOD: {
                         } else { 
                             RA(a) = Value::nil(); 
                         }
-                        ctx->pc += 15;
+                        ctx->pc += 3;
                         break;
                     }
                     
@@ -721,7 +694,7 @@ case OP_CALLMETHOD: {
                         Value jitResult;
                         if (jitTryCallDispatch(this, func, argc, args.data(), jitResult)) {
                             RA(a) = jitResult;
-                            ctx->pc += 15;
+                            ctx->pc += 3;
                             break;
                         }
                     }
@@ -734,7 +707,7 @@ case OP_CALLMETHOD: {
                     frame.base = base;
                     frame.savedBase = base;
                     frame.pc = nullptr;
-                    Int32 pcAfter = (Int32)(ctx->pc + 15);  // Return to next instruction (16-byte format)
+                    Int32 pcAfter = (Int32)(ctx->pc + 3);   // Return to next instruction (4-byte format)
                     frame.returnPcOffset = pcAfter;
                     frame.returnBaseOffset = (Int32)ctx->baseOffset;
                     frame.resultReg = calleeReg;
@@ -756,7 +729,7 @@ case OP_CALLMETHOD: {
                     break;
                 } else if (callee.isClosure()) {
                     VMClosure* cl = callee.asPtr() ? static_cast<VMClosure*>(callee.asPtr()) : nullptr;
-                    if (!cl) { RA(a) = Value::nil(); ctx->pc += 15; break; }
+                    if (!cl) { RA(a) = Value::nil(); ctx->pc += 3; break; }
                     CallFrame frame;
                     frame.func = cl->func;
                     frame.closure = cl;
@@ -781,7 +754,7 @@ case OP_CALLMETHOD: {
             }
 
 case OP_RETURN: {
-                ctx->pc += 15;  // skip padding bytes (16-byte instruction)
+                ctx->pc += 3;  // skip padding bytes (16-byte instruction)
                 Value result = RR_a;
 
                 // 写返回值到基址[0]供 callFunction 读取
@@ -823,7 +796,7 @@ case OP_RETURN: {
 case OP_NEWARRAY: {
                 RA(a) = makeArrayVal(VMArray::create());
                 trackGC(reinterpret_cast<VMObject*>(RA(a).asArray()));
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -838,7 +811,7 @@ case OP_GETELEM: {
                 } else {
                     RA(a) = Value::nil();
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -853,7 +826,7 @@ case OP_SETELEM: {
                     VMTable* tbl = static_cast<VMTable*>(arr.asPtr());
                     tbl->set(idx, elem);
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -868,7 +841,7 @@ case OP_GETIDX: {
                 } else {
                     RA(a) = Value::nil();
                 }
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -882,7 +855,7 @@ case OP_SETIDX: {
                     VMTable* tbl = static_cast<VMTable*>(obj.asPtr());
                     tbl->set(key, val);
                 }
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -894,7 +867,7 @@ case OP_STRLEN: {
                 } else {
                     RA(a) = Value::nil();
                 }
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -904,7 +877,7 @@ case OP_CONCAT: {
                 VMString* r = VMString::create(s1 + s2);
                 trackGC(reinterpret_cast<VMObject*>(r));
                 RA(a) = makeStringVal(r);
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -921,7 +894,7 @@ case OP_TONUM: {
                 } else {
                     RA(a) = Value::nil();
                 }
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -929,13 +902,13 @@ case OP_TOSTR: {
                 VMString* r = VMString::create(RA(b).toString());
                 trackGC(reinterpret_cast<VMObject*>(r));
                 RA(a) = makeStringVal(r);
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
 case OP_TOBool: {
                 RA(a) = Value::Bool(RA(b).isTrue());
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -956,19 +929,19 @@ case OP_TYPEOF: {
                 VMString* r = VMString::create(tn);
                 trackGC(reinterpret_cast<VMObject*>(r));
                 RA(a) = makeStringVal(r);
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
 case OP_ISNULL: {
                 RA(a) = Value::Bool(RA(b).isNil());
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
 case OP_NEWCLASS: {
                 RA(a) = Value::nil();
-                                ctx->pc += 15;
+                                ctx->pc += 3;
             DISPATCH_NEXT();
             }
 
@@ -1165,7 +1138,7 @@ case OP_IMPORT: {
                 }
                 
                 RA(a) = Value::Bool(true);
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -1179,7 +1152,7 @@ case OP_GETLEN: {
                 } else {
                     RA(a) = Value::Int(0);
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -1189,7 +1162,7 @@ case OP_NEWSTRUCT: {
                 VMTable* tbl = VMTable::create();
                 trackGC(reinterpret_cast<VMObject*>(tbl));
                 RA(a) = makePtrVal(reinterpret_cast<VMObject*>(tbl));
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -1200,7 +1173,7 @@ case OP_NEWVARIANT: {
                 // 设置 tag 在字段 0
                 tbl->set(Value::Int(0), Value::Int(b));
                 RA(a) = makePtrVal(reinterpret_cast<VMObject*>(tbl));
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -1217,7 +1190,7 @@ case OP_GETVARIANTTAG: {
                 } else {
                     RA(a) = Value::Int(0);
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -1231,7 +1204,7 @@ case OP_GETVARIANTFIELD: {
                 } else {
                     RA(a) = Value::nil();
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -1249,7 +1222,7 @@ case OP_GETFIELD: {
                 } else {
                     RA(a) = Value::nil();
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -1266,7 +1239,7 @@ case OP_SETFIELD: {
                     VMTable* tbl = static_cast<VMTable*>(obj.asPtr());
                     tbl->set(Value::Int(fieldIdx), val);
                 }
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
@@ -1287,7 +1260,7 @@ case OP_MAKECLOSURE: {
                 
                 if (!targetFunc) {
                     RA(a) = Value::nil();
-                    ctx->pc += 15;
+                    ctx->pc += 3;
                     break;
                 }
                 
@@ -1307,29 +1280,26 @@ case OP_MAKECLOSURE: {
                 
                 // 将闭包包装为 Value
                 RA(a) = Value::Ptr(reinterpret_cast<VMObject*>(closure));
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
 case OP_TRY: {
                 // OP_TRY a, imm32: push handler frame with absolute catch PC
-                Int32 catchPC = (Int32)ctx->code[ctx->pc+3] |
-                               ((Int32)ctx->code[ctx->pc+4] << 8) |
-                               ((Int32)ctx->code[ctx->pc+5] << 16) |
-                               ((Int32)ctx->code[ctx->pc+6] << 24);
+                Int16 catchPC = (Int16)((ctx->code[ctx->pc+1] << 8) | ctx->code[ctx->pc+2]);
                 HandlerFrame hf;
                 hf.catchPC = catchPC;
                 hf.savedBase = base;
                 hf.resultReg = a;
                 handlerStack_.push_back(hf);
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 
 case OP_ENDTRY: {
                 // 正常路径：弹出异常处理帧
                 if (!handlerStack_.empty()) handlerStack_.pop_back();
-                ctx->pc += 15;
+                ctx->pc += 3;
                 break;
             }
 

@@ -75,7 +75,7 @@ VMFunction* Codegen::compile(Shared<Program> program) {
     }
 
     // 榛樿杩斿洖nil
-    if (!hasError_ && (func_->code.empty() || func_->code.back() != OP_RETURN)) {
+    if (!hasError_ && (func_->code.size() < 4 || func_->code[func_->code.size()-4] != OP_RETURN)) {
         emit(OP_LOADNIL, 0, 0, 0);
         emit(OP_RETURN, 0, 0, 0);
     }
@@ -105,7 +105,6 @@ void Codegen::emit(UInt8 op, UInt8 a, UInt8 b, UInt8 c) {
     code_->push_back(a);
     code_->push_back(b);
     code_->push_back(c);
-    for (int i = 0; i < 12; i++) code_->push_back(0);
 
     if (a < 255 && a >= maxReg_) maxReg_ = a + 1;
     if (b < 255 && b >= maxReg_) maxReg_ = b + 1;
@@ -113,51 +112,46 @@ void Codegen::emit(UInt8 op, UInt8 a, UInt8 b, UInt8 c) {
 }
 
 void Codegen::emitInt(UInt8 op, UInt8 a, Int32 imm) {
-    // 璁板綍婧愭枃浠惰鍙?
     func_->lineInfo.push_back(currentLine_);
     
-    // 16-byte format: [op][a][b][c][imm32]
+    Int32 idx;
+    if (op == OP_LOADGLOBAL || op == OP_STOREGLOBAL || op == OP_LOADCONST || op == OP_LOADSTR) {
+        idx = imm;
+    } else {
+        idx = addConstant(Value::Int(imm));
+    }
+    if (idx > 65535) idx = 65535;
     code_->push_back(op);
     code_->push_back(a);
-    code_->push_back(0); code_->push_back(0);  // b, c reserved
-    // write 4-byte little-endian imm
-    code_->push_back(static_cast<UInt8>(imm & 0xFF));
-    code_->push_back(static_cast<UInt8>((imm >> 8) & 0xFF));
-    code_->push_back(static_cast<UInt8>((imm >> 16) & 0xFF));
-    code_->push_back(static_cast<UInt8>((imm >> 24) & 0xFF));
-    // Pad to 16 bytes
-    code_->push_back(0); code_->push_back(0); code_->push_back(0); code_->push_back(0);
-    code_->push_back(0); code_->push_back(0); code_->push_back(0); code_->push_back(0);
+    code_->push_back(static_cast<UInt8>((idx >> 8) & 0xFF));
+    code_->push_back(static_cast<UInt8>(idx & 0xFF));
     if (a < 255 && a >= maxReg_) maxReg_ = a + 1;
 }
 
 void Codegen::emitJump(UInt8 op, int offset) {
-    // 16-byte format: [op][0][0][0][offset32]
+    Int32 off = offset;
+    if (off > 32767) off = 32767;
+    if (off < -32768) off = -32768;
     code_->push_back(op);
-    code_->push_back(0); code_->push_back(0); code_->push_back(0);
-    code_->push_back(static_cast<UInt8>(offset & 0xFF));
-    code_->push_back(static_cast<UInt8>((offset >> 8) & 0xFF));
-    code_->push_back(static_cast<UInt8>((offset >> 16) & 0xFF));
-    code_->push_back(static_cast<UInt8>((offset >> 24) & 0xFF));
+    code_->push_back(static_cast<UInt8>(off & 0xFF));
+    code_->push_back(static_cast<UInt8>((off >> 8) & 0xFF));
+    code_->push_back(0);
 }
 
 int Codegen::emitJumpPlaceholder(UInt8 op, UInt8 a) {
     int pos = static_cast<int>(code_->size());
-    // 16-byte format: [op][a][0][0][offset32=0][padding8]
     code_->push_back(op);
     code_->push_back(a);
-    code_->push_back(0); code_->push_back(0);  // b, c
-    code_->push_back(0); code_->push_back(0); code_->push_back(0); code_->push_back(0);  // offset32=0
-    for (int i = 0; i < 8; i++) code_->push_back(0);  // 8 bytes padding to reach 16
+    code_->push_back(0); code_->push_back(0);
     return pos;
 }
 
 void Codegen::patchJump(int pos, int target) {
-    Int32 offset = target - (pos + 16);  // 16-byte instruction
-    (*code_)[pos + 4] = (offset >> 0) & 0xFF;
-    (*code_)[pos + 5] = (offset >> 8) & 0xFF;
-    (*code_)[pos + 6] = (offset >> 16) & 0xFF;
-    (*code_)[pos + 7] = (offset >> 24) & 0xFF;
+    Int32 offset = target - (pos + 4);
+    if (offset > 32767) offset = 32767;
+    if (offset < -32768) offset = -32768;
+    (*code_)[pos + 2] = (offset >> 0) & 0xFF;
+    (*code_)[pos + 3] = (offset >> 8) & 0xFF;
 }
 
 int Codegen::allocReg() {
@@ -310,11 +304,11 @@ void Codegen::compileTry(Shared<TryStmt> s) {
     // 缂栬瘧鎵€鏈?catch 鍧楋紙鏆備笉鍖哄垎寮傚父绫诲瀷锛屼緷娆℃墽琛屾墍鏈夊鐞嗗潡锛?
     for (size_t i = 0; i < s->catchBlocks.size(); i++) {
         pushScope();
-        String exName = s->catchBlocks[i].first;
+        String exName = s->catchBlocks[i].exceptionType;
         if (!exName.empty()) {
             localScopes_.back()[exName] = { (int)excReg, nullptr };
         }
-        compileStmt(s->catchBlocks[i].second);
+        compileStmt(s->catchBlocks[i].body);
         popScope();
     }
 

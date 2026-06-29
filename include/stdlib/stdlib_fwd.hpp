@@ -7,16 +7,16 @@
 
 namespace cplang {
 
-// ═══════════════════════════════════════════════════════════════════
-//  标准库函数注册（前向声明）
-// ═══════════════════════════════════════════════════════════════════
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+//  鏍囧噯搴撳嚱鏁版敞鍐岋紙鍓嶅悜澹版槑锛?
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 class StdLib {
 public:
-    // 注册所有标准库函数到 VM
+    // 娉ㄥ唽鎵€鏈夋爣鍑嗗簱鍑芥暟鍒?VM
     static void registerAll(VM* vm);
     
-    // 按类别注册（各模块实现在对应子文件中）
+    // 鎸夌被鍒敞鍐岋紙鍚勬ā鍧楀疄鐜板湪瀵瑰簲瀛愭枃浠朵腑锛?
     static void registerMath(VM* vm);
     static void registerString(VM* vm);
     static void registerArray(VM* vm);
@@ -79,12 +79,14 @@ public:
     static void registerHeap(VM* vm);
     static void registerStringSearch(VM* vm);
     static void registerAlgoExt(VM* vm);
+    static void registerP5Algo(VM* vm);
     static void registerMathConst(VM* vm);
     static void registerFormat(VM* vm);
     static void registerResult(VM* vm);
     static void registerFunctional(VM* vm);
     static void registerSpan(VM* vm);
     static void registerIterator(VM* vm);
+    static void registerAsync(VM* vm);      // 原生异步（P9.3）
     static void registerCharconv(VM* vm);
     static void registerSourceLoc(VM* vm);
     static void registerMemory(VM* vm);
@@ -94,6 +96,7 @@ public:
     static void registerMysql(VM* vm);
     static void registerPg(VM* vm);
     static void registerRedis(VM* vm);
+    static void registerMongo(VM* vm);
     static void registerR10Misc(VM* vm);
     static void registerR11Misc(VM* vm);
     static void registerHttp(VM* vm);
@@ -124,20 +127,54 @@ public:
     static void registerFixMissing(VM* vm);
     static void registerFFI(VM* vm);
     static void registerIOPoll(VM* vm);
+    static void registerImage(VM* vm);     // 图片处理 (stb_image)
+    static void registerCompress(VM* vm);  // 压缩解压 (miniz)
+    static void registerArgparse(VM* vm);  // 命令行参数
+    static void registerConfig(VM* vm);    // 配置文件 (TOML+INI)
+    static void registerHTTPServer(VM* vm); // HTTP服务端 (Mongoose)
+    static void registerTemplate(VM* vm);     // 模板引擎
+    static void registerAudio(VM* vm);      // 音频播放 (miniaudio)
+    static void registerMarkdown(VM* vm);   // Markdown转换
+    static void registerPDF(VM* vm);        // PDF生成
+    static void registerKVDB(VM* vm);       // 键值数据库
+    static void registerTesting(VM* vm);    // 测试框架
+    static void registerLogging(VM* vm);    // 日志框架
+    static void registerLangEnhance(VM* vm);// 函数式+子进程
 
-    // 核心注册（AOT 模式使用，只注册绝对必要的基础模块）
+    // P11 标准库生态增强
+    static void registerP11Algo(VM* vm);
+    static void registerP11Graph(VM* vm);
+    static void registerP11DS(VM* vm);
+    static void registerP11Utils(VM* vm);
+
+    // 娓告垙寮曟搸妯″潡 (v0.4.0 鈥?寮€绠卞嵆鐢?
+    static void registerGameNet(VM* vm);
+    static void registerGameBattle(VM* vm);
+    static void registerGameMap(VM* vm);
+    static void registerGameItem(VM* vm);
+    static void registerGameRole(VM* vm);
+    static void registerGameSprite(VM* vm);
+    static void registerGameDb(VM* vm);
+    static void registerGameConfig(VM* vm);
+    static void registerWeb(VM* vm);
+    static void registerTCP(VM* vm);
+
+    // 二进制数据
+    static void registerBinary(VM* vm);
+
+    // 鏍稿績娉ㄥ唽锛圓OT 妯″紡浣跨敤锛屽彧娉ㄥ唽缁濆蹇呰鐨勫熀纭€妯″潡锛?
     static void registerCore(VM* vm);
-    static void registerColors(VM* vm);  // 内置颜色常量
+    static void registerColors(VM* vm);  // 鍐呯疆棰滆壊甯搁噺
     
-    // 按需注册接口（AOT 模式使用，仅注册实际需要的模块）
+    // 鎸夐渶娉ㄥ唽鎺ュ彛锛圓OT 妯″紡浣跨敤锛屼粎娉ㄥ唽瀹為檯闇€瑕佺殑妯″潡锛?
     static void registerModules(VM* vm, const std::vector<std::string>& modules);
 
-    // 辅助函数（公有，供 AOT 桥接外部注册使用）
+    // 杈呭姪鍑芥暟锛堝叕鏈夛紝渚?AOT 妗ユ帴澶栭儴娉ㄥ唽浣跨敤锛?
     static void registerFunction(VM* vm, const char* name, VMNativeFunc::Fn fn);
     static void registerAlias(VM* vm, const char* alias, const char* original);
 };
 
-// ── 内联辅助实现（定义在类外，方便模块独立编译）──
+// 鈹€鈹€ 鍐呰仈杈呭姪瀹炵幇锛堝畾涔夊湪绫诲锛屾柟渚挎ā鍧楃嫭绔嬬紪璇戯級鈹€鈹€
 #ifndef CPLANG_STDLIB_IMPL_ONLY
 inline void StdLib::registerFunction(VM* vm, const char* name, VMNativeFunc::Fn fn) {
     vm->registerNative(name, fn);

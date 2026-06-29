@@ -13,6 +13,15 @@ VMString* VMString::create(const char* s, UInt32 len) {
     str->data = buf;
     std::memcpy(buf, s, len);
     buf[len] = '\0';
+    
+    // 预计算 FNV-1a 哈希值（用于加速哈希表查找）
+    size_t h = 14695981039346656037ull;
+    for (UInt32 i = 0; i < len; i++) {
+        h ^= static_cast<size_t>(static_cast<unsigned char>(buf[i]));
+        h *= 1099511628211ull;
+    }
+    str->hash = static_cast<UInt32>(h & 0xFFFFFFFF);
+    
     return str;
 }
 VMString* VMString::create(const std::string& s) {
@@ -37,6 +46,11 @@ void VMArray::set(Int64 index, const Value& v) {
     if (index >= 0) {
         if (index >= static_cast<Int64>(n)) data.resize(index + 1);
         data[index] = v;
+        // 分代GC写屏障：old数组存储young引用时记录
+        if (isOld() && v.isPtr() && v.asPtr() && v.asPtr()->isYoung()) {
+            auto* vm = VM::current();
+            if (vm) vm->gcWriteBarrier(this, v);
+        }
     }
 }
 
@@ -60,13 +74,20 @@ size_t VMTable::hashValue(const Value& v) {
         return std::hash<Float64>{}(f);
     }
     if (v.isString()) {
+        VMString* s = v.asString();
+        // 使用预计算的哈希缓存（创建时已计算）
+        if (s->hash != 0) {
+            return static_cast<size_t>(s->hash);
+        }
+        // 兜底：如果缓存为0则重新计算（理论上不会走到这里）
         size_t hash = 14695981039346656037ull;
-        const char* data = v.asString()->data;
-        UInt32 len = v.asString()->length;
+        const char* data = s->data;
+        UInt32 len = s->length;
         for (UInt32 i = 0; i < len; i++) {
             hash ^= static_cast<size_t>(static_cast<unsigned char>(data[i]));
             hash *= 1099511628211ull;
         }
+        s->hash = static_cast<UInt32>(hash & 0xFFFFFFFF);
         return hash;
     }
     return std::hash<void*>{}(v.asPtr());
@@ -115,6 +136,11 @@ void VMTable::set(const Value& key, const Value& val) {
     size_t idx = findSlot(key);
     if (buckets[idx].occupied && buckets[idx].key.equals(key)) {
         buckets[idx].value = val;
+        // 分代GC写屏障
+        if (isOld() && val.isPtr() && val.asPtr() && val.asPtr()->isYoung()) {
+            auto* vm = VM::current();
+            if (vm) vm->gcWriteBarrier(this, val);
+        }
         return;
     }
     
@@ -936,5 +962,66 @@ Value VMUnorderedMultiMap::equalRange(const Value& key) const {
 bool VMUnorderedMultiMap::isEmpty() const { return data.empty(); }
 size_t VMUnorderedMultiMap::size() const { return data.size(); }
 void VMUnorderedMultiMap::clear() { data.clear(); }
+
+// ========== VMByteArray ==========
+VMByteArray* VMByteArray::create(UInt32 size) {
+    VMByteArray* ba = new VMByteArray();
+    ba->length = size;
+    ba->capacity = size;
+    if (size > 0) {
+        ba->data = new UInt8[size]();  // 零填充
+    }
+    return ba;
+}
+
+VMByteArray* VMByteArray::createSlice(VMByteArray* parent, UInt32 offset, UInt32 len) {
+    if (!parent) return nullptr;
+    // 获取父对象的实际容量
+    UInt32 parentLen = parent->parent ? parent->length : 
+                       (parent->capacity > 0 ? parent->capacity : parent->length);
+    if (offset + len > parentLen) return nullptr;
+    VMByteArray* ba = new VMByteArray();
+    ba->parent = parent;
+    ba->offset = offset;
+    ba->length = len;
+    ba->capacity = len;  // 切片不可扩容到父对象范围外
+    // data == nullptr 表示这是切片
+    return ba;
+}
+
+void VMByteArray::ensure(UInt32 newCap) {
+    if (parent) return;  // 切片不可扩容
+    if (newCap <= capacity) return;
+    UInt32 newCapacity = capacity > 0 ? capacity : 8;
+    while (newCapacity < newCap) newCapacity *= 2;
+    UInt8* newData = new UInt8[newCapacity]();
+    if (data) {
+        std::memcpy(newData, data, length);
+        delete[] data;
+    }
+    data = newData;
+    capacity = newCapacity;
+}
+
+void VMByteArray::resize(UInt32 newSize) {
+    if (parent) return;  // 切片不可调整大小
+    if (newSize > capacity) ensure(newSize);
+    length = newSize;
+}
+
+UInt8 VMByteArray::get(UInt32 index) const {
+    if (index >= length) return 0;
+    const UInt8* p = ptr();
+    return p[index];
+}
+
+void VMByteArray::set(UInt32 index, UInt8 value) {
+    if (parent) return;  // 切片不可写入
+    if (index >= length) {
+        if (index >= capacity) ensure(index + 1);
+        length = index + 1;
+    }
+    data[index] = value;
+}
 
 } // namespace cplang
