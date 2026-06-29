@@ -179,6 +179,7 @@ struct FuncDeclStmt : Stmt {
     String name;
     std::vector<TypeParam> typeParams;  // 泛型类型参数: <T: 可比较, U>
     std::vector<std::pair<String, Optional<String>>> params;  // name, type
+    std::vector<Shared<Expr>> paramDefaults;                // default values (null if none)
     Optional<String> returnType;
     Shared<BlockStmt> body;
     bool isStatic = false;

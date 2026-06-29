@@ -101,7 +101,13 @@ Shared<FuncDeclStmt> Parser::parseFunctionDecl() {
                 paramType = parseType();
             }
             
+            Shared<Expr> paramDefault = nullptr;
+            if (match(TokenType::OP_ASSIGN)) {
+                consume();
+                paramDefault = parseExpression();
+            }
             func->params.push_back({paramName, paramType});
+            func->paramDefaults.push_back(paramDefault);
             
             if (match(TokenType::COMMA)) {
                 consume();
@@ -186,17 +192,41 @@ Shared<InterfaceDeclStmt> Parser::parseInterfaceDecl() {
     consume();  // consume 'interface'
     auto iface = Shared<InterfaceDeclStmt>(new InterfaceDeclStmt());
     
-    expect(TokenType::IDENTIFIER, "Expected interface name");
     iface->name = current_.text;
-    consume();
+    expect(TokenType::IDENTIFIER, "Expected interface name");
     
     expect(TokenType::LBRACE, "Expected '{' after interface declaration");
     
     while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
-        auto method = parseFunctionDecl();
-        if (method) {
-            iface->methods.push_back(method);
+        // 接口方法签名: 方法名(参数: 类型, ...): 返回类型
+        auto method = Shared<FuncDeclStmt>(new FuncDeclStmt());
+        method->name = current_.text;
+        expect(TokenType::IDENTIFIER, "Expected method name in interface");
+        
+        expect(TokenType::LPAREN, "Expected '(' after method name");
+        if (!match(TokenType::RPAREN)) {
+            while (true) {
+                std::pair<String, Optional<String>> param;
+                param.first = current_.text;
+                expect(TokenType::IDENTIFIER, "Expected parameter name");
+                if (match(TokenType::OP_COLON)) {
+                    consume();
+                    param.second = parseType();
+                }
+                method->params.push_back(param);
+                if (match(TokenType::COMMA)) { consume(); }
+                else { break; }
+            }
         }
+        expect(TokenType::RPAREN, "Expected ')' after parameters");
+        
+        // 可选返回类型
+        if (match(TokenType::OP_COLON)) {
+            consume();
+            method->returnType = parseType();
+        }
+        
+        iface->methods.push_back(method);
     }
     
     if (match(TokenType::RBRACE)) {

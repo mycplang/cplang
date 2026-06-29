@@ -150,6 +150,19 @@ void Codegen::compileFuncDecl(Shared<FuncDeclStmt> stmt) {
         if (static_cast<int>(p) >= nextReg_) nextReg_ = static_cast<int>(p) + 1;
     }
 
+    // 默认参数值
+    for (size_t p = 0; p < stmt->paramDefaults.size(); p++) {
+        if (stmt->paramDefaults[p]) {
+            int paramReg = static_cast<int>(p);
+            int isNilReg = allocReg();
+            emit(OP_ISNULL, static_cast<UInt8>(isNilReg), static_cast<UInt8>(paramReg), 0);
+            int skipJump = emitJumpPlaceholder(OP_JUMPNIF, static_cast<UInt8>(isNilReg));
+            int defaultReg = compileExpr(stmt->paramDefaults[p]);
+            emit(OP_MOVE, static_cast<UInt8>(paramReg), static_cast<UInt8>(defaultReg), 0);
+            patchJump(skipJump, static_cast<int>(code_->size()));
+        }
+    }
+
     // 编译函数体
     if (stmt->body) {
 
