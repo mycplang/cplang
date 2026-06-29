@@ -1,104 +1,96 @@
-// CP Runner — 独立可执行文件引导 (v0.9.3)
-// 读取自身 exe 尾部的字节码并执行
+// cplang-runner: minimal bundle executor (no compiler/JIT/debugger)
+#define NOMINMAX
+#include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
 #include <cstring>
-#include <iostream>
-
 #ifdef _WIN32
 #include <windows.h>
-#else
-#include <unistd.h>
-#include <sys/stat.h>
 #endif
 
-namespace cplang { class VM; }
+#include "vm/vm_class.hpp"
+#include "vm/vm_value_helpers.hpp"
+#include "stdlib/stdlib.hpp"
 
-// 前向声明
-extern "C" {
-    using VMFunc = void*(*)(void*, const char*, int, const void*, int, void**, int*);
-    // 简化：直接内联核心 VM 逻辑
-}
+using namespace cplang;
 
-// 魔数标记：字节码数据开始
-static const char MAGIC[] = "CPBC\0\0\0\0";
-
-struct BundleHeader {
-    char magic[8];       // "CPBC\0\0\0\0"
-    uint32_t codeSize;   // 字节码大小
-    uint32_t constSize;  // 常量池大小
-    uint32_t entryPoint; // 入口函数名长度
-    // followed by: entryPoint name, code bytes, constants
-};
-
-// 获取自身 exe 路径
-std::string getExePath() {
-#ifdef _WIN32
-    char buf[MAX_PATH];
-    GetModuleFileNameA(NULL, buf, MAX_PATH);
-    return buf;
-#else
-    char buf[4096];
-    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf)-1);
-    if (len != -1) buf[len] = '\0';
-    else return "";
-    return buf;
-#endif
+// Stubs for features not needed in slim runtime
+namespace cplang {
+    bool jitTryCallDispatch(VM*, VMFunction*, int, Value*, Value&) { return false; }
+    bool jitTryCallDispatch(VM*, VMFunction*, int, Value*, int, Value*) { return false; }
+    class DebugServer {
+    public:
+        bool shouldPause(const std::string&, int) { return false; }
+        void waitForCommand() {}
+        void poll() {}
+        bool start(int) { return false; }
+        void stop() {}
+    };
 }
 
 int main(int argc, char* argv[]) {
-    std::string exePath = getExePath();
+#ifdef _WIN32
+    { HINSTANCE hK32 = LoadLibraryA("kernel32.dll");
+      if (hK32) { typedef BOOL (WINAPI *SetCP)(UINT); SetCP scp = (SetCP)GetProcAddress(hK32, "SetConsoleOutputCP"); if (scp) scp(65001); FreeLibrary(hK32); } }
+#endif
+
+    // Read self and find CPBC bundle at tail
+    char selfPath[MAX_PATH];
+    GetModuleFileNameA(NULL, selfPath, MAX_PATH);
+    std::ifstream self(selfPath, std::ios::binary | std::ios::ate);
+    if (!self) return 1;
     
-    // 读取自身尾部
-    std::ifstream exeFile(exePath, std::ios::binary | std::ios::ate);
-    if (!exeFile) {
-        std::cerr << "FATAL: cannot open self: " << exePath << std::endl;
+    size_t total = self.tellg();
+    size_t tailSz = total > 65536 ? 65536 : total;
+    self.seekg(total - tailSz);
+    std::string tail(tailSz, 0);
+    self.read(&tail[0], tailSz); self.close();
+
+    const char* mag = "CPBC\x00\x00\x00\x00";
+    size_t pos = tail.rfind(mag);
+    if (pos == std::string::npos) {
+        std::cerr << "No bundle found\n";
         return 1;
     }
+
+    const char* p = tail.data() + pos + 8;
+    uint32_t cs = *(uint32_t*)p; p += 4;
+    uint32_t ks = *(uint32_t*)p; p += 4;
+    uint32_t el = *(uint32_t*)p; p += 4; p += el;
+
+    if (p + cs > tail.data() + tail.size()) {
+        std::cerr << "Bundle truncated\n";
+        return 1;
+    }
+
+    // Create VM and load bundle
+    VM vm;
+    auto* func = new VMFunction();
+    func->code.assign(p, p + cs);
     
-    // 从尾部搜索 MAGIC
-    const size_t fileSize = exeFile.tellg();
-    const size_t searchStart = (fileSize > 65536) ? fileSize - 65536 : 0;
-    
-    exeFile.seekg(searchStart);
-    std::vector<char> tail(fileSize - searchStart);
-    exeFile.read(tail.data(), tail.size());
-    exeFile.close();
-    
-    // 搜索 MAGIC
-    const char* magicPos = nullptr;
-    for (size_t i = 0; i + 8 <= tail.size(); i++) {
-        if (std::memcmp(tail.data() + i, MAGIC, 4) == 0) {
-            magicPos = tail.data() + i;
-            break;
+    // Deserialize tagged constants (tag=1: string, tag=0: raw Value)
+    const uint8_t* cp = (const uint8_t*)p + cs;
+    for (uint32_t i = 0; i < ks; i++) {
+        uint8_t tag = *cp; cp++;
+        if (tag == 1) {
+            uint32_t len = *(uint32_t*)cp; cp += 4;
+            auto* s = VMString::create(std::string((const char*)cp, len).c_str());
+            cp += len;
+            func->constants.push_back(makeStringVal(s));
+        } else {
+            uint64_t raw; memcpy(&raw, cp, 8); cp += 8;
+            func->constants.push_back(Value(raw));
         }
     }
-    
-    if (!magicPos) {
-        std::cerr << "FATAL: no bytecode bundle found in " << exePath << std::endl;
-        return 1;
-    }
-    
-    // 解析 bundle header
-    const BundleHeader* hdr = reinterpret_cast<const BundleHeader*>(magicPos);
-    const char* dataPtr = reinterpret_cast<const char*>(hdr + 1);
-    
-    // 读取入口函数名
-    std::string entryName(dataPtr, hdr->entryPoint);
-    dataPtr += hdr->entryPoint;
-    
-    // 读取字节码
-    std::vector<uint8_t> code(hdr->codeSize);
-    std::memcpy(code.data(), dataPtr, hdr->codeSize);
-    dataPtr += hdr->codeSize;
-    
-    std::cerr << "[runner] bundle loaded: " << hdr->codeSize << "B code, "
-              << hdr->constSize << "B consts" << std::endl;
-    
-    // TODO: Initialize VM, load bytecode, execute
-    // 此处需要链接 cplang VM 库
-    std::cerr << "[runner] VM execution not yet implemented" << std::endl;
-    
-    return 0;
+
+    func->maxStack = 4096;
+    StdLib::registerAll(&vm);
+    vm.refreshGlobalSlots();
+
+    std::vector<Value> args;
+    Value funcVal = makeFunctionVal(func);
+    vm.callFunction(funcVal, args);
+
+    return vm.hasError() ? 1 : 0;
 }

@@ -566,10 +566,18 @@ int main(int argc, char* argv[]) {
             }
             pc += 4;
         }
-        // Serialize
-        char selfPath[MAX_PATH]; GetModuleFileNameA(NULL, selfPath, MAX_PATH);
+        // Find runner base (prefer slim runtime over full compiler)
+        char basePath[MAX_PATH]; GetModuleFileNameA(NULL, basePath, MAX_PATH);
         std::string out = outFile ? outFile : "a.exe";
-        std::ifstream src(selfPath, std::ios::binary);
+        std::string runnerPath = basePath;
+        size_t lastSlash = runnerPath.find_last_of("\\\\/");
+        if (lastSlash != std::string::npos) {
+            std::string dir = runnerPath.substr(0, lastSlash + 1);
+            std::string candidate = dir + "cplang-runner.exe";
+            std::ifstream test(candidate);
+            if (test.good()) { test.close(); runnerPath = candidate; }
+        }
+        std::ifstream src(runnerPath, std::ios::binary);
         std::ofstream dst(out, std::ios::binary);
         dst << src.rdbuf(); src.close();
         const char MAGIC[] = "CPBC\x00\x00\x00\x00";

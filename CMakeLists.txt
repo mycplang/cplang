@@ -589,8 +589,31 @@ set_target_properties(cplang_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
+# 15b. cplang_runner — 瘦身版运行时（仅 VM+stdlib，无编译器/JIT/调试器）
+add_executable(cplang_runner
+    src/runner.cpp
+)
+target_include_directories(cplang_runner PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(cplang_runner PRIVATE
+    cplang_vm
+    cplang_stdlib
+    cplang_platform
+    cplang_core
+    cplang_debug
+    cplang_exception
+    $<TARGET_OBJECTS:cplang_game_engine>
+    ${SYSTEM_LIBS}
+)
+set_target_warnings(cplang_runner)
+set_target_properties(cplang_runner PROPERTIES
+    OUTPUT_NAME cplang-runner
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+
 # ============================================================================
-# 15b. cplang_cpkg — 包管理器（独立 exe）
+# 15c. cplang_cpkg — 包管理器（独立 exe）
 # ============================================================================
 add_executable(cplang_cpkg
     src/cpkg/cpkg.cpp
