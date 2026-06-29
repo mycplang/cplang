@@ -195,7 +195,17 @@ void Lexer::scanComment_() {
 
 Token Lexer::scanOp_(int sl, int sc) {
     char c1 = curr_;
-    char c2 = peekNext();
+        char c2 = peekNext();
+    // ... spread operator
+    if (c1 == '.' && c2 == '.') {
+        advance_();
+        char c3 = peekNext();
+        if (c3 == '.') {
+            advance_(); advance_();
+            return Token(TokenType::OP_SPREAD, "...", sl, sc);
+        }
+    }
+    // 2-char ops
     // 2-char ops
     if (c2) {
         String two; two += c1; two += c2;
@@ -203,7 +213,7 @@ Token Lexer::scanOp_(int sl, int sc) {
             two == "&&" || two == "||" || two == "++" || two == "--" ||
             two == "+=" || two == "-=" || two == "*=" || two == "/=" ||
             two == "%=" || two == "::" || two == "->" || two == "|>" || two == "=>" ||
-            two == "<<") {
+            two == "<<" || two == "?." || two == "??") {
             advance_(); advance_();
             static const std::unordered_map<String, TokenType> m2 = {
                 {"==", TokenType::OP_EQ}, {"!=", TokenType::OP_NE},
@@ -217,6 +227,8 @@ Token Lexer::scanOp_(int sl, int sc) {
                 {"|>", TokenType::OP_PIPE},
                 {"=>", TokenType::OP_FAT_ARROW},
                 {"<<", TokenType::OP_LSHIFT},
+                {"?.", TokenType::OP_OPTIONAL_CHAIN},
+                {"??", TokenType::OP_NULL_COALESCE},
             };
             return Token(m2.at(two), two, sl, sc);
         }
@@ -234,7 +246,7 @@ Token Lexer::scanOp_(int sl, int sc) {
         {'{', TokenType::LBRACE}, {'}', TokenType::RBRACE},
         {',', TokenType::COMMA}, {';', TokenType::SEMICOLON},
         {'?', TokenType::OP_QUESTION}, {':', TokenType::OP_COLON},
-        {'.', TokenType::OP_DOT},
+        {'.', TokenType::OP_DOT}, {'@', TokenType::OP_AT},
     };
     advance_();
     auto it = m1.find(c1);

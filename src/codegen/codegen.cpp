@@ -115,7 +115,7 @@ void Codegen::emitInt(UInt8 op, UInt8 a, Int32 imm) {
     func_->lineInfo.push_back(currentLine_);
     
     Int32 idx;
-    if (op == OP_LOADGLOBAL || op == OP_STOREGLOBAL || op == OP_LOADCONST || op == OP_LOADSTR) {
+    if (op == OP_LOADGLOBAL || op == OP_STOREGLOBAL || op == OP_LOADCONST) {
         idx = imm;
     } else {
         idx = addConstant(Value::Int(imm));

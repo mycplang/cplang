@@ -56,6 +56,9 @@ int Codegen::compileExpr(Shared<Expr> expr) {
         // 三元运算符
         if (bin->op == TokenType::OP_QUESTION)
             return compileTernary(bin);
+        // null coalescing a ?? b
+        if (bin->op == TokenType::OP_NULL_COALESCE)
+            return compileNullCoalesce(bin);
         return compileBinary(bin);
     }
 
@@ -561,6 +564,18 @@ int Codegen::compileTernary(Shared<BinaryExpr> expr) {
     return resultReg;
 }
 
+int Codegen::compileNullCoalesce(Shared<BinaryExpr> expr) {
+    int leftReg = compileExpr(expr->left);
+    int isNilReg = allocReg();
+    emit(OP_ISNULL, static_cast<UInt8>(isNilReg), static_cast<UInt8>(leftReg), 0);
+    int skipJump = emitJumpPlaceholder(OP_JUMPNIF, static_cast<UInt8>(isNilReg));
+    int rightReg = compileExpr(expr->right);
+    emit(OP_MOVE, static_cast<UInt8>(leftReg), static_cast<UInt8>(rightReg), 0);
+    int endPos = static_cast<int>(code_->size());
+    patchJump(skipJump, endPos);
+    return leftReg;
+}
+
 int Codegen::compileUnary(Shared<UnaryExpr> expr) {
     int rb = compileExpr(expr->operand);
     int ra = allocReg();
@@ -710,6 +725,17 @@ int Codegen::compileMember(Shared<MemberExpr> expr) {
     lastObjReg_ = objReg;
     int ra = allocReg();
 
+    // 可选链 a?.b: 若 a 为 nil 则返回 nil
+    int endJump = 0;
+    if (expr->optional) {
+        int isNilReg = allocReg();
+        emit(OP_ISNULL, static_cast<UInt8>(isNilReg), static_cast<UInt8>(objReg), 0);
+        int notNilJump = emitJumpPlaceholder(OP_JUMPNIF, static_cast<UInt8>(isNilReg));
+        emit(OP_LOADNIL, static_cast<UInt8>(ra), 0, 0);
+        endJump = emitJumpPlaceholder(OP_JUMP, 0);
+        patchJump(notNilJump, static_cast<int>(code_->size()));
+    }
+
     // 查找对象类型信息
     Type* objType = nullptr;
     if (analyzer_) {
@@ -758,7 +784,9 @@ int Codegen::compileMember(Shared<MemberExpr> expr) {
     int nameReg = allocReg();
     emitInt(OP_LOADSTR, nameReg, nameIdx);
     emit(OP_GETIDX, ra, objReg, nameReg);
-    return ra;
+    
+    if (endJump) patchJump(endJump, static_cast<int>(code_->size()));
+return ra;
 }
 
 int Codegen::compileIndex(Shared<IndexExpr> expr) {

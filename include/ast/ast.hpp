@@ -18,7 +18,8 @@ struct Expr : ASTNode {};
 
 // 字面量表达式
 struct LiteralExpr : Expr {
-    Variant<Int64, Float64, String, bool> value;
+    // 使用 std::monostate 表示 null 字面量（放在第一位作为默认值）
+    Variant<std::monostate, Int64, Float64, String, bool> value;
 };
 
 // 标识符表达式
@@ -28,7 +29,13 @@ struct IdentifierExpr : Expr {
 
 // await / 等待 表达式
 struct AwaitExpr : Expr {
-    Shared<Expr> target;  // 要等待的异步操作
+    Shared<Expr> target;  // 等待的操作
+};
+
+// is / 属于 类型守卫表达式：expr is Type
+struct IsExpr : Expr {
+    Shared<Expr> expr;     // 要检查的表达式
+    String checkType;      // 要检查的类型名
 };
 
 // this / self 表达式（在类方法中引用当前实例）
@@ -62,9 +69,14 @@ struct CallExpr : Expr {
 };
 
 // 成员访问表达式
+struct SpreadExpr : Expr {
+    Shared<Expr> array;  // the array/expression to spread
+};
+
 struct MemberExpr : Expr {
     Shared<Expr> object;
     String member;
+    bool optional = false;
 };
 
 // 数组访问表达式
@@ -123,12 +135,40 @@ struct VarDeclStmt : Stmt {
     Shared<Expr> init;
     bool isConst;
     bool isImplicit = false;  // x=10 without 变量
+    bool isStatic = false;    // 静态成员变量
+};
+
+// 宏声明
+struct MacroDeclStmt : Stmt {
+    String name;
+    std::vector<String> params;  // 参数名列表
+    Optional<String> varParam;   // 可变参数名（...args）
+    Shared<Expr> body;           // 宏体（表达式形式，向后兼容）
+    Shared<BlockStmt> stmtBody;  // 宏体（语句块形式，P8.1新增）
+    bool isStmtMacro = false;    // 是否为语句级宏
+};
+
+// 类型别名声明
+struct TypeAliasStmt : Stmt {
+    String name;          // 别名名称
+    String targetType;    // 目标类型字符串
+};
+
+// 解构赋值声明: var [a, b, c] = 数组 或 var {x, y} = 表
+struct DestructuringDecl : Stmt {
+    enum Kind { ARRAY, TABLE };
+    Kind kind;
+    std::vector<String> names;      // 变量名列表
+    std::vector<String> keys;       // 表解构时的键名（数组解构时为空）
+    Shared<Expr> init;              // 右侧表达式
+    bool isConst = false;
 };
 
 // 类型参数（用于泛型）
 struct TypeParam {
     String name;
-    Optional<String> constraint;  // 可选的约束/trait 名（如 "可比较"）
+    Optional<String> constraint;  // 可选的约束/trait 名（如 "可比较"）- 单约束简写
+    std::vector<String> constraints;  // 多个约束（where子句中使用）
 };
 
 // 访问修饰符
@@ -144,13 +184,16 @@ struct FuncDeclStmt : Stmt {
     bool isStatic = false;
     bool isVirtual = false;
     bool isAsync = false;    // 异步函数标记
+    bool isGenerator = false; // 生成器函数标记（包含yield）
     AccessModifier access = AccessModifier::PUBLIC;
 };
 
 // 类声明
 struct ClassDeclStmt : Stmt {
     String name;
+    std::vector<TypeParam> typeParams;  // 泛型类型参数: <T: 可比较, U>
     Optional<String> baseClass;
+    std::vector<String> interfaces;     // 实现的接口列表
     std::vector<Shared<Stmt>> members;  // fields, methods
     AccessModifier currentAccess = AccessModifier::PUBLIC;  // 当前访问级别
 };
@@ -158,12 +201,15 @@ struct ClassDeclStmt : Stmt {
 // new 表达式
 struct NewExpr : Expr {
     String className;
+    std::vector<String> typeArgs;  // 泛型类实例化类型参数: new 栈<整数>(16)
     std::vector<Shared<Expr>> args;  // constructor args
 };
 
 // 接口声明
 struct InterfaceDeclStmt : Stmt {
     String name;
+    std::vector<TypeParam> typeParams;  // 泛型类型参数
+    std::vector<String> baseInterfaces; // 继承的接口列表
     std::vector<Shared<Stmt>> methods;  // only method signatures
 };
 
@@ -202,10 +248,35 @@ struct SwitchStmt : Stmt {
     Shared<Stmt> defaultCase;
 };
 
+// 模式类型
+enum class PatternKind {
+    PATTERN_VARIANT,   // 枚举变体模式: 情况 变体名(绑定)
+    PATTERN_LITERAL,   // 字面量模式: 情况 42 / 情况 "hello"
+    PATTERN_WILDCARD, // 通配符模式: 情况 _
+    PATTERN_BINDING,   // 变量绑定模式: 情况 x => 绑定到变量
+    PATTERN_ARRAY      // A3.1: 数组/元组模式: 情况 [a, b, c]
+};
+
 // MatchCase：匹配语句中的一个分支
 struct MatchCase {
+    PatternKind kind = PatternKind::PATTERN_VARIANT; // 模式类型
+    
+    // 变体模式
     String variantName;                    // 要匹配的变体名
     std::vector<String> bindings;           // 绑定到变体字段的变量名
+    
+    // 字面量模式
+    Shared<LiteralExpr> literalValue;     // 字面量值
+    
+    // 绑定模式
+    String bindingName;                  // 绑定变量名
+    
+    // A3.1: 数组/元组模式
+    std::vector<String> arrayBindings;     // 数组元素绑定变量名
+    
+    // A2.1: 守卫条件（可选）
+    Shared<Expr> guard;                    // 守卫条件表达式: 当 cond =>
+    
     Shared<Stmt> body;                      // 分支体
 };
 
@@ -259,22 +330,76 @@ struct ReturnStmt : Stmt {
     Shared<Expr> value;
 };
 
+// yield 语句（生成器产出值）
+struct YieldStmt : Stmt {
+    Shared<Expr> value;  // 产出的值（可选，yield; 时为null）
+};
+
+// go / 协程 语句：启动并发执行
+struct GoStmt : Stmt {
+    Shared<Expr> expr;   // 要并发执行的表达式（通常是函数调用）
+};
+
 // throw 语句
 struct ThrowStmt : Stmt {
     Shared<Expr> exception;
 };
 
+// Catch块：包含异常类型、变量名和处理代码
+struct CatchBlock {
+    String exceptionType;  // B1: 异常类型名（空字符串表示捕获所有）
+    String varName;        // 异常变量名
+    Shared<Stmt> body;     // 处理代码
+};
+
 // try-catch 语句
 struct TryStmt : Stmt {
     Shared<Stmt> tryBlock;
-    std::vector<std::pair<String, Shared<Stmt>>> catchBlocks;  // exception name, handler
+    std::vector<CatchBlock> catchBlocks;  // B1: 类型化的catch块
     Shared<Stmt> finallyBlock;
+};
+
+// with / 使用 语句（上下文管理器）
+// 使用 表达式 as 变量名: 块
+// 等价于: var 变量名 = 表达式; try { 块 } finally { 变量名.close(); }
+struct WithStmt : Stmt {
+    Shared<Expr> expr;       // 资源表达式
+    String varName;          // 资源变量名（as 后面的变量）
+    Shared<Stmt> body;       // with 体
 };
 
 // import 语句
 struct ImportStmt : Stmt {
     String moduleName;      // 模块名（不含.cp后缀）
     Optional<String> alias; // 可选别名
+    bool isNamedImport = false;  // 是否是命名导入（from...import）
+    // 命名导入列表：{原名, 可选别名}
+    std::vector<std::pair<String, Optional<String>>> importedNames;
+    bool isNamespaceImport = false;  // 是否是命名空间导入（import * as alias）
+};
+
+// 装饰器定义
+struct Decorator {
+    String name;                    // 装饰器名称
+    std::vector<Shared<Expr>> args; // 装饰器参数（可选）
+};
+
+// 装饰器语句 - 包装被装饰的声明（类似 ExportStmt）
+struct DecoratorStmt : Stmt {
+    std::vector<Decorator> decorators;  // 装饰器列表（支持多个堆叠）
+    Shared<Stmt> declaration;           // 被装饰的声明（函数、类等）
+};
+
+// export 语句
+struct ExportStmt : Stmt {
+    enum class Kind {
+        DECLARATION,  // export function/class/var ...
+        NAMED_EXPORTS // export { a, b as c }
+    };
+    Kind kind;
+    Shared<Stmt> declaration;  // 当 kind == DECLARATION 时
+    // 命名导出列表：{原名, 可选别名}
+    std::vector<std::pair<String, Optional<String>>> namedExports;
 };
 
 // package 语句

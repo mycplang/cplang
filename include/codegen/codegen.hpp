@@ -88,6 +88,9 @@ private:
         std::vector<int> pendingContinues;  // OP_JUMP positions to patch on continue
     };
     std::vector<LoopContext> loopStack_;
+    
+    // 异步函数栈（用于 return 包装）
+    std::vector<bool> asyncFuncStack_;
 
     // 辅助
     void emit(UInt8 op, UInt8 a = 0, UInt8 b = 0, UInt8 c = 0);
@@ -122,7 +125,10 @@ private:
     void compileStmt(Shared<Stmt> stmt);
     void compilePackage(Shared<PackageStmt> stmt);
     void compileImport(Shared<ImportStmt> stmt);
+    void compileExport(Shared<ExportStmt> stmt);
+    void compileDecorator(Shared<DecoratorStmt> stmt);
     void compileVarDecl(Shared<VarDeclStmt> stmt);
+    void compileDestructuringDecl(Shared<DestructuringDecl> stmt);
     void compileFuncDecl(Shared<FuncDeclStmt> stmt);
     void compileClassDecl(Shared<ClassDeclStmt> stmt);
     void compileEnumDecl(Shared<EnumDeclStmt> stmt);
@@ -135,7 +141,10 @@ private:
     void compileReturn(Shared<ReturnStmt> s);
     void compileBreak(Shared<BreakStmt> s);
     void compileContinue(Shared<ContinueStmt> s);
+    void compileYield(Shared<YieldStmt> s);
+    void compileGo(Shared<GoStmt> s);
     void compileTry(Shared<TryStmt> s);
+    void compileWith(Shared<WithStmt> s);
     void compileThrow(Shared<ThrowStmt> s);
     void compileSwitch(Shared<SwitchStmt> s);
     void compileMatch(Shared<MatchStmt> s);
@@ -155,7 +164,8 @@ private:
     int compileStructLiteral(Shared<StructLiteralExpr> expr);
     int compileAssign(Shared<BinaryExpr> expr);
     int compileTernary(Shared<BinaryExpr> expr);
-    int compileNew(Shared<NewExpr> expr);
+
+    int compileNullCoalesce(Shared<BinaryExpr> expr);    int compileNew(Shared<NewExpr> expr);
     int compileLambda(Shared<LambdaExpr> expr);
     int compilePipe(Shared<PipeExpr> expr);
 
@@ -176,15 +186,33 @@ private:
         String name;
         std::vector<String> fieldNames;
         std::vector<std::pair<String, VMFunction*>> methods;
+        // 静态成员
+        std::vector<String> staticFieldNames;
+        std::vector<std::pair<String, VMFunction*>> staticMethods;
     };
     VMFunction* lastCompiledFunc_ = nullptr;
     int lastObjReg_ = -1;
     std::unordered_map<String, ClassMeta> classMeta_;
+    
+    // 当前类栈：编译类方法时跟踪当前类，用于 super 等功能
+    std::vector<String> currentClassStack_;
+    const String& currentClassName() const {
+        static String emptyStr;
+        return currentClassStack_.empty() ? emptyStr : currentClassStack_.back();
+    }
 
     // defer 栈：离开作用域时逆序执行
     std::vector<std::vector<Shared<Stmt>>> deferStack_;
     void compileDefer(Shared<DeferStmt> stmt);
     void emitDeferCleanup();
+
+    // === P0.1：模块命名空间隔离 ===
+    // 记录当前编译单元中 import 过的模块名，
+    // 用于在模块.函数() 调用时发射普通 OP_CALL 而不是 OP_CALLMETHOD
+    std::unordered_set<String> importedModuleNames_;
+    bool isModuleName(const String& name) const {
+        return importedModuleNames_.count(name) > 0;
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -212,6 +240,14 @@ public:
         return enableBytecodeOpt_ ? &bytecodeOptStats_ : nullptr; 
     }
 
+    // === PGO（剖面引导优化）配置 ===
+    void setEnablePGOGenerate(bool v) { enablePGOGenerate_ = v; }
+    void setEnablePGOUse(bool v) { enablePGOUse_ = v; }
+    void setPGOProfilePath(const std::string& path) { pgoProfilePath_ = path; }
+    bool isPGOGenerateEnabled() const { return enablePGOGenerate_; }
+    bool isPGOUseEnabled() const { return enablePGOUse_; }
+    const std::string& getPGOProfilePath() const { return pgoProfilePath_; }
+
 private:
     std::unique_ptr<VM> vm_;
     bool useSlotOpt_ = true;
@@ -220,6 +256,10 @@ private:
     OptLevel optLevel_ = OptLevel::O2;
     bool enableBytecodeOpt_ = true;
     BytecodeOptStats bytecodeOptStats_;
+    // PGO 配置
+    bool enablePGOGenerate_ = false;
+    bool enablePGOUse_ = false;
+    std::string pgoProfilePath_ = "cplang.profdata";
     VMFunction* compileInternal(const String& source, const String& sourceFile = "<string>");
 };
 

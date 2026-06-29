@@ -51,16 +51,20 @@ enum class TokenType {
     K_DELETE,     // 删除
     K_THIS,       // 这个
     K_SUPER,      // 继承
-    K_EXTENDS,    // 实现（复用）
+    K_EXTENDS,    // 扩展/继承（类继承类，接口继承接口）
+    K_IMPLEMENTS, // 实现（类实现接口）
     K_TRY,        // 尝试
     K_CATCH,      // 捕获
     K_THROW,      // 抛出
     K_FINALLY,    // 最终
+    K_WITH,       // 使用 / with
     K_ASYNC,      // 异步
     K_AWAIT,      // 等待
+    K_GO,         // 协程 / go（启动并发）
     K_CONST,      // 常量
     K_VAR,        // 变量
     K_STATIC,     // 静态
+    K_EXPORT,     // 导出
     K_ABSTRACT,   // 抽象
     K_VIRTUAL,    // 虚拟
     K_OVERRIDE,   // 重写
@@ -125,6 +129,10 @@ enum class TokenType {
     OP_PIPE,      // |>
     OP_FAT_ARROW, // =>
     OP_SCOPE,     // ::
+
+    OP_OPTIONAL_CHAIN, // ?.
+    OP_NULL_COALESCE,  // ??
+    OP_SPREAD,         // ...
     
     // 分隔符
     LPAREN,       // (
@@ -142,6 +150,30 @@ enum class TokenType {
     
     // 预处理器
     HASH,        // #
+    
+    // 装饰器
+    OP_AT,       // @
+    
+    // 生成器
+    K_YIELD,     // 产出 / yield
+    
+    // 宏
+    K_MACRO,     // 宏 / macro
+    
+    // 条件编译
+    K_COND_IF,     // 编译如果 / #if
+    K_COND_ELSE,   // 编译否则 / #else
+    K_COND_ENDIF,  // 编译结束如果 / #endif
+    K_COND_DEFINED, // 编译定义 / defined
+    
+    // where 子句
+    K_WHERE,     // 满足 / where
+    
+    // 类型别名
+    K_TYPE,      // 类型 / type
+    
+    // 类型守卫
+    K_IS,        // 是 / is
     
     // 错误
     INVALID
@@ -225,16 +257,19 @@ private:
             {"删除", TokenType::K_DELETE},
             {"这个", TokenType::K_THIS},
             {"继承", TokenType::K_SUPER},
-            {"实现", TokenType::K_EXTENDS},
+            {"实现", TokenType::K_IMPLEMENTS},
             {"尝试", TokenType::K_TRY},
             {"捕获", TokenType::K_CATCH},
             {"抛出", TokenType::K_THROW},
             {"最终", TokenType::K_FINALLY},
+            {"使用", TokenType::K_WITH},
             {"异步", TokenType::K_ASYNC},
             {"等待", TokenType::K_AWAIT},
+            {"协程", TokenType::K_GO},
             {"常量", TokenType::K_CONST},
             {"变量", TokenType::K_VAR},
             {"静态", TokenType::K_STATIC},
+            {"导出", TokenType::K_EXPORT},
             {"抽象", TokenType::K_ABSTRACT},
             {"虚拟", TokenType::K_VIRTUAL},
             {"重写", TokenType::K_OVERRIDE},
@@ -261,6 +296,15 @@ private:
             {"不超过", TokenType::K_LE},
             {"设", TokenType::K_LET},
             {"推迟", TokenType::K_DEFER},
+            {"产出", TokenType::K_YIELD},
+            {"宏", TokenType::K_MACRO},
+            {"编译如果", TokenType::K_COND_IF},
+            {"编译否则", TokenType::K_COND_ELSE},
+            {"编译结束如果", TokenType::K_COND_ENDIF},
+            {"编译定义", TokenType::K_COND_DEFINED},
+            {"满足", TokenType::K_WHERE},
+            {"类型", TokenType::K_TYPE},
+            {"属于", TokenType::K_IS},
 
             // 英文备选关键字
             {"package", TokenType::K_PACKAGE},
@@ -295,26 +339,40 @@ private:
             {"this", TokenType::K_THIS},
             {"super", TokenType::K_SUPER},
             {"extends", TokenType::K_EXTENDS},
+            {"implements", TokenType::K_IMPLEMENTS},
             {"try", TokenType::K_TRY},
             {"catch", TokenType::K_CATCH},
             {"throw", TokenType::K_THROW},
             {"finally", TokenType::K_FINALLY},
+            {"with", TokenType::K_WITH},
             {"async", TokenType::K_ASYNC},
             {"await", TokenType::K_AWAIT},
+            {"go", TokenType::K_GO},
             {"const", TokenType::K_CONST},
             {"var", TokenType::K_VAR},
             {"mutable", TokenType::K_MUTABLE},
             {"static", TokenType::K_STATIC},
+            {"export", TokenType::K_EXPORT},
             {"abstract", TokenType::K_ABSTRACT},
             {"virtual", TokenType::K_VIRTUAL},
             {"override", TokenType::K_OVERRIDE},
             {"in", TokenType::K_IN},
+            {"from", TokenType::K_FROM},
             {"then", TokenType::K_THEN},
             {"and", TokenType::K_AND},
             {"or", TokenType::K_OR},
             {"not", TokenType::K_NOT},
             {"let", TokenType::K_LET},
             {"defer", TokenType::K_DEFER},
+            {"yield", TokenType::K_YIELD},
+            {"macro", TokenType::K_MACRO},
+            {"cond_if", TokenType::K_COND_IF},
+            {"cond_else", TokenType::K_COND_ELSE},
+            {"cond_endif", TokenType::K_COND_ENDIF},
+            {"defined", TokenType::K_COND_DEFINED},
+            {"where", TokenType::K_WHERE},
+            {"type", TokenType::K_TYPE},
+            {"is", TokenType::K_IS},
         };
     }
     

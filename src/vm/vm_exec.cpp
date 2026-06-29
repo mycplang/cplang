@@ -186,7 +186,7 @@ case OP_LOADFLT: {
                 // 16-byte format: [op][a][0][0][imm0][imm1][imm2][imm3][pad8]
                 // After op fetch, pc points to a. imm32 starts at pc+3
                 Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
-                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
+                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
                     RA(a) = ctx->func->constants[bx];
                 } else {
                     RA(a) = Value::Float(0.0f);
@@ -199,7 +199,7 @@ case OP_LOADSTR: {
                 // 16-byte format: [op][a][0][0][imm0][imm1][imm2][imm3][pad8]
                 // After op fetch, pc points to a. imm32 starts at pc+3
                 Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
-                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
+                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
                     const Value& kv = ctx->func->constants[bx];
                     if (kv.isString()) {
                         RA(a) = kv;
@@ -217,7 +217,7 @@ case OP_LOADCONST: {
                 // 8-byte format: [op][a][b][c][imm0][imm1][imm2][imm3]
                 Int32 bx = ((Int32)ctx->code[ctx->pc+1] << 8) | (Int32)ctx->code[ctx->pc+2];
 
-                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
+                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
                     const Value& v = ctx->func->constants[bx];
 
                     RA(a) = v;
@@ -606,7 +606,7 @@ case OP_CMPGE: {
 case OP_JUMP: {
                 // 16-byte format: [op][0][0][0][offset32] (relative offset from next instruction)
                 // After reading op, pc points to a (pc+1), so offset is at pc+3
-                Int16 offset = (Int16)((ctx->code[ctx->pc+1] << 8) | ctx->code[ctx->pc+2]);
+                Int16 offset = (Int16)(ctx->code[ctx->pc+1] | (ctx->code[ctx->pc+2] << 8));
                 ctx->pc = ctx->pc + 3 + offset;  // pc after opcode + 15 + offset
                 break;
             }
@@ -614,7 +614,7 @@ case OP_JUMP: {
 case OP_JUMPIF: {
                 // 16-byte format: [op][a][0][0][offset32] (relative offset)
                 // After reading op, pc points to a (pc+1), so offset is at pc+3
-                Int16 offset = (Int16)((ctx->code[ctx->pc+1] << 8) | ctx->code[ctx->pc+2]);
+                Int16 offset = (Int16)(ctx->code[ctx->pc+1] | (ctx->code[ctx->pc+2] << 8));
                 if (RA(a).isTrue()) ctx->pc = ctx->pc + 3 + offset;
                 else ctx->pc += 3;
                 break;
@@ -623,7 +623,7 @@ case OP_JUMPIF: {
 case OP_JUMPNIF: {
                 // 16-byte format: [op][a][0][0][offset32] (relative offset)
                 // After reading op, pc points to a (pc+1), so offset is at pc+3
-                Int16 offset = (Int16)((ctx->code[ctx->pc+1] << 8) | ctx->code[ctx->pc+2]);
+                Int16 offset = (Int16)(ctx->code[ctx->pc+1] | (ctx->code[ctx->pc+2] << 8));
                 bool cond = RA(a).isTrue();
                 if (!cond) ctx->pc = ctx->pc + 3 + offset;
                 else ctx->pc += 3;
@@ -1018,24 +1018,18 @@ case OP_IMPORT: {
                                 
                             case OP_LOADFLT: {
                                 // emitInt格式: [op][a][0][0][imm32(4)][padding(8)]
-                                Int32 idx = (Int32)ctx->code[startPc+4] |
-                                           ((Int32)ctx->code[startPc+5] << 8) |
-                                           ((Int32)ctx->code[startPc+6] << 16) |
-                                           ((Int32)ctx->code[startPc+7] << 24);
-                                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
+                                Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
+                                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
                                     modStack[a] = ctx->func->constants[idx];
                                 } else {
-                                    modStack[a] = Value::fromFloat(static_cast<Float64>(idx));
+                                    modStack[a] = Value::Float(0.0f);
                                 }
                                 break;
                             }
                                 
                             case OP_LOADCONST: {
-                                Int32 idx = (Int32)ctx->code[startPc+4] |
-                                           ((Int32)ctx->code[startPc+5] << 8) |
-                                           ((Int32)ctx->code[startPc+6] << 16) |
-                                           ((Int32)ctx->code[startPc+7] << 24);
-                                if (idx >= 0 && idx < static_cast<Int32>(ctx->func->constants.size())) {
+                                Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
+                                if (bx >= 0 && bx < static_cast<Int32>(ctx->func->constants.size())) {
                                     modStack[a] = ctx->func->constants[idx];
                                 }
                                 break;
@@ -1050,10 +1044,7 @@ case OP_IMPORT: {
                                 break;
                                 
                             case OP_STOREGLOBAL: {
-                                Int32 idx = (Int32)ctx->code[startPc+4] |
-                                               ((Int32)ctx->code[startPc+5] << 8) |
-                                               ((Int32)ctx->code[startPc+6] << 16) |
-                                               ((Int32)ctx->code[startPc+7] << 24);
+                                Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
                                 if (ctx->func->hasSlots) {
                                     // Slot 模式：idx 直接是 slot 编号
                                     if (idx >= 0) {
@@ -1080,10 +1071,7 @@ case OP_IMPORT: {
                             }
                             
                             case OP_LOADGLOBAL: {
-                                Int32 idx = (Int32)ctx->code[startPc+4] |
-                                               ((Int32)ctx->code[startPc+5] << 8) |
-                                               ((Int32)ctx->code[startPc+6] << 16) |
-                                               ((Int32)ctx->code[startPc+7] << 24);
+                                Int32 bx = ((Int32)ctx->code[startPc+2] << 8) | (Int32)ctx->code[startPc+3];
                                 if (ctx->func->hasSlots) {
                                     // Slot 模式：idx 直接是 slot 编号
                                     if (idx >= 0 && idx < static_cast<Int32>(globalSlots_.size()))

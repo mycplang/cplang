@@ -1,9 +1,326 @@
-// CP语言 语法分析器实现 - 表达式解析
+﻿// CP语言 语法分析器实现 - 表达式解析
 #include "parser/parser.hpp"
 
 namespace cplang {
 
 // === 表达式 (递归下降) ===
+
+// 辅助：深拷贝表达式并替换参数（宏展开用）
+Shared<Expr> Parser::substituteMacroParams(Shared<Expr> expr,
+    const std::unordered_map<String, Shared<Expr>>& bindings) {
+    if (!expr) return expr;
+    
+    // 标识符表达式：检查是否是参数
+    if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(expr)) {
+        auto it = bindings.find(id->name);
+        if (it != bindings.end()) {
+            return it->second;  // 替换为实参
+        }
+        return id;
+    }
+    
+    // 字面量：直接返回
+    if (std::dynamic_pointer_cast<LiteralExpr>(expr)) {
+        return expr;
+    }
+    
+    // 二元表达式
+    if (auto bin = std::dynamic_pointer_cast<BinaryExpr>(expr)) {
+        auto newBin = Shared<BinaryExpr>(new BinaryExpr());
+        newBin->op = bin->op;
+        newBin->left = substituteMacroParams(bin->left, bindings);
+        newBin->right = substituteMacroParams(bin->right, bindings);
+        newBin->token = bin->token;
+        return newBin;
+    }
+    
+    // 一元表达式
+    if (auto un = std::dynamic_pointer_cast<UnaryExpr>(expr)) {
+        auto newUn = Shared<UnaryExpr>(new UnaryExpr());
+        newUn->op = un->op;
+        newUn->operand = substituteMacroParams(un->operand, bindings);
+        newUn->isPostfix = un->isPostfix;
+        newUn->token = un->token;
+        return newUn;
+    }
+    
+    // 函数调用
+    if (auto call = std::dynamic_pointer_cast<CallExpr>(expr)) {
+        auto newCall = Shared<CallExpr>(new CallExpr());
+        newCall->callee = substituteMacroParams(call->callee, bindings);
+        newCall->token = call->token;
+        for (auto& arg : call->arguments) {
+            newCall->arguments.push_back(substituteMacroParams(arg, bindings));
+        }
+        return newCall;
+    }
+    
+    // 类型守卫表达式 (is / 属于)
+    if (auto isE = std::dynamic_pointer_cast<IsExpr>(expr)) {
+        auto newIs = Shared<IsExpr>(new IsExpr());
+        newIs->expr = substituteMacroParams(isE->expr, bindings);
+        newIs->checkType = isE->checkType;
+        newIs->token = isE->token;
+        return newIs;
+    }
+    
+    // 成员访问
+    if (auto mem = std::dynamic_pointer_cast<MemberExpr>(expr)) {
+        auto newMem = Shared<MemberExpr>(new MemberExpr());
+        newMem->object = substituteMacroParams(mem->object, bindings);
+        newMem->member = mem->member;
+        newMem->token = mem->token;
+        return newMem;
+    }
+    
+    // 数组访问
+    if (auto idx = std::dynamic_pointer_cast<IndexExpr>(expr)) {
+        auto newIdx = Shared<IndexExpr>(new IndexExpr());
+        newIdx->array = substituteMacroParams(idx->array, bindings);
+        newIdx->index = substituteMacroParams(idx->index, bindings);
+        newIdx->token = idx->token;
+        return newIdx;
+    }
+    
+    // 数组字面量
+    if (auto arr = std::dynamic_pointer_cast<ArrayExpr>(expr)) {
+        auto newArr = Shared<ArrayExpr>(new ArrayExpr());
+        newArr->token = arr->token;
+        for (auto& elem : arr->elements) {
+            newArr->elements.push_back(substituteMacroParams(elem, bindings));
+        }
+        return newArr;
+    }
+    
+    // 结构体/表字面量
+    if (auto structLit = std::dynamic_pointer_cast<StructLiteralExpr>(expr)) {
+        auto newStruct = Shared<StructLiteralExpr>(new StructLiteralExpr());
+        newStruct->structName = structLit->structName;
+        newStruct->token = structLit->token;
+        for (auto& field : structLit->fields) {
+            Shared<Expr> newVal = substituteMacroParams(field.second, bindings);
+            newStruct->fields.push_back({field.first, newVal});
+        }
+        return newStruct;
+    }
+    
+    // 管道表达式
+    if (auto pipe = std::dynamic_pointer_cast<PipeExpr>(expr)) {
+        auto newPipe = Shared<PipeExpr>(new PipeExpr());
+        newPipe->left = substituteMacroParams(pipe->left, bindings);
+        newPipe->right = substituteMacroParams(pipe->right, bindings);
+        newPipe->token = pipe->token;
+        return newPipe;
+    }
+    
+    // Lambda 表达式
+    if (auto lambda = std::dynamic_pointer_cast<LambdaExpr>(expr)) {
+        // Lambda 内部不展开宏参数（避免变量捕获混淆）
+        return lambda;
+    }
+    
+    // 其他类型：直接返回
+    return expr;
+}
+
+// 表达式中的变量重命名（卫生宏用）
+Shared<Expr> Parser::renameVarsInExpr(Shared<Expr> expr,
+    const std::unordered_map<String, String>& varMap) {
+    if (!expr) return expr;
+    
+    // 标识符表达式：检查是否需要重命名
+    if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(expr)) {
+        auto it = varMap.find(id->name);
+        if (it != varMap.end()) {
+            auto newId = Shared<IdentifierExpr>(new IdentifierExpr());
+            newId->name = it->second;
+            newId->token = expr->token;
+            return newId;
+        }
+        return expr;
+    }
+    
+    // 字面量：直接返回
+    if (std::dynamic_pointer_cast<LiteralExpr>(expr)) {
+        return expr;
+    }
+    
+    // 二元表达式
+    if (auto bin = std::dynamic_pointer_cast<BinaryExpr>(expr)) {
+        auto newBin = Shared<BinaryExpr>(new BinaryExpr());
+        newBin->op = bin->op;
+        newBin->left = renameVarsInExpr(bin->left, varMap);
+        newBin->right = renameVarsInExpr(bin->right, varMap);
+        newBin->token = bin->token;
+        return newBin;
+    }
+    
+    // 一元表达式
+    if (auto un = std::dynamic_pointer_cast<UnaryExpr>(expr)) {
+        auto newUn = Shared<UnaryExpr>(new UnaryExpr());
+        newUn->op = un->op;
+        newUn->operand = renameVarsInExpr(un->operand, varMap);
+        newUn->isPostfix = un->isPostfix;
+        newUn->token = un->token;
+        return newUn;
+    }
+    
+    // 函数调用
+    if (auto call = std::dynamic_pointer_cast<CallExpr>(expr)) {
+        auto newCall = Shared<CallExpr>(new CallExpr());
+        newCall->callee = renameVarsInExpr(call->callee, varMap);
+        newCall->token = call->token;
+        for (auto& arg : call->arguments) {
+            newCall->arguments.push_back(renameVarsInExpr(arg, varMap));
+        }
+        return newCall;
+    }
+    
+    // 成员访问
+    if (auto mem = std::dynamic_pointer_cast<MemberExpr>(expr)) {
+        auto newMem = Shared<MemberExpr>(new MemberExpr());
+        newMem->object = renameVarsInExpr(mem->object, varMap);
+        newMem->member = mem->member;
+        newMem->token = mem->token;
+        return newMem;
+    }
+    
+    // 数组访问
+    if (auto idx = std::dynamic_pointer_cast<IndexExpr>(expr)) {
+        auto newIdx = Shared<IndexExpr>(new IndexExpr());
+        newIdx->array = renameVarsInExpr(idx->array, varMap);
+        newIdx->index = renameVarsInExpr(idx->index, varMap);
+        newIdx->token = idx->token;
+        return newIdx;
+    }
+    
+    // 数组字面量
+    if (auto arr = std::dynamic_pointer_cast<ArrayExpr>(expr)) {
+        auto newArr = Shared<ArrayExpr>(new ArrayExpr());
+        newArr->token = arr->token;
+        for (auto& elem : arr->elements) {
+            newArr->elements.push_back(renameVarsInExpr(elem, varMap));
+        }
+        return newArr;
+    }
+    
+    // 结构体/表字面量
+    if (auto structLit = std::dynamic_pointer_cast<StructLiteralExpr>(expr)) {
+        auto newStruct = Shared<StructLiteralExpr>(new StructLiteralExpr());
+        newStruct->structName = structLit->structName;
+        newStruct->token = structLit->token;
+        for (auto& field : structLit->fields) {
+            Shared<Expr> newVal = renameVarsInExpr(field.second, varMap);
+            newStruct->fields.push_back({field.first, newVal});
+        }
+        return newStruct;
+    }
+    
+    // 管道表达式
+    if (auto pipe = std::dynamic_pointer_cast<PipeExpr>(expr)) {
+        auto newPipe = Shared<PipeExpr>(new PipeExpr());
+        newPipe->left = renameVarsInExpr(pipe->left, varMap);
+        newPipe->right = renameVarsInExpr(pipe->right, varMap);
+        newPipe->token = pipe->token;
+        return newPipe;
+    }
+    
+    // 其他类型：直接返回
+    return expr;
+}
+
+// 递归展开表达式中的宏调用（带深度限制）
+Shared<Expr> Parser::expandMacrosInExpr(Shared<Expr> expr, int maxDepth) {
+    if (!expr || maxDepth <= 0) return expr;
+    
+    // 函数调用：检查是否是宏调用
+    if (auto call = std::dynamic_pointer_cast<CallExpr>(expr)) {
+        if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(call->callee)) {
+            auto it = macros_.find(id->name);
+            if (it != macros_.end() && !it->second.isStmtMacro) {
+                const MacroDef& def = it->second;
+                
+                // 参数数量检查
+                if (call->arguments.size() == def.params.size()) {
+                    // 构建参数绑定
+                    std::unordered_map<String, Shared<Expr>> bindings;
+                    for (size_t i = 0; i < def.params.size(); i++) {
+                        bindings[def.params[i]] = call->arguments[i];
+                    }
+                    
+                    // 展开宏体
+                    Shared<Expr> expanded = substituteMacroParams(def.body, bindings);
+                    
+                    // 递归展开
+                    expanded = expandMacrosInExpr(expanded, maxDepth - 1);
+                    
+                    return expanded;
+                }
+            }
+        }
+        
+        // 不是宏调用，继续递归处理参数和被调用者
+        auto newCall = Shared<CallExpr>(new CallExpr());
+        newCall->callee = expandMacrosInExpr(call->callee, maxDepth);
+        newCall->token = call->token;
+        newCall->typeArgs = call->typeArgs;
+        for (auto& arg : call->arguments) {
+            newCall->arguments.push_back(expandMacrosInExpr(arg, maxDepth));
+        }
+        return newCall;
+    }
+    
+    // 二元表达式
+    if (auto bin = std::dynamic_pointer_cast<BinaryExpr>(expr)) {
+        auto newBin = Shared<BinaryExpr>(new BinaryExpr());
+        newBin->op = bin->op;
+        newBin->left = expandMacrosInExpr(bin->left, maxDepth);
+        newBin->right = expandMacrosInExpr(bin->right, maxDepth);
+        newBin->token = bin->token;
+        return newBin;
+    }
+    
+    // 一元表达式
+    if (auto un = std::dynamic_pointer_cast<UnaryExpr>(expr)) {
+        auto newUn = Shared<UnaryExpr>(new UnaryExpr());
+        newUn->op = un->op;
+        newUn->operand = expandMacrosInExpr(un->operand, maxDepth);
+        newUn->isPostfix = un->isPostfix;
+        newUn->token = un->token;
+        return newUn;
+    }
+    
+    // 成员访问
+    if (auto mem = std::dynamic_pointer_cast<MemberExpr>(expr)) {
+        auto newMem = Shared<MemberExpr>(new MemberExpr());
+        newMem->object = expandMacrosInExpr(mem->object, maxDepth);
+        newMem->member = mem->member;
+        newMem->token = mem->token;
+        return newMem;
+    }
+    
+    // 数组访问
+    if (auto idx = std::dynamic_pointer_cast<IndexExpr>(expr)) {
+        auto newIdx = Shared<IndexExpr>(new IndexExpr());
+        newIdx->array = expandMacrosInExpr(idx->array, maxDepth);
+        newIdx->index = expandMacrosInExpr(idx->index, maxDepth);
+        newIdx->token = idx->token;
+        return newIdx;
+    }
+    
+    // 数组字面量
+    if (auto arr = std::dynamic_pointer_cast<ArrayExpr>(expr)) {
+        auto newArr = Shared<ArrayExpr>(new ArrayExpr());
+        newArr->token = arr->token;
+        for (auto& elem : arr->elements) {
+            newArr->elements.push_back(expandMacrosInExpr(elem, maxDepth));
+        }
+        return newArr;
+    }
+    
+    // 其他类型：直接返回
+    return expr;
+}
 
 Shared<Expr> Parser::parseExpression() {
     return parseAssignment();
@@ -34,6 +351,29 @@ Shared<Expr> Parser::parseAssignment() {
 }
 
 Shared<Expr> Parser::parseTernary() {
+    // v0.8.0: 如果(条件, 真值, 假值) 三元表达式
+    if (match(TokenType::K_IF)) {
+        consume();
+        expect(TokenType::LPAREN, "Expected '(' after 如果");
+        auto cond = parseExpression();
+        expect(TokenType::COMMA, "Expected ',' after condition in 如果()");
+        auto thenExpr = parseExpression();
+        expect(TokenType::COMMA, "Expected ',' after then-expr in 如果()");
+        auto elseExpr = parseExpression();
+        expect(TokenType::RPAREN, "Expected ')' after else-expr in 如果()");
+
+        auto ternary = Shared<BinaryExpr>(new BinaryExpr());
+        ternary->left = cond;
+        ternary->op = TokenType::OP_QUESTION;
+
+        auto thenElse = Shared<BinaryExpr>(new BinaryExpr());
+        thenElse->left = thenExpr;
+        thenElse->op = TokenType::OP_QUESTION;
+        thenElse->right = elseExpr;
+        ternary->right = thenElse;
+        return ternary;
+    }
+
     auto cond = parsePipe();
     
     if (match(TokenType::OP_QUESTION)) {
@@ -74,8 +414,26 @@ Shared<Expr> Parser::parsePipe() {
     return left;
 }
 
-Shared<Expr> Parser::parseOr() {
+// ? ? 空值合并: a ?? b  =>  若 a 非 nil 则 a，否则 b
+Shared<Expr> Parser::parseNullCoalesce() {
     auto left = parseAnd();
+    
+    while (match(TokenType::OP_NULL_COALESCE)) {
+        consume();
+        auto right = parseAnd();
+        
+        auto bin = Shared<BinaryExpr>(new BinaryExpr());
+        bin->left = left;
+        bin->op = TokenType::OP_NULL_COALESCE;
+        bin->right = right;
+        left = bin;
+    }
+    
+    return left;
+}
+
+Shared<Expr> Parser::parseOr() {
+    auto left = parseNullCoalesce();
     
     while (match(TokenType::OP_OR) || match(TokenType::K_OR)) {
         TokenType op = current_.type;
@@ -169,7 +527,7 @@ Shared<Expr> Parser::parseBitAnd() {
 }
 
 Shared<Expr> Parser::parseEquality() {
-    auto left = parseComparison();
+    auto left = parseTypeTest();
     
     while (match(TokenType::OP_EQ) || match(TokenType::OP_NE) ||
            match(TokenType::K_EQ) || match(TokenType::K_NE)) {
@@ -178,13 +536,46 @@ Shared<Expr> Parser::parseEquality() {
         // 将关键词转换为运算符 token
         if (op == TokenType::K_EQ) op = TokenType::OP_EQ;
         if (op == TokenType::K_NE) op = TokenType::OP_NE;
-        auto right = parseComparison();
+        auto right = parseTypeTest();
         
         auto bin = Shared<BinaryExpr>(new BinaryExpr());
         bin->left = left;
         bin->op = op;
         bin->right = right;
         left = bin;
+    }
+    
+    return left;
+}
+
+// 类型测试：expr is Type / expr 属于 Type
+Shared<Expr> Parser::parseTypeTest() {
+    auto left = parseComparison();
+    
+    while (match(TokenType::K_IS)) {
+        consume();  // consume 'is' / '属于'
+        
+        // 右侧是类型名
+        String typeName;
+        if (match(TokenType::IDENTIFIER)) {
+            // 解析类型表达式（支持泛型、数组、可选、联合）
+            auto typeOpt = parseTypeExpr();
+            if (typeOpt.has_value()) {
+                typeName = *typeOpt;
+            } else {
+                reportError("期望类型名");
+                typeName = "?";
+            }
+        } else {
+            reportError("期望类型名");
+            typeName = "?";
+        }
+        
+        auto isExpr = Shared<IsExpr>(new IsExpr());
+        isExpr->expr = left;
+        isExpr->checkType = typeName;
+        isExpr->token = left->token;
+        left = isExpr;
     }
     
     return left;
@@ -311,6 +702,16 @@ Shared<Expr> Parser::parsePostfix() {
             member->member = memberName;
             expr = member;
         }
+        else if (match(TokenType::OP_OPTIONAL_CHAIN)) {
+            consume();
+            String memberName = current_.text;
+            expect(TokenType::IDENTIFIER, "Expected member name after '?.'");
+            auto member = Shared<MemberExpr>(new MemberExpr());
+            member->object = expr;
+            member->member = memberName;
+            member->optional = true;
+            expr = member;
+        }
         else if (match(TokenType::OP_LT)) {
             // 泛型函数调用: 函数名<类型1, 类型2>(参数...)
             // 使用 lookahead 消除与 < 比较运算符的歧义
@@ -417,25 +818,76 @@ Shared<Expr> Parser::parsePostfix() {
             }
         }
         else if (match(TokenType::LPAREN)) {
-            // 函数调用
-            consume();
-            auto call = Shared<CallExpr>(new CallExpr());
-            call->callee = expr;
-            call->token = expr->token;  // 继承被调用者的行号
-
-            if (!match(TokenType::RPAREN)) {
-                while (true) {
-                    call->arguments.push_back(parseExpression());
-                    if (match(TokenType::COMMA)) {
-                        consume();
-                    } else {
-                        break;
-                    }
+            // 先检查是否是宏调用
+            bool isMacroCall = false;
+            String macroName;
+            if (auto id = std::dynamic_pointer_cast<IdentifierExpr>(expr)) {
+                macroName = id->name;
+                auto it = macros_.find(macroName);
+                if (it != macros_.end()) {
+                    isMacroCall = true;
                 }
             }
+            
+            consume();  // consume '('
+            
+            if (isMacroCall) {
+                // 宏调用：解析参数并展开
+                auto it = macros_.find(macroName);
+                const MacroDef& def = it->second;
+                
+                std::vector<Shared<Expr>> args;
+                if (!match(TokenType::RPAREN)) {
+                    while (true) {
+                        args.push_back(parseExpression());
+                        if (match(TokenType::COMMA)) {
+                            consume();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                expect(TokenType::RPAREN, "Expected ')' after macro arguments");
+                
+                // 参数数量检查
+                if (args.size() != def.params.size()) {
+                    reportError("宏 '" + macroName + "' 期望 " + 
+                        std::to_string(def.params.size()) + " 个参数，实际 " +
+                        std::to_string(args.size()) + " 个");
+                    return expr;
+                }
+                
+                // 构建参数绑定
+                std::unordered_map<String, Shared<Expr>> bindings;
+                for (size_t i = 0; i < def.params.size(); i++) {
+                    bindings[def.params[i]] = args[i];
+                }
+                
+                // 展开宏体
+                Shared<Expr> expanded = substituteMacroParams(def.body, bindings);
+                // 递归展开：如果展开结果中还有宏调用，继续展开（带深度限制）
+                expanded = expandMacrosInExpr(expanded, 10);  // 最大递归深度10
+                expr = expanded;
+            } else {
+                // 普通函数调用
+                auto call = Shared<CallExpr>(new CallExpr());
+                call->callee = expr;
+                call->token = expr->token;  // 继承被调用者的行号
 
-            expect(TokenType::RPAREN, "Expected ')' after arguments");
-            expr = call;
+                if (!match(TokenType::RPAREN)) {
+                    while (true) {
+                        call->arguments.push_back(parseExpression());
+                        if (match(TokenType::COMMA)) {
+                            consume();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                expect(TokenType::RPAREN, "Expected ')' after arguments");
+                expr = call;
+            }
         }
         else if (match(TokenType::LBRACKET)) {
             // 数组访问
@@ -523,11 +975,17 @@ Shared<Expr> Parser::parsePrimary() {
 
     // super / 继承 — 调用父类方法
     if (match(TokenType::K_SUPER)) {
+        Token superToken = current_;
         consume();
         auto superExpr = Shared<SuperExpr>(new SuperExpr());
-        if (match(TokenType::OP_DOT)) {
-            consume();
+        superExpr->token = superToken;
+        // 强制要求 .方法名
+        expect(TokenType::OP_DOT, "super 调用需要 '.方法名'");
+        // 先保存方法名
+        if (match(TokenType::IDENTIFIER)) {
             superExpr->method = current_.text;
+            consume();
+        } else {
             expect(TokenType::IDENTIFIER, "需要父类方法名");
         }
         expect(TokenType::LPAREN, "super 调用需要 '('");
@@ -547,6 +1005,46 @@ Shared<Expr> Parser::parsePrimary() {
         auto newExpr = Shared<NewExpr>(new NewExpr());
         newExpr->className = current_.text;
         expect(TokenType::IDENTIFIER, "Expected class name after 'new'");
+        
+        // 泛型类实例化: new 类名<T, U>(args)
+        if (match(TokenType::OP_LT)) {
+            consume();  // consume '<'
+            while (!match(TokenType::OP_GT) && !match(TokenType::END_OF_FILE)) {
+                String typeArg = current_.text;
+                // 支持嵌套泛型: 列表<整数>
+                // 简单处理：读取标识符，如果后面有 '<' 则递归解析
+                expect(TokenType::IDENTIFIER, "Expected type argument name");
+                // 检查是否有嵌套泛型
+                if (match(TokenType::OP_LT)) {
+                    // 简单处理：收集到匹配的 '>'
+                    int depth = 1;
+                    String nested = typeArg + "<";
+                    while (depth > 0 && !match(TokenType::END_OF_FILE)) {
+                        if (match(TokenType::OP_LT)) {
+                            depth++;
+                            nested += "<";
+                            consume();
+                        } else if (match(TokenType::OP_GT)) {
+                            depth--;
+                            nested += ">";
+                            consume();
+                        } else {
+                            nested += current_.text;
+                            consume();
+                        }
+                    }
+                    typeArg = nested;
+                }
+                newExpr->typeArgs.push_back(typeArg);
+                if (match(TokenType::COMMA)) {
+                    consume();
+                } else {
+                    break;
+                }
+            }
+            expect(TokenType::OP_GT, "Expected '>' after generic type arguments");
+        }
+        
         expect(TokenType::LPAREN, "Expected '(' after class name");
         
         if (!match(TokenType::RPAREN)) {
@@ -582,7 +1080,7 @@ Shared<Expr> Parser::parsePrimary() {
     if (match(TokenType::K_NULL)) {
         consume();
         auto lit = Shared<LiteralExpr>(new LiteralExpr());
-        lit->value = String("null");
+        lit->value = std::monostate{};  // 使用 monostate 表示 null
         return lit;
     }
     
@@ -592,7 +1090,14 @@ Shared<Expr> Parser::parsePrimary() {
         auto arr = Shared<ArrayExpr>(new ArrayExpr());
         if (!match(TokenType::RBRACKET)) {
             while (true) {
-                arr->elements.push_back(parseExpression());
+                if (match(TokenType::OP_SPREAD)) {
+                    consume();
+                    auto spread = Shared<SpreadExpr>(new SpreadExpr());
+                    spread->array = parseExpression();
+                    arr->elements.push_back(spread);
+                } else {
+                    arr->elements.push_back(parseExpression());
+                }
                 if (match(TokenType::COMMA)) {
                     consume();
                 } else {
