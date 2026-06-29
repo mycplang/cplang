@@ -517,9 +517,13 @@ int main(int argc, char* argv[]) {
     
     if (mode == "build" && argc >= 3) {
         const char* outFile = argc > 4 ? argv[4] : nullptr;
-        Compiler compiler;
+        VM* vm = new VM();
+        Compiler compiler(vm);
+        StdLib::registerAll(vm);
+        compiler.setOptLevel(OptLevel::O2);
+        compiler.setEnableBytecodeOpt(true);
         auto* modFunc = compiler.compileFile(argv[2]);
-        if (compiler.hasError()) { std::cerr << compiler.errorMessage() << "\n"; return 1; }
+        if (compiler.hasError()) { std::cerr << compiler.errorMessage() << "\n"; delete vm; return 1; }
         char selfPath[MAX_PATH]; GetModuleFileNameA(NULL, selfPath, MAX_PATH);
         std::string out = outFile ? outFile : "a.exe";
         std::ifstream src(selfPath, std::ios::binary);
@@ -534,6 +538,7 @@ int main(int argc, char* argv[]) {
         dst.write((char*)modFunc->code.data(), cs);
         dst.close();
         std::cout << "Built: " << out << " (" << cs << "B)\n";
+        delete vm;
         return 0;
     }
     
