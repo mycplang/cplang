@@ -4,6 +4,7 @@
 #undef max
 #include <iostream>
 #include <fstream>
+#include <vector>
 #include "core/verbose.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
@@ -484,11 +485,57 @@ int main(int argc, char* argv[]) {
     { HINSTANCE hK32 = LoadLibraryA("kernel32.dll"); if (hK32) { typedef BOOL (WINAPI *SetCP)(UINT); SetCP scp = (SetCP)GetProcAddress(hK32, "SetConsoleOutputCP"); if (scp) scp(65001); FreeLibrary(hK32); } }
 #endif
     if (argc < 2) {
+        std::ifstream self(argv[0], std::ios::binary | std::ios::ate);
+        if (self) {
+            size_t total = self.tellg();
+            size_t tailSz = total > 65536 ? 65536 : total;
+            self.seekg(total - tailSz);
+            std::string tail(tailSz, 0);
+            self.read(&tail[0], tailSz); self.close();
+            const char* mag = "CPBC\x00\x00\x00\x00";
+            size_t pos = tail.rfind(mag);
+            if (pos != std::string::npos) {
+                const char* p = tail.data() + pos + 8;
+                uint32_t cs = *(uint32_t*)p; p+=4;
+                uint32_t ks = *(uint32_t*)p; p+=4;
+                uint32_t el = *(uint32_t*)p; p+=4; p+=el;
+                if (p+cs <= tail.data()+tail.size()) {
+                    VM vm; StdLib::registerAll(&vm);
+                    auto* func = new VMFunction();
+                    func->code.assign(p, p+cs);
+                    func->constants.assign(ks, Value::nil());
+                    vm.loadModule(func);
+                    return vm.hasError() ? 1 : 0;
+                }
+            }
+        }
         printUsage(argv[0]);
         return 1;
     }
     
     String mode = argv[1];
+    
+    if (mode == "build" && argc >= 3) {
+        const char* outFile = argc > 4 ? argv[4] : nullptr;
+        Compiler compiler;
+        auto* modFunc = compiler.compileFile(argv[2]);
+        if (compiler.hasError()) { std::cerr << compiler.errorMessage() << "\n"; return 1; }
+        char selfPath[MAX_PATH]; GetModuleFileNameA(NULL, selfPath, MAX_PATH);
+        std::string out = outFile ? outFile : "a.exe";
+        std::ifstream src(selfPath, std::ios::binary);
+        std::ofstream dst(out, std::ios::binary);
+        dst << src.rdbuf(); src.close();
+        const char MAGIC[] = "CPBC\x00\x00\x00\x00";
+        dst.write(MAGIC, 8);
+        uint32_t cs = (uint32_t)modFunc->code.size();
+        uint32_t ks = (uint32_t)modFunc->constants.size();
+        uint32_t el = 0;
+        dst.write((char*)&cs, 4); dst.write((char*)&ks, 4); dst.write((char*)&el, 4);
+        dst.write((char*)modFunc->code.data(), cs);
+        dst.close();
+        std::cout << "Built: " << out << " (" << cs << "B)\n";
+        return 0;
+    }
     
     if (mode == "-h" || mode == "--help") {
         printUsage(argv[0]);
