@@ -72,6 +72,10 @@ public:
     Value debugGetVariable(const std::string& name) const;
 
     std::vector<std::string> getGlobalSlotNames() const;
+    void refreshGlobalSlots();
+    void prepareSlot(const std::string& name, UInt16 slot);
+    size_t getSlotCount() const { return globalNameToSlot_.size(); }
+    const auto& getSlotMap() const { return globalNameToSlot_; }
 
     bool doImport(const std::string& filename);
     void setLastImportedFunc(VMFunction* f) { lastImportedFunc_ = f; }

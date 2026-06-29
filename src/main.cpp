@@ -500,11 +500,30 @@ int main(int argc, char* argv[]) {
                 uint32_t ks = *(uint32_t*)p; p+=4;
                 uint32_t el = *(uint32_t*)p; p+=4; p+=el;
                 if (p+cs <= tail.data()+tail.size()) {
-                    VM vm; StdLib::registerAll(&vm);
+                    VM vm;
                     auto* func = new VMFunction();
-                    func->code.assign(p, p+cs);
-                    func->constants.assign(ks, Value::nil());
+                    func->code.assign(p, p + cs);
+                    const uint8_t* cp = (const uint8_t*)p + cs;
+                    for (uint32_t i = 0; i < ks; i++) {
+                        uint64_t raw; memcpy(&raw, cp + i*8, 8);
+                        func->constants.push_back(Value(raw));
+                    }
+                    const uint8_t* sp = cp + ks * 8;
+                    uint32_t sc = 0;
+                    if (sp + 4 <= (const uint8_t*)tail.data()+tail.size()) sc = *(uint32_t*)sp; sp += 4;
+                    for (uint32_t i = 0; i < sc; i++) {
+                        uint32_t nl = *(uint32_t*)sp; sp += 4;
+                        std::string nm((const char*)sp, nl); sp += nl;
+                        uint32_t ss = *(uint32_t*)sp; sp += 4;
+                        vm.prepareSlot(nm, (UInt16)ss);
+                    }
+                    StdLib::registerAll(&vm);
+                    vm.refreshGlobalSlots();
+                    func->maxStack = 256;
                     vm.loadModule(func);
+                    std::vector<Value> args;
+                    Value funcVal = makeFunctionVal(func);
+                    vm.callFunction(funcVal, args);
                     return vm.hasError() ? 1 : 0;
                 }
             }
@@ -536,6 +555,14 @@ int main(int argc, char* argv[]) {
         uint32_t el = 0;
         dst.write((char*)&cs, 4); dst.write((char*)&ks, 4); dst.write((char*)&el, 4);
         dst.write((char*)modFunc->code.data(), cs);
+        for (auto& v : modFunc->constants) { uint64_t raw = v.raw(); dst.write((char*)&raw, 8); }
+        uint32_t sc = (uint32_t)vm->getSlotCount();
+        dst.write((char*)&sc, 4);
+        for (auto& kv : vm->getSlotMap()) {
+            uint32_t nl = (uint32_t)kv.first.size(); dst.write((char*)&nl, 4);
+            dst.write(kv.first.data(), nl);
+            uint32_t ss = (uint32_t)kv.second; dst.write((char*)&ss, 4);
+        }
         dst.close();
         std::cout << "Built: " << out << " (" << cs << "B)\n";
         delete vm;

@@ -116,6 +116,21 @@ Value* VM::getGlobalBySlot(UInt16 slot) {
     return nullptr;
 }
 
+void VM::refreshGlobalSlots() {
+    for (auto& [name, slot] : globalNameToSlot_) {
+        auto it = globals_.find(name);
+        if (it != globals_.end() && slot < globalSlots_.size()) {
+            globalSlots_[slot] = it->second;
+        }
+    }
+}
+
+void VM::prepareSlot(const std::string& name, UInt16 slot) {
+    globalNameToSlot_[name] = slot;
+    if (slot >= globalSlots_.size()) globalSlots_.resize(slot + 1);
+    globalSlots_[slot] = Value::nil();
+}
+
 void VM::registerNative(const char* name, VMNativeFunc::Fn fn) {
     VMNativeFunc* nf = new VMNativeFunc();
     nf->fn = fn;
