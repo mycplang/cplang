@@ -726,7 +726,12 @@ case OP_CALLMETHOD: {
 
 
 
-                    break;
+                    
+                    // nil-fill unused params for default support
+                    for (UInt32 p = argc; p < func->numParams; p++) {
+                        base[p] = Value::nil();
+                    }
+break;
                 } else if (callee.isClosure()) {
                     VMClosure* cl = callee.asPtr() ? static_cast<VMClosure*>(callee.asPtr()) : nullptr;
                     if (!cl) { RA(a) = Value::nil(); ctx->pc += 3; break; }
